@@ -1,0 +1,401 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// ACADEMIC TERM
+// ─────────────────────────────────────────
+
+model Term {
+  id        String   @id @default(cuid())
+  name      String   // "First Term", "Second Term", "Third Term"
+  year      Int      // 2025
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean  @default(false)
+
+  attendances        Attendance[]
+  teacherAttendances TeacherAttendance[]
+  results            Result[]
+  feePayments        FeePayment[]
+  feeStructures      FeeStructure[]
+
+  @@unique([name, year])
+  @@map("terms")
+}
+
+// ─────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  phone        String   @unique
+  email        String?
+  password     String
+  firstName    String
+  lastName     String
+  role         Role
+  photo        String?
+  isActive     Boolean  @default(true)
+  refreshToken String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teacherProfile     Teacher?
+  parentProfile      Parent?
+  permissionRequests PermissionRequest[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN   // school admin — full access
+  TEACHER // class + subject teacher
+  PARENT  // read-only portal
+}
+
+// ─────────────────────────────────────────
+// TEACHER
+// ─────────────────────────────────────────
+
+model Teacher {
+  id            String  @id @default(cuid())
+  userId        String  @unique
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffId       String?
+  qualification String?
+
+  classTeacherOf  Class?             @relation("ClassTeacher")
+  subjectTeachers SubjectTeacher[]
+  attendances     TeacherAttendance[]
+
+  @@map("teachers")
+}
+
+// ─────────────────────────────────────────
+// PARENT
+// ─────────────────────────────────────────
+
+model Parent {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  children Student[]
+
+  @@map("parents")
+}
+
+// ─────────────────────────────────────────
+// STUDENT
+// ─────────────────────────────────────────
+
+model Student {
+  id          String    @id @default(cuid())
+  studentId   String    @unique // School-issued ID e.g. STM-2025-001
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime?
+  gender      Gender
+  photo       String?
+  address     String?
+  isActive    Boolean   @default(true)
+  enrolledAt  DateTime  @default(now())
+
+  classId String?
+  class   Class?  @relation(fields: [classId], references: [id])
+
+  parentId String?
+  parent   Parent? @relation(fields: [parentId], references: [id])
+
+  attendances Attendance[]
+  results     Result[]
+  feePayments FeePayment[]
+
+  @@map("students")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+// ─────────────────────────────────────────
+// CLASS
+// ─────────────────────────────────────────
+
+model Class {
+  id      String     @id @default(cuid())
+  name    String     // display name e.g. "Basic 4A"
+  level   ClassLevel
+  section String?    // "A", "B"
+
+  classTeacherId String?  @unique
+  classTeacher   Teacher? @relation("ClassTeacher", fields: [classTeacherId], references: [id])
+
+  students        Student[]
+  subjectTeachers SubjectTeacher[]
+  timetables      Timetable[]
+
+  @@unique([level, section])
+  @@map("classes")
+}
+
+enum ClassLevel {
+  NURSERY_1
+  NURSERY_2
+  KG_1
+  KG_2
+  BASIC_1
+  BASIC_2
+  BASIC_3
+  BASIC_4
+  BASIC_5
+  BASIC_6
+  JHS_1
+  JHS_2
+  JHS_3
+}
+
+// ─────────────────────────────────────────
+// SUBJECT
+// ─────────────────────────────────────────
+
+model Subject {
+  id   String  @id @default(cuid())
+  name String  @unique // "Mathematics"
+  code String? // "MATH"
+
+  subjectTeachers SubjectTeacher[]
+  results         Result[]
+  timetables      Timetable[]
+
+  @@map("subjects")
+}
+
+// ─────────────────────────────────────────
+// SUBJECT TEACHER (who teaches what to whom)
+// ─────────────────────────────────────────
+
+model SubjectTeacher {
+  id        String  @id @default(cuid())
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id])
+  classId   String
+  class     Class   @relation(fields: [classId], references: [id])
+
+  @@unique([teacherId, subjectId, classId])
+  @@map("subject_teachers")
+}
+
+// ─────────────────────────────────────────
+// STUDENT ATTENDANCE
+// ─────────────────────────────────────────
+
+model Attendance {
+  id     String           @id @default(cuid())
+  date   DateTime         @db.Date
+  status AttendanceStatus
+  note   String?
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  termId String
+  term   Term   @relation(fields: [termId], references: [id])
+
+  @@unique([studentId, date])
+  @@map("attendance")
+}
+
+// ─────────────────────────────────────────
+// TEACHER ATTENDANCE (auto-tracked on login)
+// ─────────────────────────────────────────
+
+model TeacherAttendance {
+  id       String           @id @default(cuid())
+  date     DateTime         @db.Date
+  status   AttendanceStatus
+  checkIn  DateTime?
+  checkOut DateTime?
+  note     String?
+
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
+
+  termId String
+  term   Term   @relation(fields: [termId], references: [id])
+
+  @@unique([teacherId, date])
+  @@map("teacher_attendance")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+// ─────────────────────────────────────────
+// RESULTS / GRADES
+// ─────────────────────────────────────────
+
+model Result {
+  id         String  @id @default(cuid())
+  classScore Float?  // out of 30
+  examScore  Float?  // out of 70
+  totalScore Float?  // computed: classScore + examScore
+  grade      String? // A1, B2 … F9
+  position   Int?    // rank in class for this subject
+  remarks    String?
+  isPromoted Boolean?
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id])
+
+  termId String
+  term   Term   @relation(fields: [termId], references: [id])
+
+  @@unique([studentId, subjectId, termId])
+  @@map("results")
+}
+
+// ─────────────────────────────────────────
+// FEE STRUCTURE
+// ─────────────────────────────────────────
+
+model FeeStructure {
+  id         String     @id @default(cuid())
+  name       String     // "Basic 1-3 Fees"
+  amount     Float      // GHS
+  classLevel ClassLevel?
+
+  termId String?
+  term   Term?   @relation(fields: [termId], references: [id])
+
+  feePayments FeePayment[]
+
+  @@map("fee_structures")
+}
+
+// ─────────────────────────────────────────
+// FEE PAYMENT
+// ─────────────────────────────────────────
+
+model FeePayment {
+  id            String        @id @default(cuid())
+  amountPaid    Float
+  paymentStatus PaymentStatus
+  paymentMethod String?       // "cash", "momo", "bank"
+  receiptNumber String?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  feeStructureId String
+  feeStructure   FeeStructure @relation(fields: [feeStructureId], references: [id])
+
+  termId String
+  term   Term   @relation(fields: [termId], references: [id])
+
+  @@map("fee_payments")
+}
+
+enum PaymentStatus {
+  FULLY_PAID
+  HALF_PAID
+  PARTIAL
+  UNPAID
+}
+
+// ─────────────────────────────────────────
+// PERMISSION REQUESTS (teacher leave)
+// ─────────────────────────────────────────
+
+model PermissionRequest {
+  id        String         @id @default(cuid())
+  type      PermissionType
+  reason    String
+  startDate DateTime
+  endDate   DateTime
+  status    RequestStatus  @default(PENDING)
+  adminNote String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("permission_requests")
+}
+
+enum PermissionType {
+  SICK_LEAVE
+  PERSONAL_LEAVE
+  MATERNITY_LEAVE
+  PATERNITY_LEAVE
+  STUDY_LEAVE
+  OTHER
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ─────────────────────────────────────────
+// ANNOUNCEMENTS
+// ─────────────────────────────────────────
+
+model Announcement {
+  id        String               @id @default(cuid())
+  title     String
+  body      String
+  audience  AnnouncementAudience @default(ALL)
+  classId   String?              // populated when audience = SPECIFIC_CLASS
+  createdAt DateTime             @default(now())
+
+  @@map("announcements")
+}
+
+enum AnnouncementAudience {
+  ALL
+  TEACHERS
+  PARENTS
+  SPECIFIC_CLASS
+}
+
+// ─────────────────────────────────────────
+// TIMETABLE
+// ─────────────────────────────────────────
+
+model Timetable {
+  id        String @id @default(cuid())
+  dayOfWeek Int    // 1=Mon … 5=Fri
+  startTime String // "08:00"
+  endTime   String // "09:00"
+
+  classId String
+  class   Class   @relation(fields: [classId], references: [id])
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id])
+
+  @@unique([classId, dayOfWeek, startTime])
+  @@map("timetable")
+}
