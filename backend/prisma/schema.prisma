@@ -61,6 +61,24 @@ enum Role {
 }
 
 // ─────────────────────────────────────────
+// TEACHER INVITATION (for onboarding)
+// ─────────────────────────────────────────
+
+model TeacherInvitation {
+  id           String    @id @default(cuid())
+  staffId      String    @unique  // e.g., "JK-12345"
+  phone        String    @unique
+  inviteCode   String    // 6-digit code sent via SMS
+  codeExpiry   DateTime
+  accepted     Boolean   @default(false)
+  acceptedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  createdBy    String    // Admin user ID
+
+  @@map("teacher_invitations")
+}
+
+// ─────────────────────────────────────────
 // TEACHER
 // ─────────────────────────────────────────
 
@@ -68,7 +86,7 @@ model Teacher {
   id            String  @id @default(cuid())
   userId        String  @unique
   user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  staffId       String?
+  staffId       String  @unique  // e.g., "JK-12345"
   qualification String?
 
   classTeacherOf  Class?             @relation("ClassTeacher")
@@ -76,6 +94,22 @@ model Teacher {
   attendances     TeacherAttendance[]
 
   @@map("teachers")
+}
+
+// ─────────────────────────────────────────
+// OTP LOG (for password reset)
+// ─────────────────────────────────────────
+
+model OTPLog {
+  id       String    @id @default(cuid())
+  phone    String
+  code     String    // 6-digit OTP
+  attempted Int       @default(0)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  @@index([phone, expiresAt])
+  @@map("otp_logs")
 }
 
 // ─────────────────────────────────────────

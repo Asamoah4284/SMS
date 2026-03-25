@@ -12,10 +12,10 @@ function authenticate(req, res, next) {
   const token = authHeader.split(' ')[1];
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
     req.user = {
-      id: payload.sub,
-      schoolId: payload.schoolId,
+      id: payload.id,
+      phone: payload.phone,
       role: payload.role,
     };
     next();
@@ -29,7 +29,7 @@ function authenticate(req, res, next) {
 
 /**
  * Restrict access to specific roles.
- * Usage: authorize('SCHOOL_ADMIN', 'SUPER_ADMIN')
+ * Usage: authorize('ADMIN', 'TEACHER')
  */
 function authorize(...roles) {
   return (req, res, next) => {

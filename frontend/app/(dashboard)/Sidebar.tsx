@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { 
   Users, 
   GraduationCap, 
@@ -17,6 +18,15 @@ import {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleSignOut = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    document.cookie = 'accessToken=; path=/; max-age=0; samesite=lax';
+    router.push('/login');
+  };
 
   const managementItems = [
     { name: "Students", href: "/students", icon: Users },
@@ -52,9 +62,9 @@ export default function Sidebar() {
           {/* Dashboard Home */}
           <div className="px-2 mb-1">
             <Link 
-              href="/"
+              href="/overview"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all duration-200 ${
-                pathname === "/" ? "bg-black text-white shadow-md shadow-gray-200" : "text-gray-600 hover:bg-gray-100 hover:text-black"
+                pathname === "/overview" ? "bg-black text-white shadow-md shadow-gray-200" : "text-gray-600 hover:bg-gray-100 hover:text-black"
               }`}
             >
               <BarChart className="w-5 h-5" />
@@ -110,10 +120,10 @@ export default function Sidebar() {
       </div>
 
       <div className="p-4 border-t border-gray-100 shrink-0">
-        <Link href="/login" className="flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-red-600 hover:bg-red-50 transition-colors w-full">
+        <button onClick={handleSignOut} className="flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-red-600 hover:bg-red-50 transition-colors w-full">
            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-log-out"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
            Sign Out
-        </Link>
+        </button>
       </div>
     </aside>
   );
