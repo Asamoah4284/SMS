@@ -1,28 +1,39 @@
-import Sidebar from "./Sidebar";
-import Link from "next/link";
-import { Bell, Search } from "lucide-react";
+'use client';
+
+import Sidebar from './Sidebar';
+import { useState } from 'react';
+import { Bell, Menu } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden font-sans">
-      <Sidebar />
+    <div className="flex h-screen bg-gray-50 overflow-hidden font-sans relative">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          className="fixed inset-0 bg-black/30 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col h-screen min-w-0">
         {/* Top bar */}
-        <header className="bg-white border-b border-gray-200 h-20 flex items-center justify-between px-8 shrink-0 z-10 w-full relative">
-          <div className="flex items-center gap-4 w-96">
-            {/* Search Bar Placeholder */}
-            <div className="relative w-full">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                className="pl-10 pr-4 py-2 w-full border-none bg-gray-100 rounded-full text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-gray-900 placeholder:text-gray-500"
-                placeholder="Search students, classes..."
-              />
-            </div>
+        <header className="bg-white border-b border-gray-200 h-16 md:h-20 flex items-center justify-between px-4 md:px-8 shrink-0 z-10 w-full relative">
+          <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+            <button
+              type="button"
+              aria-label="Open sidebar"
+              className="md:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-600"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="w-5 h-5" />
+            </button>
           </div>
           
           <div className="flex items-center gap-6">

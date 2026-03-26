@@ -18,6 +18,7 @@ import {
   Library,
   ChevronRight,
   LogOut,
+  X,
 } from "lucide-react";
 
 type NavChild = {
@@ -32,7 +33,12 @@ type NavItem = {
   children?: NavChild[];
 };
 
-export default function Sidebar() {
+type SidebarProps = {
+  isOpen?: boolean;
+  onClose?: () => void;
+};
+
+export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -41,6 +47,7 @@ export default function Sidebar() {
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     document.cookie = 'accessToken=; path=/; max-age=0; samesite=lax';
+    onClose?.();
     router.push('/login');
   };
 
@@ -103,9 +110,16 @@ export default function Sidebar() {
   }, [navItems, pathname]);
 
   return (
-    <aside className="w-72 bg-white border-r border-gray-200 flex-shrink-0 flex flex-col h-full shadow-sm relative z-10">
+    <aside
+      className={[
+        "w-72 bg-white border-r border-gray-200 flex flex-col h-full shadow-sm z-40",
+        "fixed inset-y-0 left-0 md:static md:inset-auto",
+        "transition-transform duration-200 ease-out",
+        isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+      ].join(" ")}
+    >
       {/* Brand area */}
-      <div className="p-5 border-b border-gray-100 flex items-center shrink-0">
+      <div className="p-5 border-b border-gray-100 flex items-center justify-between shrink-0">
         <Link href="/" className="flex items-center gap-3 outline-none focus:ring-2 focus:ring-blue-500 rounded px-1 transition-opacity hover:opacity-80">
           <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
             <span className="text-white font-bold text-base tracking-tight">E</span>
@@ -114,6 +128,14 @@ export default function Sidebar() {
             EduTrack <span className="text-blue-600">SMS</span>
           </h1>
         </Link>
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          className="md:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-600"
+          onClick={() => onClose?.()}
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Navigation scroll area */}
@@ -187,6 +209,7 @@ export default function Sidebar() {
                                 <li key={child.href}>
                                   <Link
                                     href={child.href}
+                                    onClick={() => onClose?.()}
                                     className={[
                                       "group flex items-center gap-3 rounded-lg py-2 pr-2 text-sm",
                                       childActive
@@ -214,6 +237,7 @@ export default function Sidebar() {
                   ) : (
                     <Link
                       href={item.href ?? "#"}
+                      onClick={() => onClose?.()}
                       className={[
                         "group flex items-center rounded-xl px-4 py-2.5 transition-colors",
                         isActive ? "text-gray-900 bg-gray-50" : "text-gray-700 hover:bg-gray-50",
