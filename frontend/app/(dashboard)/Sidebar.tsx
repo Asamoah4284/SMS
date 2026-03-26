@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import {
@@ -60,8 +60,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         children: [
           { name: "Add New Student", href: "/students/new" },
           { name: "Student List", href: "/students" },
-          { name: "Suspend Student", href: "/students/suspend" },
-          { name: "Student Categories", href: "/students/categories" },
         ],
       },
       {
@@ -93,20 +91,16 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   );
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    // Auto-open the section that matches the current route.
-    setOpenSections((prev) => {
-      const next = { ...prev };
-      for (const item of navItems) {
-        if (!item.children || item.children.length === 0) continue;
-        const isInSection = item.children.some(
-          (c) => pathname === c.href || pathname.startsWith(`${c.href}/`)
-        );
-        if (isInSection) next[item.name] = true;
-      }
-      return next;
-    });
+  const routeOpenSections = useMemo(() => {
+    const forced = new Set<string>();
+    for (const item of navItems) {
+      if (!item.children || item.children.length === 0) continue;
+      const isInSection = item.children.some(
+        (c) => pathname === c.href || pathname.startsWith(`${c.href}/`),
+      );
+      if (isInSection) forced.add(item.name);
+    }
+    return forced;
   }, [navItems, pathname]);
 
   return (
@@ -152,7 +146,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 ? pathname === item.href || pathname.startsWith(`${item.href}/`)
                 : false;
               const isActive = Boolean(isSelfActive || isChildActive);
-              const isOpen = Boolean(openSections[item.name]);
+              const isOpen = Boolean(openSections[item.name] || routeOpenSections.has(item.name));
 
               return (
                 <li key={item.href ?? item.name}>

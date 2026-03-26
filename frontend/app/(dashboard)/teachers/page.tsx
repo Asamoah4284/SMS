@@ -4,12 +4,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   Button, Modal, Input, Alert,
-  Badge, SkeletonTable, PageHeader,
+  SkeletonTable, PageHeader,
 } from '@/components/ui';
 import {
   UserPlus, GraduationCap, Phone, Hash,
   CheckCircle2, Clock, Upload, Download,
-  AlertTriangle, ChevronRight, BookOpen,
+  AlertTriangle, BookOpen,
 } from 'lucide-react';
 
 interface Teacher {
@@ -75,7 +75,7 @@ export default function TeachersPage() {
   const closeInvite = () => { setInviteOpen(false); setInviteResult(null); };
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto animate-fade-in">
+    <div className="p-6 max-w-[1600px] mx-auto animate-fade-in">
       <PageHeader
         title="Teachers"
         subtitle={loading ? '' : `${teachers.length} staff member${teachers.length !== 1 ? 's' : ''}`}
@@ -84,9 +84,9 @@ export default function TeachersPage() {
             <Button variant="secondary" icon={<Upload className="w-4 h-4" />} onClick={() => setBulkOpen(true)}>
               Bulk Import
             </Button>
-            <Button icon={<UserPlus className="w-4 h-4" />} onClick={() => setInviteOpen(true)}>
-              Invite Teacher
-            </Button>
+          <Button icon={<UserPlus className="w-4 h-4" />} onClick={() => setInviteOpen(true)}>
+            Invite Teacher
+          </Button>
           </div>
         }
       />
@@ -98,7 +98,17 @@ export default function TeachersPage() {
       ) : teachers.length === 0 ? (
         <EmptyState onInvite={() => setInviteOpen(true)} />
       ) : (
+        <>
+          <div className="md:hidden space-y-3">
+            {teachers.map((t) => (
+              <TeacherCard key={t.id} teacher={t} />
+            ))}
+          </div>
+
+          <div className="hidden md:block">
         <TeachersTable teachers={teachers} />
+          </div>
+        </>
       )}
 
       <Modal isOpen={inviteOpen} onClose={closeInvite} title={inviteResult ? 'Invitation Sent!' : 'Invite Teacher'} size="sm">
@@ -120,8 +130,8 @@ export default function TeachersPage() {
 
 function TeachersTable({ teachers }: { teachers: Teacher[] }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-[var(--shadow-card)]">
-      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-5 py-2.5 bg-white border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
         <span>Teacher</span>
         <span>Staff ID</span>
         <span className="hidden md:block">Phone</span>
@@ -145,14 +155,14 @@ function TeacherRow({ teacher }: { teacher: Teacher }) {
   return (
     <Link
       href={`/teachers/${teacher.id}`}
-      className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-6 py-4 hover:bg-gray-50 transition-colors group"
+      className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-5 py-3 hover:bg-gray-50/60 transition-colors"
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
+        <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
           {initials}
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-gray-900 truncate group-hover:text-primary-700 transition-colors">{fullName || '—'}</p>
+          <p className="font-semibold text-gray-900 truncate">{fullName || '—'}</p>
           {teacher.qualification && (
             <p className="text-xs text-gray-500 truncate">{teacher.qualification}</p>
           )}
@@ -171,7 +181,7 @@ function TeacherRow({ teacher }: { teacher: Teacher }) {
 
       <div className="hidden lg:block text-sm text-gray-600 truncate">
         {teacher.classTeacherOf ? (
-          <span className="font-semibold text-primary-700">{teacher.classTeacherOf.name}</span>
+          <span className="font-medium text-gray-700">{teacher.classTeacherOf.name}</span>
         ) : (
           <span className="text-gray-400 italic text-xs">Not assigned</span>
         )}
@@ -187,11 +197,83 @@ function TeacherRow({ teacher }: { teacher: Teacher }) {
 
       <div className="flex items-center justify-end gap-2">
         {teacher.user.isActive ? (
-          <Badge variant="success"><CheckCircle2 className="w-3 h-3 mr-1" /> Active</Badge>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 px-2 py-1 text-[11px] font-semibold">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Active
+          </span>
         ) : (
-          <Badge variant="warning"><Clock className="w-3 h-3 mr-1" /> Pending</Badge>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 px-2 py-1 text-[11px] font-semibold">
+            <Clock className="w-3.5 h-3.5" /> Pending
+          </span>
         )}
-        <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+      </div>
+    </Link>
+  );
+}
+
+function TeacherCard({ teacher }: { teacher: Teacher }) {
+  const fullName = `${teacher.user.firstName} ${teacher.user.lastName}`.trim();
+  const initials = `${teacher.user.firstName[0] ?? ''}${teacher.user.lastName[0] ?? ''}`.toUpperCase();
+
+  return (
+    <Link
+      href={`/teachers/${teacher.id}`}
+      className="block bg-white border border-gray-200 rounded-2xl p-4"
+    >
+      <div className="flex items-start gap-3">
+        <div className="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-base font-bold text-gray-700 shrink-0">
+          {initials}
+        </div>
+
+        <div className="min-w-0 flex-1 flex flex-col">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-gray-900 truncate">{fullName || '—'}</p>
+              <div className="mt-1 space-y-0.5">
+                <p className="text-[11px] font-semibold text-gray-500 truncate">
+                  <span className="text-gray-400 uppercase tracking-wider">ID:</span>{' '}
+                  <span className="font-mono text-gray-600">{teacher.staffId}</span>
+                </p>
+                <p className="text-[11px] font-semibold text-gray-500 truncate">
+                  <span className="text-gray-400 uppercase tracking-wider">Phone:</span>{' '}
+                  <span className="text-gray-600">{teacher.user.phone}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-0.5">
+              {teacher.user.isActive ? (
+                <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-1 text-[11px] font-semibold shrink-0">
+                  Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 px-2 py-1 text-[11px] font-semibold shrink-0">
+                  Pending
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-[11px]">
+            <div className="min-w-0">
+              <p className="text-gray-400 font-semibold uppercase tracking-wider">Class</p>
+              <p className="text-gray-700 font-semibold truncate">
+                {teacher.classTeacherOf?.name ?? 'Not assigned'}
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-gray-400 font-semibold uppercase tracking-wider">Subjects</p>
+              <p className="text-gray-700 font-semibold">
+                {teacher.subjectCount > 0 ? `${teacher.subjectCount}` : '—'}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center justify-end">
+            <span className="inline-flex items-center justify-center rounded-lg bg-gray-100 text-gray-700 px-3 py-2 text-xs font-semibold">
+              View
+            </span>
+          </div>
+        </div>
       </div>
     </Link>
   );
@@ -532,7 +614,7 @@ function EmptyState({ onInvite }: { onInvite: () => void }) {
       </div>
       <h3 className="text-xl font-bold text-gray-900 mb-2">No teachers yet</h3>
       <p className="text-gray-500 max-w-sm mb-6">
-        Invite your first teacher. They'll receive an SMS with their Staff ID and a code to set up their account.
+        Invite your first teacher. They&apos;ll receive an SMS with their Staff ID and a code to set up their account.
       </p>
       <Button icon={<UserPlus className="w-4 h-4" />} onClick={onInvite}>Invite First Teacher</Button>
     </div>

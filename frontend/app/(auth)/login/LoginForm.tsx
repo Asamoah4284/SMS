@@ -55,7 +55,7 @@ export default function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       {error && (
         <Alert type="error" message={error} dismissible onDismiss={() => setError('')} />
       )}
@@ -80,19 +80,19 @@ export default function LoginForm() {
       <Button
         type="submit"
         loading={loading}
-        className="w-full mt-2"
+        className="w-full mt-1"
       >
         Sign In
       </Button>
 
-      <div className="flex flex-col gap-3 pt-2 text-center text-sm">
+      <div className="flex flex-col gap-2.5 pt-2 text-center text-sm">
         <Link
           href="/forgot-password"
           className="text-primary-600 hover:underline font-medium"
         >
           Forgot password?
         </Link>
-        <p className="text-gray-600">
+        <p className="text-gray-500">
           New teacher?{' '}
           <Link href="/invite" className="text-primary-600 hover:underline font-medium">
             Use invitation code
