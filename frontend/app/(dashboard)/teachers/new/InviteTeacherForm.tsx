@@ -22,6 +22,7 @@ export default function InviteTeacherForm() {
   const [classId, setClassId] = useState('');
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(false);
+  const [classesError, setClassesError] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -30,11 +31,15 @@ export default function InviteTeacherForm() {
   useEffect(() => {
     if (!isClassTeacher || classes.length > 0) return;
     setLoadingClasses(true);
+    setClassesError('');
     const token = localStorage.getItem('accessToken');
     fetch(`${apiBaseUrl}/classes?limit=100`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Failed to load classes (${r.status}). Please try again.`);
+        return r.json();
+      })
       .then((d) => {
         setClasses(
           (d.classes ?? []).map((c: { id: string; name: string; classTeacher: unknown }) => ({
@@ -44,7 +49,9 @@ export default function InviteTeacherForm() {
           }))
         );
       })
-      .catch(() => {})
+      .catch((err: unknown) => {
+        setClassesError(err instanceof Error ? err.message : 'Failed to load classes');
+      })
       .finally(() => setLoadingClasses(false));
   }, [apiBaseUrl, isClassTeacher, classes.length]);
 
@@ -178,6 +185,7 @@ export default function InviteTeacherForm() {
             onClick={() => {
               setIsClassTeacher(!isClassTeacher);
               setClassId('');
+              setClassesError('');
             }}
             className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
               isClassTeacher ? 'bg-primary-600' : 'bg-gray-200'
@@ -195,6 +203,10 @@ export default function InviteTeacherForm() {
           <div>
             {loadingClasses ? (
               <p className="text-sm text-gray-400">Loading classes...</p>
+            ) : classesError ? (
+              <p className="text-sm text-error-700 bg-error-50 rounded-lg px-3 py-2">
+                {classesError}
+              </p>
             ) : availableClasses.length === 0 ? (
               <p className="text-sm text-warning-700 bg-warning-50 rounded-lg px-3 py-2">
                 All classes already have teachers assigned
