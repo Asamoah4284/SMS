@@ -73,6 +73,9 @@ const templates = {
 
   lowAttendance: (studentName, rate) =>
     `Alert: ${studentName}'s attendance rate is ${rate}% this term. Please contact the school. - EduTrack`,
+
+  studentAbsent: (parentName, studentName, className, date) =>
+    `Dear ${parentName}, ${studentName} was marked ABSENT from ${className} on ${date}. Contact the school if this was an error. - EduTrack`,
 };
 
 module.exports = { sendSMS, templates };

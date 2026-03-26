@@ -629,16 +629,20 @@ function AssignTeacherModal({
   useEffect(() => {
     if (!isOpen) return;
     setLoading(true);
+    setError('');
     const token = localStorage.getItem('accessToken');
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/teachers`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}: Failed to fetch teachers`);
+        return r.json();
+      })
       .then((d) => {
         // Only show teachers not already class teacher of another class
         setTeachers((d.teachers ?? []).filter((t: TeacherOption) => !t.classTeacherOf));
       })
-      .catch(() => setError('Failed to load teachers'))
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load teachers'))
       .finally(() => setLoading(false));
   }, [isOpen]);
 

@@ -24,6 +24,8 @@ model Term {
   results            Result[]
   feePayments        FeePayment[]
   feeStructures      FeeStructure[]
+  assessments        Assessment[]
+  termRemarks        TermRemarks[]
 
   @@unique([name, year])
   @@map("terms")
@@ -153,9 +155,11 @@ model Student {
   parentId String?
   parent   Parent? @relation(fields: [parentId], references: [id])
 
-  attendances Attendance[]
-  results     Result[]
-  feePayments FeePayment[]
+  attendances      Attendance[]
+  results          Result[]
+  feePayments      FeePayment[]
+  assessmentScores AssessmentScore[]
+  termRemarks      TermRemarks[]
 
   @@map("students")
 }
@@ -181,6 +185,7 @@ model Class {
   students        Student[]
   subjectTeachers SubjectTeacher[]
   timetables      Timetable[]
+  assessments     Assessment[]
 
   @@unique([level, section])
   @@map("classes")
@@ -214,6 +219,7 @@ model Subject {
   subjectTeachers SubjectTeacher[]
   results         Result[]
   timetables      Timetable[]
+  assessments     Assessment[]
 
   @@map("subjects")
 }
@@ -290,9 +296,9 @@ enum AttendanceStatus {
 
 model Result {
   id         String  @id @default(cuid())
-  classScore Float?  // out of 30
-  examScore  Float?  // out of 70
-  totalScore Float?  // computed: classScore + examScore
+  classScore Float?  // legacy — kept for backwards compat
+  examScore  Float?  // legacy
+  totalScore Float?  // final computed score out of 100
   grade      String? // A1, B2 … F9
   position   Int?    // rank in class for this subject
   remarks    String?
@@ -309,6 +315,105 @@ model Result {
 
   @@unique([studentId, subjectId, termId])
   @@map("results")
+}
+
+// ─────────────────────────────────────────
+// ASSESSMENTS (tests & exams per subject)
+// ─────────────────────────────────────────
+
+model Assessment {
+  id          String         @id @default(cuid())
+  name        String         // "Class Test 1", "Final Examination"
+  type        AssessmentType
+  date        DateTime?
+  totalMark   Float          // Max score e.g. 50, 100
+
+  classId     String
+  class       Class    @relation(fields: [classId], references: [id])
+  subjectId   String
+  subject     Subject  @relation(fields: [subjectId], references: [id])
+  termId      String
+  term        Term     @relation(fields: [termId], references: [id])
+  createdById String   // User ID of teacher who created it
+
+  scores     AssessmentScore[]
+  components TermResultComponent[]
+  createdAt  DateTime @default(now())
+
+  @@map("assessments")
+}
+
+enum AssessmentType {
+  TEST
+  EXAM
+}
+
+model AssessmentScore {
+  id    String @id @default(cuid())
+  score Float? // null = absent (shown as ABS, counted as 0)
+
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      Student    @relation(fields: [studentId], references: [id])
+
+  @@unique([assessmentId, studentId])
+  @@map("assessment_scores")
+}
+
+// ─────────────────────────────────────────
+// TERM RESULT (end-of-term generation config + publication)
+// ─────────────────────────────────────────
+
+model TermResult {
+  id          String    @id @default(cuid())
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  publishedBy String?   // Admin user ID
+
+  classId String
+  termId  String
+
+  components TermResultComponent[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([classId, termId])
+  @@map("term_results")
+}
+
+// Which assessment contributes to a subject's final score, and at what weight
+model TermResultComponent {
+  id     String @id @default(cuid())
+  weight Float  // Contribution out of 100 per subject
+
+  termResultId String
+  termResult   TermResult @relation(fields: [termResultId], references: [id], onDelete: Cascade)
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id])
+
+  @@unique([termResultId, assessmentId])
+  @@map("term_result_components")
+}
+
+// ─────────────────────────────────────────
+// TERM REMARKS (teacher + headmaster per student)
+// ─────────────────────────────────────────
+
+model TermRemarks {
+  id                String    @id @default(cuid())
+  teacherRemarks    String?
+  headmasterRemarks String?
+  nextTermBegins    DateTime?
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+  termId    String
+  term      Term    @relation(fields: [termId], references: [id])
+  classId   String
+
+  @@unique([studentId, termId])
+  @@map("term_remarks")
 }
 
 // ─────────────────────────────────────────

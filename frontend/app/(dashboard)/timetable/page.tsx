@@ -1,10 +1,7 @@
 export const metadata = { title: 'Timetable — EduTrack SMS' };
 
+import TimetableClientPage from './TimetableClientPage';
+
 export default function TimetablePage() {
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-6">Timetable</h2>
-      {/* TODO: implement timetable page */}
-    </div>
-  );
+  return <TimetableClientPage />;
 }

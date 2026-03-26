@@ -10,6 +10,7 @@ import {
   GraduationCap,
   BookOpen,
   CalendarCheck,
+  Clock,
   FileText,
   CreditCard,
   UserRound,
@@ -82,6 +83,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         ],
       },
       { name: "Examinations", href: "/results", icon: FileText },
+      { name: "Timetable", href: "/timetable", icon: Clock },
       { name: "Fees Collection", href: "/fees", icon: CreditCard },
       { name: "Attendance", href: "/attendance", icon: CalendarCheck },
       // Placeholder routes can be added later when pages exist.
