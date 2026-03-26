@@ -147,12 +147,17 @@ router.get('/:id', async (req, res) => {
           include: { user: { select: { firstName: true, lastName: true, phone: true } } },
         },
         students: {
+          where: { isActive: true },
           select: {
             id: true,
             firstName: true,
             lastName: true,
             dateOfBirth: true,
-            parent: { select: { user: { select: { phone: true } } } },
+            gender: true,
+            studentId: true,
+            parentName: true,
+            parentPhone: true,
+            parent: { select: { user: { select: { firstName: true, lastName: true, phone: true } } } },
           },
         },
         subjectTeachers: {
@@ -170,6 +175,78 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Class not found' });
     }
 
+    // ── Stats ────────────────────────────────────────────────────
+    const currentTerm = await prisma.term.findFirst({ where: { isCurrent: true } });
+
+    const stats = {
+      totalStudents: classData.students.length,
+      male: classData.students.filter((s) => s.gender === 'MALE').length,
+      female: classData.students.filter((s) => s.gender === 'FEMALE').length,
+      attendance: null,
+      performance: null,
+    };
+
+    if (currentTerm && classData.students.length > 0) {
+      const studentIds = classData.students.map((s) => s.id);
+
+      // Attendance
+      const attnGroups = await prisma.attendance.groupBy({
+        by: ['status'],
+        where: { studentId: { in: studentIds }, termId: currentTerm.id },
+        _count: true,
+      });
+      const attnMap = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 };
+      attnGroups.forEach((a) => { attnMap[a.status] = a._count; });
+      const totalAttn = Object.values(attnMap).reduce((s, v) => s + v, 0);
+      stats.attendance = {
+        ...attnMap,
+        rate: totalAttn > 0 ? Math.round(((attnMap.PRESENT + attnMap.LATE) / totalAttn) * 100) : 0,
+      };
+
+      // Performance
+      const results = await prisma.result.findMany({
+        where: { studentId: { in: studentIds }, termId: currentTerm.id, totalScore: { not: null } },
+        select: {
+          totalScore: true, studentId: true,
+          student: { select: { firstName: true, lastName: true } },
+          subject: { select: { name: true } },
+        },
+      });
+
+      if (results.length > 0) {
+        const byStudent = {};
+        results.forEach((r) => {
+          if (!byStudent[r.studentId]) {
+            byStudent[r.studentId] = { name: `${r.student.firstName} ${r.student.lastName}`, scores: [] };
+          }
+          if (r.totalScore !== null) byStudent[r.studentId].scores.push(r.totalScore);
+        });
+
+        const studentAvgs = Object.entries(byStudent)
+          .map(([sid, { name, scores }]) => ({
+            id: sid, name,
+            avgScore: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+          }))
+          .sort((a, b) => b.avgScore - a.avgScore);
+
+        const bySubject = {};
+        results.forEach((r) => {
+          if (!bySubject[r.subject.name]) bySubject[r.subject.name] = [];
+          if (r.totalScore !== null) bySubject[r.subject.name].push(r.totalScore);
+        });
+        const subjectBreakdown = Object.entries(bySubject)
+          .map(([name, scores]) => ({ name, avgScore: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) }))
+          .sort((a, b) => b.avgScore - a.avgScore);
+
+        stats.performance = {
+          classAvgScore: Math.round(studentAvgs.reduce((s, st) => s + st.avgScore, 0) / studentAvgs.length),
+          topStudents: studentAvgs.slice(0, 3),
+          struggling: studentAvgs.filter((s) => s.avgScore < 50).slice(-3).reverse(),
+          subjectBreakdown,
+        };
+      }
+    }
+
     res.json({
       id: classData.id,
       name: classData.name,
@@ -185,15 +262,22 @@ router.get('/:id', async (req, res) => {
       students: classData.students.map((s) => ({
         id: s.id,
         name: `${s.firstName} ${s.lastName}`,
+        studentId: s.studentId,
         dateOfBirth: s.dateOfBirth,
-        parentPhone: s.parent?.user?.phone,
+        gender: s.gender,
+        parentName: s.parent
+          ? `${s.parent.user.firstName} ${s.parent.user.lastName}`
+          : (s.parentName || null),
+        parentPhone: s.parent?.user?.phone || s.parentPhone || null,
       })),
       subjects: classData.subjectTeachers.map((st) => ({
         id: st.subject.id,
         name: st.subject.name,
         code: st.subject.code,
+        teacherId: st.teacher.id,
         teacher: `${st.teacher.user.firstName} ${st.teacher.user.lastName}`,
       })),
+      stats,
     });
   } catch (error) {
     console.error('Get class error:', error);

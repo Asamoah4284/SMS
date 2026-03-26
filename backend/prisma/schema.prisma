@@ -139,6 +139,8 @@ model Student {
   gender      Gender
   photo       String?
   address     String?
+  parentName  String?   // Quick contact (no portal account needed)
+  parentPhone String?   // Quick contact phone
   isActive    Boolean   @default(true)
   enrolledAt  DateTime  @default(now())
 

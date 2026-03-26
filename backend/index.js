@@ -4,6 +4,7 @@ const cors = require('cors');
 
 const routes = require('./src/routes');
 const { errorHandler } = require('./src/middleware/errorHandler');
+const prisma = require('./src/config/db');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -35,9 +36,39 @@ app.use((req, res) => {
 // Global error handler (must be last)
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function connectDatabaseWithRetry(maxRetries = 5, retryDelayMs = 2000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    try {
+      await prisma.$connect();
+      console.log('Database connection established');
+      return;
+    } catch (error) {
+      console.error(`Database connection attempt ${attempt}/${maxRetries} failed:`, error.message);
+      if (attempt < maxRetries) {
+        await delay(retryDelayMs);
+      }
+    }
+  }
+
+  throw new Error('Unable to connect to database after multiple attempts');
+}
+
+async function startServer() {
+  try {
+    await connectDatabaseWithRetry();
+
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+  } catch (error) {
+    console.error('Startup failed:', error.message);
+    process.exit(1);
+  }
+}
+
+startServer();
 
 module.exports = app;

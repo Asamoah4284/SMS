@@ -3,17 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
-import { 
-  Users, 
-  GraduationCap, 
-  BookOpen, 
-  CalendarCheck, 
-  FileText, 
-  CreditCard, 
-  Megaphone, 
-  ShieldCheck, 
-  BarChart, 
-  Settings 
+import {
+  Users,
+  GraduationCap,
+  BookOpen,
+  CalendarCheck,
+  FileText,
+  CreditCard,
+  Megaphone,
+  ShieldCheck,
+  BarChart,
+  Settings,
+  UserRound,
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -32,6 +33,7 @@ export default function Sidebar() {
     { name: "Students", href: "/students", icon: Users },
     { name: "Teachers", href: "/teachers", icon: GraduationCap },
     { name: "Classes", href: "/classes", icon: BookOpen },
+    { name: "Parents", href: "/parents", icon: UserRound },
     { name: "Attendance", href: "/attendance", icon: CalendarCheck },
     { name: "Results", href: "/results", icon: FileText },
     { name: "Fees", href: "/fees", icon: CreditCard },
