@@ -106,7 +106,7 @@ function AdminView() {
   const [date, setDate] = useState(todayStr());
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-[1400px] mx-auto animate-fade-in space-y-4 sm:space-y-6">
       <PageHeader
         title="Attendance"
         subtitle={formatDate(date)}
@@ -123,12 +123,12 @@ function AdminView() {
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
-        <nav className="flex gap-1 -mb-px">
+        <nav className="flex gap-1 -mb-px overflow-x-auto">
           {(['students', 'teachers'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-6 py-3 text-sm font-semibold border-b-2 transition-colors capitalize ${
+              className={`px-4 sm:px-6 py-2.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap capitalize ${
                 tab === t
                   ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -191,17 +191,17 @@ function AdminStudentAttendance({ date }: { date: string }) {
   const markedCount = classes.filter((c) => c.isMarked).length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Summary bar */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <SummaryCard icon={<GraduationCap className="w-5 h-5 text-primary-600" />} label="Total Classes" value={String(classes.length)} bg="bg-primary-50" />
         <SummaryCard icon={<CheckCircle2 className="w-5 h-5 text-success-600" />} label="Marked Today" value={`${markedCount} / ${classes.length}`} bg="bg-success-50" />
         <SummaryCard icon={<AlertTriangle className="w-5 h-5 text-warning-600" />} label="Not Yet Marked" value={String(classes.length - markedCount)} bg="bg-warning-50" />
       </div>
 
       {/* Class list */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-[var(--shadow-card)]">
-        <div className="grid grid-cols-[2fr_1fr_1fr_2fr_auto] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="grid grid-cols-[2fr_1fr_1fr_2fr_auto] gap-4 px-4 sm:px-6 py-2.5 bg-white border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
           <span>Class</span>
           <span>Students</span>
           <span>Status</span>
@@ -213,7 +213,7 @@ function AdminStudentAttendance({ date }: { date: string }) {
             <button
               key={cls.id}
               onClick={() => setSelectedClassId(cls.id)}
-              className="w-full grid grid-cols-[2fr_1fr_1fr_2fr_auto] gap-4 items-center px-6 py-4 hover:bg-gray-50 transition-colors group text-left"
+              className="w-full grid grid-cols-[2fr_1fr_1fr_2fr_auto] gap-4 items-center px-4 sm:px-6 py-3.5 hover:bg-gray-50 transition-colors group text-left"
             >
               <div className="min-w-0">
                 <p className="font-semibold text-gray-900 group-hover:text-primary-700 truncate">{cls.name}</p>
@@ -313,23 +313,23 @@ function AdminTeacherAttendance({ date }: { date: string }) {
   if (error) return <Alert type="error" message={error} />;
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-4">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {([
           { label: 'Present', val: present, cfg: STATUS_CFG.PRESENT },
           { label: 'Late', val: late, cfg: STATUS_CFG.LATE },
           { label: 'Absent', val: absent, cfg: STATUS_CFG.ABSENT },
           { label: 'Excused', val: excused, cfg: STATUS_CFG.EXCUSED },
         ]).map(({ label, val, cfg }) => (
-          <div key={label} className={`${cfg.bg} border ${cfg.border} rounded-2xl p-4 text-center`}>
+          <div key={label} className={`${cfg.bg} border ${cfg.border} rounded-2xl p-3.5 text-center`}>
             <p className={`text-2xl font-bold ${cfg.text}`}>{val}</p>
             <p className="text-xs text-gray-500 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-[var(--shadow-card)]">
-        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-4 px-4 sm:px-6 py-2.5 bg-white border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
           <span>Teacher</span>
           <span>Class</span>
           <span>Check-in</span>
@@ -341,7 +341,7 @@ function AdminTeacherAttendance({ date }: { date: string }) {
             const cfg = t.status ? STATUS_CFG[t.status] : null;
             const isEditing = editingId === t.id;
             return (
-              <div key={t.id} className="px-6 py-4">
+              <div key={t.id} className="px-4 sm:px-6 py-3.5">
                 {isEditing ? (
                   <div className="flex items-center gap-3 flex-wrap">
                     <div className="flex-1 min-w-[200px]">
@@ -447,9 +447,9 @@ function TeacherView() {
 
   if (!classId) {
     return (
-      <div className="p-8 max-w-[1400px] mx-auto animate-fade-in">
+      <div className="p-4 sm:p-6 md:p-8 max-w-[1400px] mx-auto animate-fade-in">
         <PageHeader title="Attendance" />
-        <div className="bg-white border border-gray-200 rounded-2xl p-16 text-center shadow-[var(--shadow-card)]">
+        <div className="bg-white border border-gray-200 rounded-2xl p-10 sm:p-16 text-center shadow-sm">
           <CalendarCheck className="w-12 h-12 text-gray-200 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-gray-900 mb-2">No class assigned</h3>
           <p className="text-gray-500">You are not assigned as a class teacher. Contact admin.</p>
@@ -459,7 +459,7 @@ function TeacherView() {
   }
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-[1400px] mx-auto animate-fade-in space-y-4 sm:space-y-6">
       <PageHeader title="Attendance" subtitle={className} />
       <AttendanceMarkView classId={classId} date={todayStr()} isAdmin={false} onBack={() => {}} />
     </div>
@@ -601,12 +601,12 @@ function AttendanceMarkView({
 
       {/* Already marked summary */}
       {data.alreadyMarked && !isEditing && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {(Object.keys(STATUS_CFG) as AttendanceStatus[]).map((s) => {
             const cfg = STATUS_CFG[s];
             const count = data.students.filter((st) => st.status === s).length;
             return (
-              <div key={s} className={`flex flex-col items-center gap-1 p-4 rounded-2xl border ${cfg.bg} ${cfg.border}`}>
+              <div key={s} className={`flex flex-col items-center gap-1 p-3.5 rounded-2xl border ${cfg.bg} ${cfg.border}`}>
                 <p className={`text-2xl font-bold ${cfg.text}`}>{count}</p>
                 <p className="text-xs text-gray-500">{cfg.label}</p>
               </div>
@@ -635,8 +635,8 @@ function AttendanceMarkView({
       )}
 
       {/* Student list */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-[var(--shadow-card)]">
-        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center justify-between">
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="px-4 sm:px-6 py-2.5 bg-white border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between">
           <span>{data.students.length} Students</span>
           {showMarkingUI && (
             <span className="font-normal text-gray-400 normal-case">
@@ -649,7 +649,7 @@ function AttendanceMarkView({
             const currentStatus = statuses[student.id] ?? 'PRESENT';
 
             return (
-              <div key={student.id} className="flex items-center gap-3 px-6 py-3.5">
+              <div key={student.id} className="flex items-center gap-3 px-4 sm:px-6 py-3">
                 {/* Index + avatar */}
                 <span className="text-xs text-gray-400 font-mono w-5 text-center flex-shrink-0">{idx + 1}</span>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${showMarkingUI ? (STATUS_CFG[currentStatus]?.bg ?? 'bg-gray-100') : 'bg-gray-100'} ${showMarkingUI ? (STATUS_CFG[currentStatus]?.text ?? 'text-gray-600') : 'text-gray-600'}`}>
@@ -715,7 +715,7 @@ function AttendanceMarkView({
 
       {/* Submit bar */}
       {showMarkingUI && (
-        <div className="sticky bottom-0 bg-white border border-gray-200 rounded-2xl shadow-lg px-6 py-4 flex items-center justify-between gap-4">
+        <div className="sticky bottom-0 bg-white border border-gray-200 rounded-2xl shadow-sm px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div className="flex gap-4 text-sm">
             {(Object.keys(STATUS_CFG) as AttendanceStatus[]).map((s) => {
               const cfg = STATUS_CFG[s];
@@ -748,11 +748,11 @@ function AttendanceMarkView({
 
 function SummaryCard({ icon, label, value, bg }: { icon: React.ReactNode; label: string; value: string; bg: string }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-[var(--shadow-card)] flex items-center gap-4">
-      <div className={`w-11 h-11 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}>{icon}</div>
+    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex items-center gap-3">
+      <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}>{icon}</div>
       <div>
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</p>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{label}</p>
+        <p className="text-xl font-bold text-gray-900 leading-tight">{value}</p>
       </div>
     </div>
   );
