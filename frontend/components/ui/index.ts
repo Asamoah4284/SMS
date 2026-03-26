@@ -6,3 +6,5 @@ export { Alert } from './Alert';
 export { Badge } from './Badge';
 export { Skeleton, SkeletonCard, SkeletonRow, SkeletonTable } from './Skeleton';
 export { PageHeader } from './PageHeader';
+export { DropdownMenu } from './DropdownMenu';
+export type { DropdownMenuItem } from './DropdownMenu';

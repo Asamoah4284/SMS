@@ -16,6 +16,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cookies } from "next/headers";
+import Link from "next/link";
+import { DropdownMenu } from "@/components/ui";
 
 export const metadata = { title: 'Overview — EduTrack SMS' };
 
@@ -70,14 +72,20 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-3.5 py-2 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors shadow-sm focus:ring-2 focus:ring-gray-200 outline-none">
+          <Link
+            href="/announcements"
+            className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-3.5 py-2 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors shadow-sm focus:ring-2 focus:ring-gray-200 outline-none"
+          >
             <Megaphone className="w-4 h-4 text-gray-500" />
             Announcement
-          </button>
-          <button className="flex items-center gap-2 bg-black text-white px-3.5 py-2 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors shadow-sm focus:ring-2 focus:ring-black outline-none">
+          </Link>
+          <Link
+            href="/students/new"
+            className="flex items-center gap-2 bg-black text-white px-3.5 py-2 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors shadow-sm focus:ring-2 focus:ring-black outline-none"
+          >
             <Plus className="w-4 h-4 text-gray-300" />
             Add Student
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -161,9 +169,17 @@ export default async function DashboardPage() {
         <div className="bg-white border border-gray-200 shadow-sm shadow-gray-200/50 rounded-2xl p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-gray-900">Attendance Overview</h3>
-            <button className="p-2 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition-colors">
-              <MoreHorizontal className="w-5 h-5" />
-            </button>
+            <DropdownMenu
+              iconOnly
+              triggerLabel="Attendance actions"
+              triggerIcon={<MoreHorizontal className="w-5 h-5" />}
+              buttonClassName="p-2 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition-colors"
+              items={[
+                { label: 'Open Attendance', href: '/attendance' },
+                { label: 'View Results', href: '/results' },
+                { label: 'Open Timetable', href: '/timetable' },
+              ]}
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-4 items-stretch">
@@ -210,9 +226,17 @@ export default async function DashboardPage() {
         <div className="bg-white border border-gray-200 shadow-sm shadow-gray-200/50 rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-gray-900">Fees Summary</h3>
-            <button className="p-2 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition-colors">
-              <MoreHorizontal className="w-5 h-5" />
-            </button>
+            <DropdownMenu
+              iconOnly
+              triggerLabel="Fees actions"
+              triggerIcon={<MoreHorizontal className="w-5 h-5" />}
+              buttonClassName="p-2 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition-colors"
+              items={[
+                { label: 'Open Fees', href: '/fees' },
+                { label: 'View Pending Fees', href: '/fees' },
+                { label: 'Fee Reports', href: '/results' },
+              ]}
+            />
           </div>
 
           <div className="flex items-center gap-4">
@@ -253,9 +277,9 @@ export default async function DashboardPage() {
           <div className="mt-5 border-t border-gray-100 pt-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-bold text-gray-900">Recent Fee Payments</p>
-              <button className="text-[11px] font-semibold text-blue-600 hover:text-blue-700">
+              <Link href="/fees" className="text-[11px] font-semibold text-blue-600 hover:text-blue-700">
                 View all
-              </button>
+              </Link>
             </div>
 
             <div className="grid grid-cols-[1.4fr_0.8fr_0.6fr] gap-3 px-1 pb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
@@ -318,9 +342,9 @@ export default async function DashboardPage() {
         <div className="bg-white border border-gray-200 shadow-sm shadow-gray-200/50 rounded-2xl p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-gray-900">Upcoming Events</h3>
-            <button className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+            <Link href="/timetable" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
               View All <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            </Link>
           </div>
           <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 overflow-hidden">
             {[
@@ -386,9 +410,17 @@ export default async function DashboardPage() {
         <div className="bg-white border border-gray-200 shadow-sm shadow-gray-200/50 rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-gray-900">Quick Notes</h3>
-            <button className="p-2 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition-colors">
-              <MoreHorizontal className="w-5 h-5" />
-            </button>
+            <DropdownMenu
+              iconOnly
+              triggerLabel="Quick notes actions"
+              triggerIcon={<MoreHorizontal className="w-5 h-5" />}
+              buttonClassName="p-2 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition-colors"
+              items={[
+                { label: 'Create Announcement', href: '/announcements' },
+                { label: 'Open Timetable', href: '/timetable' },
+                { label: 'Dashboard Settings', href: '/settings' },
+              ]}
+            />
           </div>
           <p className="text-xs font-semibold text-gray-500">
             This panel is a placeholder (same style as your reference dashboard). We can hook it to announcements, reminders, or approvals.
