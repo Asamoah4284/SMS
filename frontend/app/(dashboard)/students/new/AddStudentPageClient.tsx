@@ -81,7 +81,12 @@ export default function AddStudentPageClient() {
                 id: c.id,
                 name: c.name,
               }))
-            : [];
+            : Array.isArray(data?.classes)
+              ? data.classes.map((c: { id: string; name: string }) => ({
+                  id: c.id,
+                  name: c.name,
+                }))
+              : [];
 
         if (!cancelled) setClasses(items);
       } catch (err) {
