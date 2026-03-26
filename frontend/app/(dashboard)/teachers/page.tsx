@@ -84,9 +84,9 @@ export default function TeachersPage() {
             <Button variant="secondary" icon={<Upload className="w-4 h-4" />} onClick={() => setBulkOpen(true)}>
               Bulk Import
             </Button>
-            <Button icon={<UserPlus className="w-4 h-4" />} onClick={() => setInviteOpen(true)}>
-              Invite Teacher
-            </Button>
+          <Button icon={<UserPlus className="w-4 h-4" />} onClick={() => setInviteOpen(true)}>
+            Invite Teacher
+          </Button>
           </div>
         }
       />
@@ -106,7 +106,7 @@ export default function TeachersPage() {
           </div>
 
           <div className="hidden md:block">
-            <TeachersTable teachers={teachers} />
+        <TeachersTable teachers={teachers} />
           </div>
         </>
       )}
