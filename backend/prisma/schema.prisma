@@ -68,10 +68,13 @@ model TeacherInvitation {
   id           String    @id @default(cuid())
   staffId      String    @unique  // e.g., "JK-12345"
   phone        String    @unique
+  firstName    String    @default("")
+  lastName     String    @default("")
   inviteCode   String    // 6-digit code sent via SMS
   codeExpiry   DateTime
   accepted     Boolean   @default(false)
   acceptedAt   DateTime?
+  classId      String?   // Pre-assign as class teacher
   createdAt    DateTime  @default(now())
   createdBy    String    // Admin user ID
 

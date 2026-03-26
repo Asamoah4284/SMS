@@ -357,24 +357,63 @@ function BulkImportForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
 
 // ─── Invite Form ──────────────────────────────────────────────────────────────
 
+interface ClassOption { id: string; name: string; level: string; hasTeacher: boolean; }
+
 function InviteForm({ onSuccess, onCancel }: { onSuccess: (result: InviteResult) => void; onCancel: () => void }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [isClassTeacher, setIsClassTeacher] = useState(false);
+  const [classId, setClassId] = useState('');
+  const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [loadingClasses, setLoadingClasses] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Fetch classes when class teacher toggle is turned on
+  useEffect(() => {
+    if (!isClassTeacher || classes.length > 0) return;
+    setLoadingClasses(true);
+    const token = localStorage.getItem('accessToken');
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/classes?limit=100`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        setClasses(
+          (d.classes ?? []).map((c: { id: string; name: string; level: string; classTeacher: unknown }) => ({
+            id: c.id,
+            name: c.name,
+            level: c.level,
+            hasTeacher: !!c.classTeacher,
+          }))
+        );
+      })
+      .catch(() => {})
+      .finally(() => setLoadingClasses(false));
+  }, [isClassTeacher, classes.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!firstName.trim() || !lastName.trim() || !phone.trim()) { setError('All fields are required.'); return; }
+    if (!firstName.trim() || !lastName.trim() || !phone.trim()) {
+      setError('All fields are required.');
+      return;
+    }
+    if (isClassTeacher && !classId) {
+      setError('Please select a class for this class teacher.');
+      return;
+    }
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
+      const body: Record<string, string> = { firstName, lastName, phone };
+      if (isClassTeacher && classId) body.classId = classId;
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/invite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ firstName, lastName, phone }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to send invitation');
@@ -386,16 +425,68 @@ function InviteForm({ onSuccess, onCancel }: { onSuccess: (result: InviteResult)
     }
   };
 
+  const availableClasses = classes.filter((c) => !c.hasTeacher);
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       {error && <Alert type="error" message={error} onDismiss={() => setError('')} />}
+
       <div className="grid grid-cols-2 gap-3">
         <Input label="First Name" placeholder="Kwame" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
         <Input label="Last Name" placeholder="Asante" value={lastName} onChange={(e) => setLastName(e.target.value)} />
       </div>
-      <Input label="Phone Number" placeholder="024XXXXXXX" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-        helperText="An SMS with Staff ID and invitation code will be sent here." />
-      <div className="flex gap-3 pt-2">
+
+      <Input
+        label="Phone Number" placeholder="024XXXXXXX" inputMode="tel"
+        value={phone} onChange={(e) => setPhone(e.target.value)}
+        helperText="An SMS with Staff ID and invitation code will be sent here."
+      />
+
+      {/* Class teacher toggle */}
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <label className="flex items-center justify-between cursor-pointer">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Class Teacher</p>
+            <p className="text-xs text-gray-500 mt-0.5">Assign this teacher to a class now</p>
+          </div>
+          <div
+            onClick={() => { setIsClassTeacher(!isClassTeacher); setClassId(''); }}
+            className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${isClassTeacher ? 'bg-primary-600' : 'bg-gray-200'}`}
+          >
+            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${isClassTeacher ? 'translate-x-6' : 'translate-x-1'}`} />
+          </div>
+        </label>
+
+        {isClassTeacher && (
+          <div>
+            {loadingClasses ? (
+              <p className="text-sm text-gray-400">Loading classes...</p>
+            ) : availableClasses.length === 0 ? (
+              <p className="text-sm text-warning-700 bg-warning-50 rounded-lg px-3 py-2">All classes already have teachers assigned</p>
+            ) : (
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Select Class</label>
+                <select
+                  value={classId}
+                  onChange={(e) => setClassId(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+                >
+                  <option value="">Choose a class...</option>
+                  {availableClasses.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isClassTeacher && (
+          <p className="text-xs text-gray-400">Subject assignments can be added from the teacher&apos;s profile after they join</p>
+        )}
+      </div>
+
+      <div className="flex gap-3 pt-1">
         <Button type="button" variant="secondary" onClick={onCancel} className="flex-1">Cancel</Button>
         <Button type="submit" loading={loading} className="flex-1">Send Invitation</Button>
       </div>

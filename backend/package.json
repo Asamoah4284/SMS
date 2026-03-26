@@ -10,6 +10,10 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
+    "seed:classes": "node src/scripts/seed-classes.js",
+    "seed:teachers": "node src/scripts/seed-teachers.js",
+    "seed:parents": "node src/scripts/seed-parents.js",
+    "seed:all": "npm run seed:classes && npm run seed:teachers && npm run seed:parents",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate"
   },
