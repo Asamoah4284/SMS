@@ -60,8 +60,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         children: [
           { name: "Add New Student", href: "/students/new" },
           { name: "Student List", href: "/students" },
-          { name: "Suspend Student", href: "/students/suspend" },
-          { name: "Student Categories", href: "/students/categories" },
         ],
       },
       {
