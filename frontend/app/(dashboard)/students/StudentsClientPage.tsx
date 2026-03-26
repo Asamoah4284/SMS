@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
-  Button, Modal, Input, Alert,
+  Button, Modal, Alert,
   Badge, SkeletonTable, PageHeader,
 } from '@/components/ui';
 import {
   UserPlus, GraduationCap, Search, ChevronRight,
-  Users, Phone, Calendar, Upload, Download,
+  Users, Upload, Download,
   CheckCircle2, AlertTriangle,
 } from 'lucide-react';
 
@@ -30,33 +31,8 @@ interface ClassOption {
   level: string;
 }
 
-interface AddForm {
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  dateOfBirth: string;
-  gender: string;
-  address: string;
-  classId: string;
-  guardianName: string;
-  guardianPhone: string;
-  guardianAddress: string;
-}
-
-const EMPTY_FORM: AddForm = {
-  firstName: '',
-  middleName: '',
-  lastName: '',
-  dateOfBirth: '',
-  gender: '',
-  address: '',
-  classId: '',
-  guardianName: '',
-  guardianPhone: '',
-  guardianAddress: '',
-};
-
 export default function StudentsClientPage() {
+  const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -64,7 +40,6 @@ export default function StudentsClientPage() {
   const [search, setSearch] = useState('');
   const [classFilter, setClassFilter] = useState('');
   const [classes, setClasses] = useState<ClassOption[]>([]);
-  const [addOpen, setAddOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
 
   const fetchStudents = useCallback(async () => {
@@ -111,17 +86,14 @@ export default function StudentsClientPage() {
   }, [fetchStudents]);
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 max-w-[1600px] mx-auto animate-fade-in">
       <PageHeader
         title="Students"
         subtitle={loading ? '' : `${total} student${total !== 1 ? 's' : ''}`}
         actions={
-          <div className="flex gap-2">
+          <div className="flex w-full sm:w-auto gap-2">
             <Button variant="secondary" onClick={() => setBulkOpen(true)} icon={<Upload className="w-4 h-4" />}>
               Bulk Import
-            </Button>
-            <Button onClick={() => setAddOpen(true)} icon={<UserPlus className="w-4 h-4" />}>
-              Add Student
             </Button>
           </div>
         }
@@ -130,21 +102,21 @@ export default function StudentsClientPage() {
       {error && <Alert type="error" message={error} className="mb-6" onDismiss={() => setError('')} />}
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row gap-3 mb-5">
+        <div className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             placeholder="Search by name or student ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+            className="w-full pl-9 pr-4 py-2.25 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
           />
         </div>
         <select
           value={classFilter}
           onChange={(e) => setClassFilter(e.target.value)}
-          className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+          className="px-4 py-2.25 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
         >
           <option value="">All classes</option>
           {classes.map((c) => (
@@ -156,30 +128,31 @@ export default function StudentsClientPage() {
       {loading ? (
         <SkeletonTable rows={8} />
       ) : students.length === 0 ? (
-        <EmptyState onAdd={() => setAddOpen(true)} />
+        <EmptyState onAdd={() => router.push('/students/new')} />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-[var(--shadow-card)]">
-          <div className="grid grid-cols-[2fr_1fr_1fr_2fr_auto] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
-            <span>Student</span>
-            <span>Class</span>
-            <span className="hidden sm:block">Gender</span>
-            <span className="hidden lg:block">Guardian</span>
-            <span />
-          </div>
-          <div className="divide-y divide-gray-100">
+        <>
+          <div className="md:hidden space-y-2">
             {students.map((s) => (
-              <StudentRow key={s.id} student={s} />
+              <StudentMobileCard key={s.id} student={s} />
             ))}
           </div>
-        </div>
-      )}
 
-      <AddStudentModal
-        isOpen={addOpen}
-        classes={classes}
-        onClose={() => setAddOpen(false)}
-        onSuccess={() => { setAddOpen(false); fetchStudents(); }}
-      />
+          <div className="hidden md:block bg-white border border-gray-200 rounded-2xl overflow-hidden">
+            <div className="grid grid-cols-[2fr_1fr_1fr_2fr_auto] gap-4 px-5 py-2.5 bg-white border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              <span>Student</span>
+              <span>Class</span>
+              <span>Gender</span>
+              <span>Guardian</span>
+              <span />
+            </div>
+            <div className="divide-y divide-gray-100">
+              {students.map((s) => (
+                <StudentRow key={s.id} student={s} />
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       <BulkImportModal
         isOpen={bulkOpen}
@@ -191,6 +164,49 @@ export default function StudentsClientPage() {
   );
 }
 
+function StudentMobileCard({ student }: { student: Student }) {
+  const fullName = `${student.firstName} ${student.lastName}`.trim();
+  const initials = `${student.firstName[0] ?? ''}${student.lastName[0] ?? ''}`.toUpperCase();
+
+  return (
+    <Link
+      href={`/students/${student.id}`}
+      className="block bg-white border border-gray-200 rounded-2xl p-3.5 shadow-sm active:bg-gray-50 transition-colors"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-sm shrink-0">
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-900 truncate">{fullName}</p>
+            <p className="text-xs text-gray-400">{student.studentId}</p>
+          </div>
+        </div>
+        <ChevronRight className="w-4 h-4 text-gray-300 shrink-0 mt-1" />
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full">
+          {student.class ? student.class.name : 'Unassigned'}
+        </span>
+        <Badge variant={student.gender === 'MALE' ? 'info' : 'warning'}>
+          {student.gender === 'MALE' ? 'Male' : 'Female'}
+        </Badge>
+      </div>
+
+      {(student.parentName || student.parentPhone) && (
+        <div className="mt-3 text-xs text-gray-500 border-t border-gray-100 pt-2.5">
+          <p className="truncate">
+            {student.parentName ?? 'Guardian'}
+            {student.parentPhone ? ` • ${student.parentPhone}` : ''}
+          </p>
+        </div>
+      )}
+    </Link>
+  );
+}
+
 function StudentRow({ student }: { student: Student }) {
   const fullName = `${student.firstName} ${student.lastName}`.trim();
   const initials = `${student.firstName[0] ?? ''}${student.lastName[0] ?? ''}`.toUpperCase();
@@ -198,14 +214,14 @@ function StudentRow({ student }: { student: Student }) {
   return (
     <Link
       href={`/students/${student.id}`}
-      className="grid grid-cols-[2fr_1fr_1fr_2fr_auto] gap-4 items-center px-6 py-4 hover:bg-gray-50 transition-colors group"
+      className="grid grid-cols-[2fr_1fr_1fr_2fr_auto] gap-4 items-center px-5 py-3 hover:bg-gray-50/60 transition-colors"
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
+        <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-sm flex-shrink-0">
           {initials}
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-gray-900 truncate group-hover:text-primary-700 transition-colors">
+          <p className="font-semibold text-gray-900 truncate">
             {fullName}
           </p>
           <p className="text-xs text-gray-400">{student.studentId}</p>
@@ -214,7 +230,7 @@ function StudentRow({ student }: { student: Student }) {
 
       <div className="text-sm text-gray-700">
         {student.class ? (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-50 text-primary-700 text-xs font-semibold rounded-full">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full">
             {student.class.name}
           </span>
         ) : (
@@ -244,210 +260,8 @@ function StudentRow({ student }: { student: Student }) {
         )}
       </div>
 
-      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+      <ChevronRight className="w-4 h-4 text-gray-300" />
     </Link>
-  );
-}
-
-function AddStudentModal({
-  isOpen,
-  classes,
-  onClose,
-  onSuccess,
-}: {
-  isOpen: boolean;
-  classes: ClassOption[];
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [form, setForm] = useState<AddForm>(EMPTY_FORM);
-  const [errors, setErrors] = useState<Partial<AddForm>>({});
-  const [submitting, setSubmitting] = useState(false);
-  const [apiError, setApiError] = useState('');
-
-  const set = (field: keyof AddForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setForm((f) => ({ ...f, [field]: e.target.value }));
-    setErrors((e2) => ({ ...e2, [field]: undefined }));
-  };
-
-  const validate = () => {
-    const errs: Partial<AddForm> = {};
-    if (!form.firstName.trim()) errs.firstName = 'First name is required';
-    if (!form.lastName.trim()) errs.lastName = 'Last name is required';
-    if (!form.gender) errs.gender = 'Gender is required';
-    return errs;
-  };
-
-  const handleSubmit = async () => {
-    const errs = validate();
-    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-
-    setSubmitting(true);
-    setApiError('');
-    try {
-      const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/students`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          firstName: form.firstName.trim(),
-          middleName: form.middleName.trim() || undefined,
-          lastName: form.lastName.trim(),
-          dateOfBirth: form.dateOfBirth || undefined,
-          gender: form.gender,
-          address: form.address.trim() || undefined,
-          classId: form.classId || undefined,
-          guardianName: form.guardianName.trim() || undefined,
-          guardianPhone: form.guardianPhone.trim() || undefined,
-          guardianAddress: form.guardianAddress.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to add student');
-      setForm(EMPTY_FORM);
-      onSuccess();
-    } catch (err) {
-      setApiError(err instanceof Error ? err.message : 'Failed to add student');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleClose = () => {
-    setForm(EMPTY_FORM);
-    setErrors({});
-    setApiError('');
-    onClose();
-  };
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title="Add Student"
-      size="lg"
-      footer={
-        <>
-          <Button variant="secondary" onClick={handleClose} disabled={submitting} className="flex-1">
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} loading={submitting} className="flex-1">
-            Add Student
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-5">
-        {apiError && <Alert type="error" message={apiError} onDismiss={() => setApiError('')} />}
-
-        {/* Student info */}
-        <div>
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <GraduationCap className="w-3.5 h-3.5" /> Student Information
-          </p>
-          <div className="grid grid-cols-3 gap-3 mb-3">
-            <Input
-              label="First Name *"
-              placeholder="e.g. Kofi"
-              value={form.firstName}
-              onChange={set('firstName')}
-              error={errors.firstName}
-            />
-            <Input
-              label="Middle Name"
-              placeholder="Optional"
-              value={form.middleName}
-              onChange={set('middleName')}
-            />
-            <Input
-              label="Last Name *"
-              placeholder="e.g. Mensah"
-              value={form.lastName}
-              onChange={set('lastName')}
-              error={errors.lastName}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Gender *</label>
-              <select
-                value={form.gender}
-                onChange={set('gender')}
-                className={`w-full px-4 py-2.5 bg-gray-50 border rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all ${errors.gender ? 'border-danger-500' : 'border-gray-200'}`}
-              >
-                <option value="">Select gender</option>
-                <option value="MALE">Male</option>
-                <option value="FEMALE">Female</option>
-              </select>
-              {errors.gender && <p className="mt-1 text-xs font-medium text-danger-600">{errors.gender}</p>}
-            </div>
-            <Input
-              label="Date of Birth"
-              type="date"
-              value={form.dateOfBirth}
-              onChange={set('dateOfBirth')}
-              icon={<Calendar className="w-4 h-4" />}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Class</label>
-              <select
-                value={form.classId}
-                onChange={set('classId')}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
-              >
-                <option value="">No class assigned</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-            <Input
-              label="Address"
-              placeholder="Home address"
-              value={form.address}
-              onChange={set('address')}
-            />
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-gray-100" />
-
-        {/* Guardian info */}
-        <div>
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Users className="w-3.5 h-3.5" /> Guardian / Parent
-          </p>
-          <p className="text-xs text-gray-500 mb-3 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-            If the guardian's phone matches an existing parent account, the student will be linked automatically.
-          </p>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <Input
-              label="Guardian Name"
-              placeholder="e.g. Ama Mensah"
-              value={form.guardianName}
-              onChange={set('guardianName')}
-            />
-            <Input
-              label="Guardian Phone"
-              placeholder="e.g. 0241234567"
-              type="tel"
-              value={form.guardianPhone}
-              onChange={set('guardianPhone')}
-              icon={<Phone className="w-4 h-4" />}
-            />
-          </div>
-          <Input
-            label="Guardian Address"
-            placeholder="If different from student's address"
-            value={form.guardianAddress}
-            onChange={set('guardianAddress')}
-          />
-        </div>
-      </div>
-    </Modal>
   );
 }
 

@@ -89,7 +89,9 @@ export default function ClassDetail({ classId }: { classId: string }) {
     }
   }, [classId]);
 
-  useEffect(() => { fetchClassDetail(); }, [fetchClassDetail]);
+  useEffect(() => {
+    fetchClassDetail();
+  }, [fetchClassDetail]);
 
   if (loading) {
     return (
@@ -425,8 +427,8 @@ function StudentsTab({ students, onAddStudent }: { students: Student[]; onAddStu
               </div>
               <span className="hidden sm:block text-xs font-mono text-gray-500">{student.studentId}</span>
               <span className="hidden md:block text-sm text-gray-600">
-                {student.dateOfBirth
-                  ? `${Math.floor((Date.now() - new Date(student.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs`
+                        {student.dateOfBirth 
+                          ? `${Math.floor((new Date().getTime() - new Date(student.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs`
                   : '—'}
               </span>
               <div className="text-sm text-gray-600">

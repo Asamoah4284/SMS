@@ -95,6 +95,7 @@ export default async function DashboardPage() {
           icon={Users}
           iconClassName="text-blue-600"
           iconBgClassName="bg-blue-50 border-blue-100"
+          sparklineColor="#2563eb"
           value={studentsValue}
           subtitle="Students"
           badge={stats ? `+ ${formatInt(stats.students.addedThisMonth)} this month` : undefined}
@@ -104,6 +105,7 @@ export default async function DashboardPage() {
           icon={CalendarCheck}
           iconClassName="text-green-600"
           iconBgClassName="bg-green-50 border-green-100"
+          sparklineColor="#059669"
           value={attendanceValue}
           subtitle={
             stats ? `${formatInt(stats.attendanceToday.present)} Present` : "—"
@@ -124,6 +126,7 @@ export default async function DashboardPage() {
           icon={Banknote}
           iconClassName="text-amber-600"
           iconBgClassName="bg-amber-50 border-amber-100"
+          sparklineColor="#d97706"
           value={feesValue}
           subtitle="Fees Collected"
           progress={
@@ -141,6 +144,7 @@ export default async function DashboardPage() {
           icon={GraduationCap}
           iconClassName="text-purple-600"
           iconBgClassName="bg-purple-50 border-purple-100"
+          sparklineColor="#7c3aed"
           value={staffValue}
           subtitle="Staff Members"
           footer={
@@ -436,6 +440,7 @@ function KpiCard({
   icon: Icon,
   iconClassName,
   iconBgClassName,
+  sparklineColor,
   value,
   subtitle,
   badge,
@@ -446,6 +451,7 @@ function KpiCard({
   icon: LucideIcon;
   iconClassName: string;
   iconBgClassName: string;
+  sparklineColor: string;
   value: string;
   subtitle: string;
   badge?: string;
@@ -479,9 +485,31 @@ function KpiCard({
           ) : null}
         </div>
       </div>
-      <ArrowRight className="w-4 h-4 text-gray-300 shrink-0" />
+      <div className="shrink-0 flex flex-col items-end gap-2">
+        <MiniSparkline color={sparklineColor} />
+        <ArrowRight className="w-4 h-4 text-gray-300" />
+      </div>
       <span className="sr-only">{title}</span>
     </div>
+  );
+}
+
+function MiniSparkline({ color }: { color: string }) {
+  return (
+    <svg
+      viewBox="0 0 64 22"
+      className="w-16 h-6 opacity-90"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M2 15 C 10 6, 18 18, 26 10 C 33 3, 42 16, 50 8 C 56 4, 60 9, 62 6"
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 

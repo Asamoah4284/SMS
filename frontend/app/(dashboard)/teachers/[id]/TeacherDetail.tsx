@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Alert, Badge } from '@/components/ui';
+import { Alert } from '@/components/ui';
 import {
   GraduationCap, Hash, Phone, Mail, BookOpen, Users,
   CalendarCheck, Clock, CheckCircle2, XCircle, AlertTriangle,
@@ -112,7 +112,7 @@ export default function TeacherDetail({ teacherId }: { teacherId: string }) {
 
   if (loading) {
     return (
-      <div className="p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
+      <div className="p-4 sm:p-6 md:p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
         <div className="h-8 w-40 bg-gray-100 rounded-lg animate-pulse" />
         <div className="h-40 bg-gray-100 rounded-2xl animate-pulse" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -122,54 +122,91 @@ export default function TeacherDetail({ teacherId }: { teacherId: string }) {
     );
   }
 
-  if (error) return <div className="p-8"><Alert type="error" message={error} /></div>;
+  if (error) return <div className="p-4 sm:p-6 md:p-8"><Alert type="error" message={error} /></div>;
   if (!teacher) return null;
 
   const fullName = `${teacher.user.firstName} ${teacher.user.lastName}`.trim();
   const initials = `${teacher.user.firstName[0] ?? ''}${teacher.user.lastName[0] ?? ''}`.toUpperCase();
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
       {/* Back */}
       <Link href="/teachers" className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium">
         ← Back to Teachers
       </Link>
 
       {/* Profile header */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-[var(--shadow-card)]">
-        <div className="flex items-start gap-5 flex-wrap">
-          <div className="w-16 h-16 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-2xl flex-shrink-0">
+      <div className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xl flex-shrink-0">
             {initials}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 flex-wrap mb-1">
-              <h1 className="text-2xl font-bold text-gray-900">{fullName}</h1>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">
+                  {fullName}
+                </h1>
+              </div>
               {teacher.user.isActive ? (
-                <Badge variant="success"><CheckCircle2 className="w-3 h-3 mr-1" />Active</Badge>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 px-2 py-1 text-[11px] font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Active
+                </span>
               ) : (
-                <Badge variant="warning"><Clock className="w-3 h-3 mr-1" />Pending</Badge>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 px-2 py-1 text-[11px] font-semibold">
+                  <Clock className="w-3.5 h-3.5" />
+                  Pending
+                </span>
               )}
             </div>
             <div className="flex items-center gap-1.5 text-sm text-gray-500 font-mono mb-3">
               <Hash className="w-3.5 h-3.5" />
               {teacher.staffId}
             </div>
-            <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-              <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-gray-400" />{teacher.user.phone}</span>
-              {teacher.user.email && <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-gray-400" />{teacher.user.email}</span>}
-              {teacher.qualification && <span className="flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5 text-gray-400" />{teacher.qualification}</span>}
-              <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-gray-400" />Joined {new Date(teacher.user.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-600">
+              <span className="flex items-center gap-1.5 min-w-0">
+                <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <span className="truncate">{teacher.user.phone}</span>
+              </span>
+              {teacher.user.email && (
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <span className="truncate">{teacher.user.email}</span>
+                </span>
+              )}
+              {teacher.qualification && (
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <GraduationCap className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <span className="truncate">{teacher.qualification}</span>
+                </span>
+              )}
+              <span className="flex items-center gap-1.5 min-w-0">
+                <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <span className="truncate">
+                  Joined{' '}
+                  {new Date(teacher.user.joinedAt).toLocaleDateString('en-GB', {
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </span>
+              </span>
             </div>
           </div>
           {teacher.classTeacherOf && (
-            <Link href={`/classes/${teacher.classTeacherOf.id}`} className="flex items-center gap-3 bg-primary-50 border border-primary-100 rounded-xl px-4 py-3 hover:bg-primary-100 transition-colors">
-              <BookOpen className="w-5 h-5 text-primary-600" />
-              <div>
-                <p className="text-xs text-primary-600 font-semibold">Class Teacher</p>
-                <p className="text-sm font-bold text-primary-900">{teacher.classTeacherOf.name}</p>
-                <p className="text-xs text-primary-600">{teacher.classTeacherOf.studentCount} students</p>
+            <Link
+              href={`/classes/${teacher.classTeacherOf.id}`}
+              className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 hover:bg-gray-100 transition-colors w-full sm:w-auto sm:min-w-[220px]"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <BookOpen className="w-5 h-5 text-gray-700 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500 font-semibold">Class Teacher</p>
+                  <p className="text-sm font-bold text-gray-900 truncate">{teacher.classTeacherOf.name}</p>
+                  <p className="text-xs text-gray-500">{teacher.classTeacherOf.studentCount} students</p>
+                </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-primary-400" />
+              <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
             </Link>
           )}
         </div>
@@ -178,28 +215,28 @@ export default function TeacherDetail({ teacherId }: { teacherId: string }) {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MiniStat
-          icon={<Users className="w-5 h-5 text-primary-600" />}
+          icon={<Users className="w-5 h-5 text-blue-700" />}
           label={teacher.classTeacherOf ? 'Class Students' : 'Students Taught'}
           value={teacher.classTeacherOf ? String(teacher.classTeacherOf.studentCount) : '—'}
-          colorClass="bg-primary-50"
+          colorClass="bg-white"
         />
         <MiniStat
-          icon={<BookOpen className="w-5 h-5 text-warning-600" />}
+          icon={<BookOpen className="w-5 h-5 text-amber-700" />}
           label="Subjects"
           value={String(teacher.subjects.length)}
-          colorClass="bg-warning-50"
+          colorClass="bg-white"
         />
         <MiniStat
-          icon={<CalendarCheck className="w-5 h-5 text-success-600" />}
+          icon={<CalendarCheck className="w-5 h-5 text-emerald-700" />}
           label="Attendance Rate"
           value={`${teacher.attendance.summary.rate}%`}
-          colorClass="bg-success-50"
+          colorClass="bg-white"
         />
         <MiniStat
-          icon={<FileText className="w-5 h-5 text-info-600" />}
+          icon={<FileText className="w-5 h-5 text-purple-700" />}
           label="Leave Requests"
           value={String(teacher.leaveRequests.length)}
-          colorClass="bg-blue-50"
+          colorClass="bg-white"
         />
       </div>
 
@@ -239,7 +276,7 @@ export default function TeacherDetail({ teacherId }: { teacherId: string }) {
 
 function MiniStat({ icon, label, value, colorClass }: { icon: React.ReactNode; label: string; value: string; colorClass: string }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-[var(--shadow-card)]">
+    <div className="bg-white border border-gray-200 rounded-2xl p-4">
       <div className={`w-9 h-9 ${colorClass} rounded-xl flex items-center justify-center mb-2`}>{icon}</div>
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</p>
       <p className="text-2xl font-bold text-gray-900 mt-0.5">{value}</p>
@@ -254,7 +291,7 @@ function OverviewTab({ teacher }: { teacher: TeacherData }) {
     <div className="space-y-5">
       {/* Subjects list */}
       {teacher.subjects.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-[var(--shadow-card)]">
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
           <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-gray-500" /> Subjects Teaching
           </h3>
