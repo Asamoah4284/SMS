@@ -23,8 +23,8 @@ interface Student {
 }
 
 interface Subject {
-  id: string;
-  name: string;
+    id: string;
+    name: string;
   code: string | null;
   teacherId: string;
   teacher: string;
@@ -50,8 +50,8 @@ interface ClassStats {
 }
 
 interface ClassData {
-  id: string;
-  name: string;
+    id: string;
+    name: string;
   level: string;
   section: string | null;
   classTeacher: { id: string; name: string; phone: string } | null;
@@ -76,7 +76,7 @@ export default function ClassDetail({ classId }: { classId: string }) {
     try {
       const token = localStorage.getItem('accessToken');
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/classes/${classId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed to fetch class');
       setClassData(await res.json());
@@ -313,8 +313,8 @@ function OverviewTab({ classData }: { classData: ClassData }) {
                     <ScoreBadge score={s.avgScore} />
                   </div>
                 ))}
-              </div>
-            ) : (
+            </div>
+          ) : (
               <div className="flex items-center gap-2 text-success-700 py-1">
                 <CheckCircle2 className="w-4 h-4" />
                 <p className="text-sm font-medium">All students above 50%</p>
@@ -533,7 +533,7 @@ function PerformanceTab({ stats }: { stats: ClassStats }) {
           <div className="flex items-center gap-2 mb-4">
             <AlertTriangle className="w-5 h-5 text-danger-500" />
             <h3 className="font-bold text-gray-900">Needs Attention</h3>
-          </div>
+                  </div>
           {performance.struggling.length > 0 ? (
             <div className="space-y-3">
               {performance.struggling.map((s) => (

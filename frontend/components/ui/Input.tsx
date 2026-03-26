@@ -35,7 +35,7 @@ export function Input({
           {...props}
           className={cn(
             'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all',
-            icon && 'pl-10',
+            icon ? 'pl-10' : undefined,
             error && 'border-danger-500 focus:ring-danger-500',
             className
           )}

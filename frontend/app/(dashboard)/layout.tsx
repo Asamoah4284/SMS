@@ -33,7 +33,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
             <div className="flex items-center gap-3 cursor-pointer group">
               <div className="flex flex-col text-right">
-                <span className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">Admin User</span>
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Super Admin</span>
               </div>
               <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-full shadow-sm flex items-center justify-center ring-2 ring-white border border-gray-100 text-white font-bold tracking-tight">
