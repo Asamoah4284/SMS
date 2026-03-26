@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Alert, Badge, Button, Modal, Input } from '@/components/ui';
+import { Alert, Badge, Button, Modal } from '@/components/ui';
 import {
   Phone, Mail, Calendar, Users, BookOpen, CheckCircle2,
   AlertTriangle, CreditCard, ChevronRight, UserPlus,
@@ -90,7 +90,7 @@ export default function ParentDetail({ parentId }: { parentId: string }) {
 
   if (loading) {
     return (
-      <div className="p-8 max-w-[1200px] mx-auto animate-fade-in space-y-6">
+      <div className="p-4 sm:p-6 md:p-8 max-w-[1200px] mx-auto animate-fade-in space-y-5">
         <div className="h-8 w-40 bg-gray-100 rounded-lg animate-pulse" />
         <div className="h-36 bg-gray-100 rounded-2xl animate-pulse" />
         <div className="h-64 bg-gray-100 rounded-2xl animate-pulse" />
@@ -106,7 +106,7 @@ export default function ParentDetail({ parentId }: { parentId: string }) {
   const totalFeeBalance = parent.children.reduce((s, c) => s + c.fees.balance, 0);
 
   return (
-    <div className="p-8 max-w-[1200px] mx-auto animate-fade-in space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-[1200px] mx-auto animate-fade-in space-y-5">
       <Link href="/parents" className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium">
         ← Back to Parents
       </Link>
@@ -114,25 +114,43 @@ export default function ParentDetail({ parentId }: { parentId: string }) {
       {error && <Alert type="error" message={error} onDismiss={() => setError('')} />}
 
       {/* Profile header */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-[var(--shadow-card)]">
-        <div className="flex items-start gap-5 flex-wrap">
-          <div className="w-16 h-16 rounded-2xl bg-warning-100 text-warning-700 flex items-center justify-center font-bold text-2xl flex-shrink-0">
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+        <div className="flex items-start gap-4 flex-col sm:flex-row">
+          <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
             {initials}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 flex-wrap mb-1">
-              <h1 className="text-2xl font-bold text-gray-900">{fullName}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{fullName}</h1>
               {parent.user.isActive
                 ? <Badge variant="success"><CheckCircle2 className="w-3 h-3 mr-1" />Active</Badge>
                 : <Badge variant="default">Inactive</Badge>}
             </div>
-            <div className="flex flex-wrap gap-4 text-sm text-gray-600 mt-2">
-              <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-gray-400" />{parent.user.phone}</span>
-              {parent.user.email && <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-gray-400" />{parent.user.email}</span>}
-              <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-gray-400" />Registered {new Date(parent.user.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span>
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-4 text-sm text-gray-600 mt-2">
+              <span className="flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-gray-400" />
+                {parent.user.phone}
+              </span>
+              {parent.user.email && (
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <Mail className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="truncate">{parent.user.email}</span>
+                </span>
+              )}
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                Registered{" "}
+                {new Date(parent.user.joinedAt).toLocaleDateString("en-GB", {
+                  month: "short",
+                  year: "numeric",
+                })}
+              </span>
             </div>
           </div>
-          <a href={`tel:${parent.user.phone}`} className="flex items-center gap-2 px-4 py-2.5 bg-primary-50 text-primary-700 rounded-xl font-semibold text-sm hover:bg-primary-100 transition-colors">
+          <a
+            href={`tel:${parent.user.phone}`}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-50 text-primary-700 rounded-xl font-semibold text-sm hover:bg-primary-100 transition-colors"
+          >
             <Phone className="w-4 h-4" />
             Call
           </a>
@@ -140,13 +158,13 @@ export default function ParentDetail({ parentId }: { parentId: string }) {
       </div>
 
       {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-[var(--shadow-card)] text-center">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm text-center">
           <Users className="w-6 h-6 text-primary-600 mx-auto mb-1" />
           <p className="text-2xl font-bold text-gray-900">{parent.children.length}</p>
           <p className="text-xs text-gray-500 font-medium">Child{parent.children.length !== 1 ? 'ren' : ''}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-[var(--shadow-card)] text-center">
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm text-center">
           <CheckCircle2 className="w-6 h-6 text-success-600 mx-auto mb-1" />
           <p className="text-2xl font-bold text-gray-900">
             {parent.children.length > 0
@@ -155,7 +173,7 @@ export default function ParentDetail({ parentId }: { parentId: string }) {
           </p>
           <p className="text-xs text-gray-500 font-medium">Avg Attendance</p>
         </div>
-        <div className={`bg-white border border-gray-200 rounded-2xl p-4 shadow-[var(--shadow-card)] text-center ${totalFeeBalance > 0 ? 'border-danger-200 bg-danger-50/30' : ''}`}>
+        <div className={`bg-white border border-gray-200 rounded-2xl p-4 shadow-sm text-center ${totalFeeBalance > 0 ? 'border-danger-200 bg-danger-50/30' : ''}`}>
           <CreditCard className={`w-6 h-6 mx-auto mb-1 ${totalFeeBalance > 0 ? 'text-danger-600' : 'text-success-600'}`} />
           <p className={`text-2xl font-bold ${totalFeeBalance > 0 ? 'text-danger-700' : 'text-success-700'}`}>
             {totalFeeBalance > 0 ? `GHS ${totalFeeBalance.toFixed(2)}` : 'Paid'}
@@ -165,13 +183,13 @@ export default function ParentDetail({ parentId }: { parentId: string }) {
       </div>
 
       {/* Children */}
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-[var(--shadow-card)]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-6 py-4 border-b border-gray-100">
           <div>
             <h2 className="font-bold text-gray-900">Children</h2>
             <p className="text-sm text-gray-500">{parent.children.length} enrolled student{parent.children.length !== 1 ? 's' : ''}</p>
           </div>
-          <Button size="sm" icon={<UserPlus className="w-3.5 h-3.5" />} onClick={() => setAssignOpen(true)}>
+          <Button className="w-full sm:w-auto" size="sm" icon={<UserPlus className="w-3.5 h-3.5" />} onClick={() => setAssignOpen(true)}>
             Assign Child
           </Button>
         </div>
@@ -220,8 +238,8 @@ function ChildCard({ child, onUnassign }: { child: Child; onUnassign: () => void
   };
 
   return (
-    <div className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50/50 transition-colors">
-      <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
+    <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4 px-4 sm:px-6 py-4 hover:bg-gray-50/50 transition-colors">
+      <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
         {`${child.firstName[0]}${child.lastName[0]}`.toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
@@ -255,7 +273,7 @@ function ChildCard({ child, onUnassign }: { child: Child; onUnassign: () => void
           </span>
         </div>
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
         <Link href={`/students/${child.id}`} className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
           <ChevronRight className="w-4 h-4" />
         </Link>

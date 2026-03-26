@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Card, CardBody, Badge, Alert } from '@/components/ui';
-import { Users, BookOpen } from 'lucide-react';
+import { Alert, Badge, Button } from '@/components/ui';
+import { BookOpen, ChevronRight, Search, Users, UserCheck, UserX } from 'lucide-react';
 import { classLevelLabels } from '@/lib/theme';
 
 interface Class {
@@ -22,6 +22,8 @@ export default function ClassList() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchClasses();
@@ -54,11 +56,9 @@ export default function ClassList() {
 
   if (loading) {
     return (
-      <Card>
-        <CardBody className="text-center py-12">
-          <p className="text-gray-500">Loading classes...</p>
-        </CardBody>
-      </Card>
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+        <p className="text-sm text-gray-500">Loading classes...</p>
+      </div>
     );
   }
 
@@ -68,49 +68,108 @@ export default function ClassList() {
 
   if (classes.length === 0) {
     return (
-      <Card>
-        <CardBody className="text-center py-12">
-          <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No classes yet. Create one to get started.</p>
-        </CardBody>
-      </Card>
+      <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center shadow-sm">
+        <BookOpen className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+        <p className="text-sm text-gray-500">No classes yet. Create one to get started.</p>
+      </div>
     );
   }
 
+  const filteredClasses = classes.filter((cls) => {
+    const levelLabel = classLevelLabels[cls.level as keyof typeof classLevelLabels] ?? cls.level;
+    const haystack = [
+      cls.name,
+      cls.level,
+      levelLabel,
+      cls.section ?? '',
+      cls.classTeacher?.name ?? '',
+    ]
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(searchQuery.toLowerCase().trim());
+  });
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {classes.map((cls) => (
-        <Link key={cls.id} href={`/classes/${cls.id}`}>
-          <Card hoverable className="h-full">
-            <CardBody>
-              <div className="mb-4">
-                <h3 className="text-lg font-bold text-gray-900">{cls.name}</h3>
-                <p className="text-sm text-gray-600">
-                  {classLevelLabels[cls.level as keyof typeof classLevelLabels] || cls.level}
-                  {cls.section && ` - Section ${cls.section}`}
-                </p>
-              </div>
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search class name, level, section, teacher..."
+            className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <Button onClick={() => setSearchQuery(searchInput)} icon={<Search className="w-4 h-4" />}>
+          Search
+        </Button>
+      </div>
 
-              <div className="space-y-3 mb-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Users className="w-4 h-4" />
-                  <span>{cls.studentCount} students</span>
-                </div>
-                {cls.classTeacher && (
-                  <div className="text-sm">
-                    <p className="text-gray-600">Class Teacher</p>
-                    <p className="font-semibold text-gray-900">{cls.classTeacher.name}</p>
+      {filteredClasses.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center shadow-sm">
+          <p className="text-sm text-gray-500">No classes match your search.</p>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredClasses.map((cls) => {
+        const levelLabel =
+          classLevelLabels[cls.level as keyof typeof classLevelLabels] ?? cls.level;
+        const subLabel = cls.section ? `${levelLabel} · Section ${cls.section}` : levelLabel;
+        const hasTeacher = Boolean(cls.classTeacher);
+
+        return (
+              <Link
+                key={cls.id}
+                href={`/classes/${cls.id}`}
+                className="group block bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:bg-gray-50/40 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-base font-bold text-gray-900 truncate">{cls.name}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200 bg-gray-50 text-gray-700">
+                        {subLabel}
+                      </span>
+                    </div>
                   </div>
-                )}
-              </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {hasTeacher ? (
+                      <Badge variant="success" className="gap-1">
+                        <UserCheck className="w-3 h-3" />
+                        Assigned
+                      </Badge>
+                    ) : (
+                      <Badge variant="warning" className="gap-1">
+                        <UserX className="w-3 h-3" />
+                        No teacher
+                      </Badge>
+                    )}
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500" />
+                  </div>
+                </div>
 
-              {!cls.classTeacher && (
-                <Badge variant="warning">No teacher assigned</Badge>
-              )}
-            </CardBody>
-          </Card>
-        </Link>
-      ))}
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Users className="w-4 h-4 text-gray-500" />
+                    <span className="font-semibold text-gray-900">{cls.studentCount}</span>
+                    <span className="text-sm text-gray-500">students</span>
+                  </div>
+                  <div className="text-right min-w-0">
+                    <p className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">
+                      Class Teacher
+                    </p>
+                    <p className={`text-sm font-semibold truncate ${hasTeacher ? 'text-gray-900' : 'text-gray-400'}`}>
+                      {hasTeacher ? cls.classTeacher!.name : 'Not assigned'}
+                    </p>
+                  </div>
+                </div>
+              </Link>
+        );
+          })}
+        </div>
+      )}
     </div>
   );
 }
