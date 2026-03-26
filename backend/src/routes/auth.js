@@ -46,50 +46,62 @@ router.post(
   authenticate, // Admin only
   async (req, res) => {
     try {
-      const { firstName, lastName, phone } = req.body;
+      const { firstName, lastName, phone, classId } = req.body;
       const adminId = req.user.id;
 
       // Check if user already exists
-      const existingUser = await prisma.user.findUnique({
-        where: { phone },
-      });
-
+      const existingUser = await prisma.user.findUnique({ where: { phone } });
       if (existingUser) {
-        return res
-          .status(400)
-          .json({ error: 'User with this phone already exists' });
+        return res.status(400).json({ error: 'User with this phone already exists' });
       }
 
-      // Generate staff ID
-      const staffId = generateStaffId(firstName, lastName);
+      // Check if an unaccepted invitation already exists for this phone
+      const existingInvite = await prisma.teacherInvitation.findUnique({ where: { phone } });
+      if (existingInvite && !existingInvite.accepted) {
+        return res.status(400).json({ error: 'An invitation has already been sent to this phone' });
+      }
 
-      // Check if staff ID already exists
-      const existingStaff = await prisma.teacher.findUnique({
-        where: { staffId },
-      });
+      // Validate classId if provided (class teacher pre-assignment)
+      if (classId) {
+        const cls = await prisma.class.findUnique({ where: { id: classId } });
+        if (!cls) return res.status(404).json({ error: 'Class not found' });
+        if (cls.classTeacherId) {
+          return res.status(400).json({ error: 'This class already has a teacher assigned' });
+        }
+      }
 
-      if (existingStaff) {
-        return res.status(400).json({ error: 'Staff ID already exists' });
+      // Generate unique staff ID
+      let staffId = generateStaffId(firstName, lastName);
+      let attempt = 0;
+      while (
+        (await prisma.teacher.findUnique({ where: { staffId } })) ||
+        (await prisma.teacherInvitation.findFirst({ where: { staffId, accepted: false } }))
+      ) {
+        staffId = generateStaffId(firstName, lastName);
+        if (++attempt > 10) { staffId = `${staffId}${Date.now() % 1000}`; break; }
       }
 
       // Generate 6-digit invite code
       const inviteCode = String(Math.floor(100000 + Math.random() * 900000));
-      const codeExpiry = new Date(Date.now() + 10 * 60000); // 10 mins
+      const codeExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48h
 
-      // Create invitation record
-      const invitation = await prisma.teacherInvitation.create({
+      // Create invitation record (with name + optional class)
+      await prisma.teacherInvitation.create({
         data: {
           staffId,
           phone,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
           inviteCode,
           codeExpiry,
+          classId: classId || null,
           createdBy: adminId,
         },
       });
 
       // Send SMS with invite code
       const e164Phone = formatPhoneE164(phone);
-      const smsText = `[${process.env.SCHOOL_ABBREVIATION || 'SMS'}] Welcome! Your Staff ID: ${staffId}\nInvitation Code: ${inviteCode}\nLink: ${process.env.FRONTEND_URL}/invite`;
+      const smsText = `[${process.env.SCHOOL_ABBREVIATION || 'SMS'}] Welcome ${firstName}! Staff ID: ${staffId} | Code: ${inviteCode} | ${process.env.FRONTEND_URL}/invite`;
 
       await sendSMS(e164Phone, smsText);
 
@@ -220,28 +232,36 @@ router.post(
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Create User and Teacher in transaction
-      const user = await prisma.user.create({
-        data: {
-          phone: invitation.phone,
-          password: hashedPassword,
-          firstName: '', // Will be updated by teacher later or from invite
-          lastName: '',
-          role: 'TEACHER',
-        },
-      });
+      // Create User + Teacher + optionally assign class — all in one transaction
+      const [user] = await prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: {
+            phone: invitation.phone,
+            password: hashedPassword,
+            firstName: invitation.firstName || '',
+            lastName: invitation.lastName || '',
+            role: 'TEACHER',
+          },
+        });
 
-      const teacher = await prisma.teacher.create({
-        data: {
-          userId: user.id,
-          staffId,
-        },
-      });
+        const newTeacher = await tx.teacher.create({
+          data: { userId: newUser.id, staffId },
+        });
 
-      // Mark invitation as accepted
-      await prisma.teacherInvitation.update({
-        where: { staffId },
-        data: { accepted: true, acceptedAt: new Date() },
+        // Pre-assign as class teacher if invitation had a classId
+        if (invitation.classId) {
+          await tx.class.update({
+            where: { id: invitation.classId },
+            data: { classTeacherId: newTeacher.id },
+          });
+        }
+
+        await tx.teacherInvitation.update({
+          where: { staffId },
+          data: { accepted: true, acceptedAt: new Date() },
+        });
+
+        return [newUser];
       });
 
       // Generate JWT

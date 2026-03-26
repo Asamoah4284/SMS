@@ -1,4 +1,5 @@
 # Phase 4 Plan: Student Management + Bulk Upload
+## Status: Mostly Complete (see checkmarks below)
 
 ## Overview
 Admin + Teachers can manage students in their classes via UI or CSV bulk upload.
@@ -168,20 +169,19 @@ Kwasi,Mensah,2015-08-22,Mary Mensah,0251234567,Tema
 ## Implementation Order
 
 1. **Backend**
-   - Update Prisma (parentName, parentPhone, isActive fields)
-   - POST /students (single)
-   - POST /students/bulk-upload (CSV)
-   - GET /students (list + filter)
-   - GET /students/:id (detail)
-   - PUT /students/:id (update)
-   - DELETE /students/:id (delete/deactivate)
+   - [x] Update Prisma (parentName, parentPhone fields on Student; firstName/lastName/classId on TeacherInvitation)
+   - [x] POST /students (single, with parent phone dedup + portal linking)
+   - [x] POST /students/bulk-import (JSON array, per-row validation + parent dedup)
+   - [x] GET /students (list + filter by classId, search, isActive)
+   - [x] GET /students/:id (detail with attendances, results, fees, attendance summary)
+   - [x] PUT /students/:id (update personal info)
+   - [ ] DELETE /students/:id (soft deactivate — isActive flag already on model)
 
 2. **Frontend**
-   - Create StudentList page (table + filters)
-   - Create StudentForm (single add)
-   - Create BulkUpload page (CSV + preview)
-   - Create StudentDetail page
-   - Add to class detail view
+   - [x] Students list page (search + class filter + Add Student modal)
+   - [x] Add Student form (in modal: First/Middle/Last, DOB, Gender, Class, Guardian section)
+   - [ ] Student detail page (/students/[id])
+   - [ ] Bulk student CSV import (frontend modal with preview)
 
 3. **Utilities**
    - CSV parser (Parse CSV → validate → return rows)
