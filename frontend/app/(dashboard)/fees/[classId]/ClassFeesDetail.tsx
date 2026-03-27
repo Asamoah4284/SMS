@@ -330,7 +330,7 @@ function RecordPaymentModal({ student, feeStructure, termId, onClose, onSaved }:
   };
 
   return (
-    <Modal isOpen title={`Record Payment — ${student.name}`} onClose={onClose}>
+    <Modal isOpen={true} title={`Record Payment — ${student.name}`} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert type="error" message={error} />}
 
