@@ -8,3 +8,4 @@ export { Skeleton, SkeletonCard, SkeletonRow, SkeletonTable } from './Skeleton';
 export { PageHeader } from './PageHeader';
 export { DropdownMenu } from './DropdownMenu';
 export type { DropdownMenuItem } from './DropdownMenu';
+export { default as AdminOnly } from './AdminOnly';

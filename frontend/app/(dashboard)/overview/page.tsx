@@ -18,6 +18,7 @@ import {
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { DropdownMenu } from "@/components/ui";
+import OverviewRoleGate from "./OverviewRoleGate";
 
 export const metadata = { title: 'Overview — EduTrack SMS' };
 
@@ -61,6 +62,7 @@ export default async function DashboardPage() {
   const staffValue = stats ? `${formatInt(stats.staff.total)}` : "—";
 
   return (
+    <OverviewRoleGate>
     <div className="p-6 max-w-[1600px] w-full mx-auto animate-in fade-in duration-500 h-full">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
@@ -432,6 +434,7 @@ export default async function DashboardPage() {
         </div>
       </div>
     </div>
+    </OverviewRoleGate>
   );
 }
 

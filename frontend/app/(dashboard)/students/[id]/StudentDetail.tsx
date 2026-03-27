@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Alert, Badge } from '@/components/ui';
+import { Alert, Badge, Button, Modal } from '@/components/ui';
 import { getGrade } from '@/lib/theme';
+import { useUser } from '@/lib/UserContext';
 import {
   GraduationCap, Calendar, MapPin, Phone, Users,
   CheckCircle2, UserX, Clock, AlertCircle,
   BookOpen, Banknote, UserCheck, TrendingUp,
-  ChevronRight, Hash, ExternalLink,
+  ChevronRight, Hash, ExternalLink, Plus, Loader2, Save, Trash2,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -287,7 +288,7 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
       {activeTab === 'overview' && <OverviewTab student={student} parentName={parentName} parentPhone={parentPhone} parentLinked={parentLinked} age={age} />}
       {activeTab === 'attendance' && <AttendanceTab attendances={student.attendances} summary={student.attendanceSummary} />}
       {activeTab === 'results' && <ResultsTab results={student.results} />}
-      {activeTab === 'fees' && <FeesTab payments={student.feePayments} />}
+      {activeTab === 'fees' && <FeesTab payments={student.feePayments} studentId={student.id} onPaymentRecorded={fetchStudent} />}
     </div>
   );
 }
@@ -633,24 +634,32 @@ const FEE_STATUS_CONFIG = {
   UNPAID: { label: 'Unpaid', variant: 'error' as const },
 };
 
-function FeesTab({ payments }: { payments: FeePayment[] }) {
-  if (payments.length === 0) {
-    return (
-      <div className="bg-white border border-gray-200 rounded-2xl py-14 text-center shadow-sm">
-        <Banknote className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-        <p className="text-gray-500">No fee records</p>
-      </div>
-    );
-  }
+function FeesTab({ payments, studentId, onPaymentRecorded }: {
+  payments: FeePayment[];
+  studentId: string;
+  onPaymentRecorded: () => void;
+}) {
+  const { isAdmin } = useUser();
+  const [paymentOpen, setPaymentOpen] = useState(false);
 
   const totalDue = payments.reduce((s, f) => s + f.feeStructure.amount, 0);
   const totalPaid = payments.reduce((s, f) => s + f.amountPaid, 0);
-  const balance = totalDue - totalPaid;
+  const balance = Math.max(0, totalDue - totalPaid);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Reverse this payment?')) return;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/fees/payments/${id}`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) onPaymentRecorded();
+    else alert('Failed to reverse payment');
+  };
 
   return (
     <div className="space-y-5">
       {/* Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {[
           { label: 'Total Due', value: `GHS ${totalDue.toLocaleString()}`, color: 'text-gray-900' },
           { label: 'Total Paid', value: `GHS ${totalPaid.toLocaleString()}`, color: 'text-success-700' },
@@ -663,34 +672,185 @@ function FeesTab({ payments }: { payments: FeePayment[] }) {
         ))}
       </div>
 
-      {/* Payment records */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
-          <span>Fee</span>
-          <span>Term</span>
-          <span>Amount Due</span>
-          <span>Paid</span>
-          <span>Status</span>
+      {/* Actions */}
+      {isAdmin && (
+        <div className="flex justify-end">
+          <Button variant="primary" size="sm" onClick={() => setPaymentOpen(true)}>
+            <Plus size={14} className="mr-1" />Record Payment
+          </Button>
         </div>
-        <div className="divide-y divide-gray-100">
-          {payments.map((p) => {
-            const cfg = FEE_STATUS_CONFIG[p.paymentStatus as keyof typeof FEE_STATUS_CONFIG] ?? { label: p.paymentStatus, variant: 'default' as const };
-            return (
-              <div key={p.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 items-center px-6 py-4">
+      )}
+
+      {/* Payment records */}
+      {payments.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-2xl py-14 text-center shadow-sm">
+          <Banknote className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+          <p className="text-gray-500">No payment records yet</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3">
+            <span>Fee</span><span>Term</span><span>Paid</span><span>Method</span><span></span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {payments.map((p) => (
+              <div key={p.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 items-center px-5 py-3.5">
                 <div>
                   <p className="text-sm font-semibold text-gray-900">{p.feeStructure.name}</p>
                   {p.receiptNumber && <p className="text-xs text-gray-400 font-mono">#{p.receiptNumber}</p>}
                 </div>
                 <span className="text-sm text-gray-600">{p.term.name} {p.term.year}</span>
-                <span className="text-sm font-medium text-gray-700">GHS {p.feeStructure.amount.toLocaleString()}</span>
                 <span className="text-sm font-bold text-gray-900">GHS {p.amountPaid.toLocaleString()}</span>
-                <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                <span className="text-sm text-gray-500 capitalize">{p.paymentMethod ?? '—'}</span>
+                {isAdmin && (
+                  <button onClick={() => handleDelete(p.id)}
+                    className="p-1 text-gray-300 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors">
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {paymentOpen && (
+        <StudentPaymentModal
+          studentId={studentId}
+          onClose={() => setPaymentOpen(false)}
+          onSaved={() => { setPaymentOpen(false); onPaymentRecorded(); }}
+        />
+      )}
     </div>
+  );
+}
+
+function StudentPaymentModal({ studentId, onClose, onSaved }: {
+  studentId: string; onClose: () => void; onSaved: () => void;
+}) {
+  const API = process.env.NEXT_PUBLIC_API_URL;
+  const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
+
+  const [structures, setStructures] = useState<Array<{ id: string; name: string; amount: number; classLevel: string | null }>>([]);
+  const [terms, setTerms] = useState<Array<{ id: string; name: string; year: number; isCurrent: boolean }>>([]);
+  const [form, setForm] = useState({
+    feeStructureId: '', termId: '', amountPaid: '',
+    paymentMethod: 'Cash', receiptNumber: '',
+    paidAt: new Date().toISOString().split('T')[0],
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const token = getToken();
+    Promise.all([
+      fetch(`${API}/fees/structures`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+      fetch(`${API}/terms`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+    ]).then(([sd, td]) => {
+      setStructures(sd.structures ?? []);
+      const termList = td.terms ?? [];
+      setTerms(termList);
+      const cur = termList.find((t: { isCurrent: boolean }) => t.isCurrent);
+      if (cur) setForm((f) => ({ ...f, termId: cur.id }));
+    }).catch(() => {});
+  }, []);
+
+  const selectedStructure = structures.find((s) => s.id === form.feeStructureId);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true); setError('');
+    const token = getToken();
+    const res = await fetch(`${API}/fees/payments`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId, ...form, amountPaid: parseFloat(form.amountPaid) }),
+    });
+    const data = await res.json();
+    setSaving(false);
+    if (!res.ok) { setError(data.message); return; }
+    onSaved();
+  };
+
+  return (
+    <Modal title="Record Payment" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <Alert type="error" message={error} />}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Fee Structure *</label>
+          <select required
+            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+            value={form.feeStructureId}
+            onChange={(e) => {
+              const s = structures.find((x) => x.id === e.target.value);
+              setForm({ ...form, feeStructureId: e.target.value, amountPaid: s ? String(s.amount) : '' });
+            }}
+          >
+            <option value="">Select fee structure...</option>
+            {structures.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} — GHS {s.amount.toLocaleString()}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Term *</label>
+          <select required
+            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+            value={form.termId}
+            onChange={(e) => setForm({ ...form, termId: e.target.value })}
+          >
+            <option value="">Select term...</option>
+            {terms.map((t) => (
+              <option key={t.id} value={t.id}>{t.name} {t.year}{t.isCurrent ? ' ★' : ''}</option>
+            ))}
+          </select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amount (GHS) *</label>
+            <input type="number" min="0.01" step="0.01" required
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+              placeholder={selectedStructure ? String(selectedStructure.amount) : '0.00'}
+              value={form.amountPaid}
+              onChange={(e) => setForm({ ...form, amountPaid: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+            <input type="date"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+              value={form.paidAt} onChange={(e) => setForm({ ...form, paidAt: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+            <select
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+              value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
+            >
+              <option>Cash</option><option>MoMo</option><option>Bank</option><option>Cheque</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Receipt Number</label>
+            <input type="text"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+              placeholder="e.g. RCT-001"
+              value={form.receiptNumber} onChange={(e) => setForm({ ...form, receiptNumber: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" type="button" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" type="submit" disabled={saving}>
+            {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
+            Record
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

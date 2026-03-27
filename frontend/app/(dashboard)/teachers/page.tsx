@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   Button, Modal, Input, Alert,
-  SkeletonTable, PageHeader,
+  SkeletonTable, PageHeader, AdminOnly,
 } from '@/components/ui';
 import {
   UserPlus, GraduationCap, Phone, Hash,
@@ -75,6 +75,7 @@ export default function TeachersPage() {
   const closeInvite = () => { setInviteOpen(false); setInviteResult(null); };
 
   return (
+    <AdminOnly>
     <div className="p-6 max-w-[1600px] mx-auto animate-fade-in">
       <PageHeader
         title="Teachers"
@@ -123,6 +124,7 @@ export default function TeachersPage() {
         <BulkImportForm onDone={() => { setBulkOpen(false); fetchTeachers(); }} onCancel={() => setBulkOpen(false)} />
       </Modal>
     </div>
+    </AdminOnly>
   );
 }
 
