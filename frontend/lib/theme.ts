@@ -33,7 +33,7 @@ import {
 
 export const schoolConfig = {
   name: process.env.NEXT_PUBLIC_SCHOOL_NAME || 'EduTrack SMS',
-  logo: process.env.NEXT_PUBLIC_SCHOOL_LOGO || '/logo.png',
+  logo: process.env.NEXT_PUBLIC_SCHOOL_LOGO || '/images/logo.png',
   motto: process.env.NEXT_PUBLIC_SCHOOL_MOTTO || 'Excellence in Education',
   address: process.env.NEXT_PUBLIC_SCHOOL_ADDRESS || '',
   phone: process.env.NEXT_PUBLIC_SCHOOL_PHONE || '',

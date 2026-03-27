@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Alert, Badge, Button, PageHeader } from '@/components/ui';
-import { Calendar, BookOpen, Clock3, Plus, RefreshCw } from 'lucide-react';
+import { Calendar, Clock3, RefreshCw } from 'lucide-react';
 
 type Role = 'ADMIN' | 'TEACHER';
 
@@ -20,6 +21,8 @@ type TimetableEntry = {
   startTime: string;
   endTime: string;
   subject: { id: string; name: string; code?: string | null };
+  teacherName?: string | null;
+  teacher?: { id?: string; name: string } | null;
 };
 
 type ClassTimetableResponse = {
@@ -36,15 +39,9 @@ type MyUpcomingResponse = {
   >;
 };
 
-const DAYS = [
-  { value: 1, label: 'Mon' },
-  { value: 2, label: 'Tue' },
-  { value: 3, label: 'Wed' },
-  { value: 4, label: 'Thu' },
-  { value: 5, label: 'Fri' },
-];
-
 export default function TimetableClientPage() {
+  const searchParams = useSearchParams();
+  const requestedClassId = searchParams.get('classId') ?? '';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -52,13 +49,8 @@ export default function TimetableClientPage() {
   const [selectedClassId, setSelectedClassId] = useState('');
   const [classTimetable, setClassTimetable] = useState<ClassTimetableResponse | null>(null);
   const [upcoming, setUpcoming] = useState<MyUpcomingResponse['entries']>([]);
-
-  const [subjectName, setSubjectName] = useState('');
-  const [startTime, setStartTime] = useState('08:00');
-  const [endTime, setEndTime] = useState('08:40');
-  const [daysOfWeek, setDaysOfWeek] = useState<number[]>([1]);
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState('');
+  const [timetableView, setTimetableView] = useState<'weekly' | 'daily'>('weekly');
+  const [selectedDay, setSelectedDay] = useState<number>(1);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
 
@@ -74,9 +66,13 @@ export default function TimetableClientPage() {
     setContext(data);
 
     if (!selectedClassId && data.classes.length > 0) {
-      setSelectedClassId(data.classes[0].id);
+      const requested = requestedClassId.trim();
+      const hasRequested = requested
+        ? data.classes.some((c) => c.id === requested)
+        : false;
+      setSelectedClassId(hasRequested ? requested : data.classes[0].id);
     }
-  }, [selectedClassId, token]);
+  }, [requestedClassId, selectedClassId, token]);
 
   const fetchMyUpcoming = useCallback(async () => {
     if (!token) return;
@@ -135,75 +131,82 @@ export default function TimetableClientPage() {
     fetchClassTimetable(selectedClassId).catch(() => null);
   }, [selectedClassId, context, fetchClassTimetable]);
 
-  const canEditClass = useMemo(() => {
-    if (!context || !selectedClassId) return false;
-    const selected = context.classes.find((c) => c.id === selectedClassId);
-    return !!selected?.canEdit || context.role === 'ADMIN';
-  }, [context, selectedClassId]);
-
-  const assignedSubjectNames = useMemo(() => {
-    if (!context || !selectedClassId) return [];
-    return context.subjectAssignments
-      .filter((a) => a.classId === selectedClassId)
-      .map((a) => a.subjectName)
-      .sort((a, b) => a.localeCompare(b));
-  }, [context, selectedClassId]);
-
-  const toggleDay = (day: number) => {
-    setDaysOfWeek((prev) => {
-      if (prev.includes(day)) {
-        const next = prev.filter((d) => d !== day);
-        return next.length === 0 ? prev : next;
+  const orderedDays = useMemo(() => {
+    if (!classTimetable?.entries) return [];
+    const seen = new Map<number, string>();
+    for (const entry of classTimetable.entries) {
+      if (!seen.has(entry.dayOfWeek)) {
+        seen.set(entry.dayOfWeek, entry.dayName);
       }
-      return [...prev, day].sort((a, b) => a - b);
-    });
+    }
+    return Array.from(seen.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([dayOfWeek, dayName]) => ({ dayOfWeek, dayName }));
+  }, [classTimetable?.entries]);
+
+  const orderedTimes = useMemo(() => {
+    if (!classTimetable?.entries) return [];
+    const times = Array.from(new Set(classTimetable.entries.map((e) => `${e.startTime}|${e.endTime}`)));
+    return times
+      .map((s) => {
+        const [startTime, endTime] = s.split('|');
+        return { startTime, endTime };
+      })
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [classTimetable?.entries]);
+
+  useEffect(() => {
+    if (!orderedDays.length) return;
+    if (!orderedDays.some((d) => d.dayOfWeek === selectedDay)) {
+      setSelectedDay(orderedDays[0].dayOfWeek);
+    }
+  }, [orderedDays, selectedDay]);
+
+  const entryAt = (dayOfWeek: number, startTime: string) =>
+    classTimetable?.entries.find((e) => e.dayOfWeek === dayOfWeek && e.startTime === startTime) ?? null;
+
+  const lessonTone = (subjectName: string) => {
+    const tones = [
+      { card: 'bg-blue-50 border-blue-200', left: 'border-l-blue-500' },
+      { card: 'bg-emerald-50 border-emerald-200', left: 'border-l-emerald-600' },
+      { card: 'bg-amber-50 border-amber-200', left: 'border-l-amber-600' },
+      { card: 'bg-violet-50 border-violet-200', left: 'border-l-violet-600' },
+      { card: 'bg-rose-50 border-rose-200', left: 'border-l-rose-600' },
+      { card: 'bg-cyan-50 border-cyan-200', left: 'border-l-cyan-600' },
+    ];
+    let hash = 0;
+    for (let i = 0; i < subjectName.length; i += 1) hash = (hash * 31 + subjectName.charCodeAt(i)) >>> 0;
+    return tones[hash % tones.length]!;
   };
 
-  const handleCreateSlot = async () => {
-    if (!token || !selectedClassId) return;
+  const MOCK_TEACHERS = [
+    'Mr. Kwaku Mensah',
+    'Mrs. Akotor Dei',
+    'Ms. Gloria Sarpong',
+    'Mr. Kojo Oyecl',
+    'Ms. Zipye Acamce',
+    'Mrs. Prapa Goyvers',
+    'Mr. Knume Owasi',
+    'Ms. Anu Kyeremaa',
+  ];
 
-    setSaving(true);
-    setSaveMessage('');
-    setError('');
-
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/timetable/slots`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          classId: selectedClassId,
-          subjectName,
-          startTime,
-          endTime,
-          daysOfWeek,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to save timetable slot');
-      }
-
-      setSaveMessage(data.message || 'Saved');
-      await fetchClassTimetable(selectedClassId);
-      await fetchMyUpcoming();
-
-      if (!data.reusedExistingSchedule) {
-        setSubjectName('');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save timetable slot');
-    } finally {
-      setSaving(false);
+  const mockTeacherFor = (entry: TimetableEntry) => {
+    const key = `${entry.subject.name}-${entry.dayOfWeek}-${entry.startTime}`;
+    let hash = 0;
+    for (let i = 0; i < key.length; i += 1) {
+      hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
     }
+    return MOCK_TEACHERS[hash % MOCK_TEACHERS.length]!;
+  };
+
+  const getTeacherLabel = (entry: TimetableEntry) => {
+    if (entry.teacher?.name) return entry.teacher.name;
+    if (entry.teacherName) return entry.teacherName;
+    return mockTeacherFor(entry);
   };
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto animate-fade-in space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-[1600px] mx-auto animate-fade-in space-y-4 sm:space-y-6">
       <PageHeader
         title="Timetable"
         subtitle="Manage class schedules and subject periods"
@@ -215,18 +218,16 @@ export default function TimetableClientPage() {
       />
 
       {error && <Alert type="error" message={error} onDismiss={() => setError('')} />}
-      {saveMessage && <Alert type="success" message={saveMessage} onDismiss={() => setSaveMessage('')} />}
 
       {!loading && context && (
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-[var(--shadow-card)]">
+        <div className="space-y-4 sm:space-y-6">
+            <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-[var(--shadow-card)]">
               <div className="flex items-center gap-3 mb-4">
                 <Calendar className="w-4 h-4 text-gray-500" />
                 <h3 className="font-bold text-gray-900">Full Class Timetable</h3>
               </div>
 
-              <div className="mb-4">
+              <div className="mb-3 sm:mb-4">
                 <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
                   Select class
                 </label>
@@ -244,36 +245,132 @@ export default function TimetableClientPage() {
               </div>
 
               {classTimetable && classTimetable.entries.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs uppercase text-gray-500 border-b border-gray-200">
-                        <th className="py-2 pr-3">Day</th>
-                        <th className="py-2 pr-3">Time</th>
-                        <th className="py-2 pr-3">Subject</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {classTimetable.entries.map((entry) => (
-                        <tr key={entry.id} className="border-b border-gray-100 last:border-0">
-                          <td className="py-2.5 pr-3 font-medium text-gray-700">{entry.dayName}</td>
-                          <td className="py-2.5 pr-3 text-gray-600">{entry.startTime} - {entry.endTime}</td>
-                          <td className="py-2.5 pr-3">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 text-xs font-semibold">
-                              {entry.subject.name}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTimetableView('weekly')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                        timetableView === 'weekly'
+                          ? 'bg-primary-50 text-primary-700 border-primary-200'
+                          : 'bg-white text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      Weekly
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTimetableView('daily')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                        timetableView === 'daily'
+                          ? 'bg-primary-50 text-primary-700 border-primary-200'
+                          : 'bg-white text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      Daily
+                    </button>
+                  </div>
+
+                  {timetableView === 'daily' ? (
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-2">
+                        {orderedDays.map((d) => (
+                          <button
+                            key={d.dayOfWeek}
+                            type="button"
+                            onClick={() => setSelectedDay(d.dayOfWeek)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                              selectedDay === d.dayOfWeek
+                                ? 'bg-primary-50 text-primary-700 border-primary-200'
+                                : 'bg-white text-gray-600 border-gray-200'
+                            }`}
+                          >
+                            {d.dayName}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="space-y-2">
+                        {classTimetable.entries
+                          .filter((e) => e.dayOfWeek === selectedDay)
+                          .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                          .map((entry) => {
+                            const tone = lessonTone(entry.subject.name);
+                            return (
+                            <div key={entry.id} className={`rounded-lg border border-l-4 ${tone.card} ${tone.left} px-3 py-2.5 min-h-[64px]`}>
+                              <p className="text-xs font-semibold text-gray-500">{entry.startTime} - {entry.endTime}</p>
+                              <p className="text-sm font-semibold text-gray-900 mt-0.5 leading-tight">{entry.subject.name}</p>
+                              {getTeacherLabel(entry) && (
+                                <p className="text-[11px] mt-1 text-gray-500 truncate flex items-center gap-1.5">
+                                  <span className="w-3.5 h-3.5 rounded-full bg-white border border-gray-200 inline-flex items-center justify-center text-[8px] leading-none">
+                                    👤
+                                  </span>
+                                  {getTeacherLabel(entry)}
+                                </p>
+                              )}
+                            </div>
+                          );
+                          })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[760px] rounded-xl border border-gray-200 overflow-hidden">
+                        <div className="grid" style={{ gridTemplateColumns: `120px repeat(${orderedDays.length}, minmax(120px, 1fr))` }}>
+                          <div className="bg-gray-50 border-b border-r border-gray-200 px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            Time
+                          </div>
+                          {orderedDays.map((d) => (
+                            <div
+                              key={d.dayOfWeek}
+                              className="bg-gray-50 border-b border-r border-gray-200 last:border-r-0 px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center"
+                            >
+                              {d.dayName}
+                            </div>
+                          ))}
+
+                          {orderedTimes.map((time) => (
+                            <Fragment key={time.startTime}>
+                              <div className="border-b border-r border-gray-200 px-3 py-3 text-xs font-semibold text-gray-600">
+                                {time.startTime} - {time.endTime}
+                              </div>
+                              {orderedDays.map((d) => {
+                                const entry = entryAt(d.dayOfWeek, time.startTime);
+                                return (
+                                  <div
+                                    key={`${d.dayOfWeek}-${time.startTime}`}
+                                    className="border-b border-r border-gray-200 last:border-r-0 p-2"
+                                  >
+                                    {entry ? (
+                                      <div className={`rounded-lg border border-l-4 ${lessonTone(entry.subject.name).card} ${lessonTone(entry.subject.name).left} px-3 py-2.5 min-h-[72px]`}>
+                                        <p className="text-sm font-semibold text-gray-900 leading-tight">{entry.subject.name}</p>
+                                        {getTeacherLabel(entry) && (
+                                          <p className="text-[11px] mt-1 text-gray-500 leading-tight truncate flex items-center gap-1.5">
+                                            <span className="w-3.5 h-3.5 rounded-full bg-white border border-gray-200 inline-flex items-center justify-center text-[8px] leading-none">
+                                              👤
+                                            </span>
+                                            {getTeacherLabel(entry)}
+                                          </p>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="h-[68px] rounded-lg border border-dashed border-gray-200 bg-gray-50/40" />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </Fragment>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-sm text-gray-500">No timetable slots for this class yet.</p>
               )}
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-[var(--shadow-card)]">
+            <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-[var(--shadow-card)]">
               <div className="flex items-center gap-3 mb-4">
                 <Clock3 className="w-4 h-4 text-gray-500" />
                 <h3 className="font-bold text-gray-900">Upcoming Classes (My Teaching)</h3>
@@ -299,108 +396,6 @@ export default function TimetableClientPage() {
                 <p className="text-sm text-gray-500">No assigned upcoming classes.</p>
               )}
             </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-[var(--shadow-card)]">
-              <div className="flex items-center gap-3 mb-3">
-                <Plus className="w-4 h-4 text-gray-500" />
-                <h3 className="font-bold text-gray-900">Add Subject To Timetable</h3>
-              </div>
-
-              <p className="text-xs text-gray-500 mb-4">
-                Subject teachers can only add for classes they are assigned to. If the class already has a timetable for the subject,
-                class schedule is reused automatically.
-              </p>
-
-              {!canEditClass && context.role === 'TEACHER' && (
-                <Alert
-                  type="info"
-                  message="You are viewing this class timetable in read-only mode. You can still request/add subject slots, but existing class-teacher schedules are protected."
-                  className="mb-4"
-                />
-              )}
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Subject name</label>
-                  <input
-                    value={subjectName}
-                    onChange={(e) => setSubjectName(e.target.value)}
-                    placeholder="e.g. Mathematics"
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
-                  />
-                </div>
-
-                {assignedSubjectNames.length > 0 && (
-                  <div>
-                    <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">My assigned subjects in this class</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {assignedSubjectNames.map((name) => (
-                        <button
-                          key={name}
-                          type="button"
-                          onClick={() => setSubjectName(name)}
-                          className="px-2 py-1 rounded-full text-xs font-semibold bg-warning-50 text-warning-700 hover:bg-warning-100"
-                        >
-                          {name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Start</label>
-                    <input
-                      type="time"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">End</label>
-                    <input
-                      type="time"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Days</label>
-                  <div className="flex flex-wrap gap-2">
-                    {DAYS.map((d) => (
-                      <button
-                        key={d.value}
-                        type="button"
-                        onClick={() => toggleDay(d.value)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-                          daysOfWeek.includes(d.value)
-                            ? 'bg-primary-50 text-primary-700 border-primary-200'
-                            : 'bg-white text-gray-600 border-gray-200'
-                        }`}
-                      >
-                        {d.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <Button
-                  onClick={handleCreateSlot}
-                  disabled={saving || !subjectName.trim() || !selectedClassId || daysOfWeek.length === 0}
-                  icon={<BookOpen className="w-4 h-4" />}
-                >
-                  {saving ? 'Saving...' : 'Save Timetable Slot'}
-                </Button>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 

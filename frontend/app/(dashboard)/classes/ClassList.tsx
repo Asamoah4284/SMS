@@ -129,17 +129,20 @@ export default function ClassList() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filteredClasses.map((cls) => {
-        const levelLabel =
-          classLevelLabels[cls.level as keyof typeof classLevelLabels] ?? cls.level;
-        const subLabel = cls.section ? `${levelLabel} · Section ${cls.section}` : levelLabel;
-        const hasTeacher = Boolean(cls.classTeacher);
+            const levelLabel =
+              classLevelLabels[cls.level as keyof typeof classLevelLabels] ?? cls.level;
+            const subLabel = cls.section ? `${levelLabel} · Section ${cls.section}` : levelLabel;
+            const hasTeacher = Boolean(cls.classTeacher);
 
-        return (
-              <Link
+            return (
+              <div
                 key={cls.id}
-                href={`/classes/${cls.id}`}
-                className="group block bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:bg-gray-50/40 transition-colors"
+                className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm"
               >
+                <Link
+                  href={`/classes/${cls.id}`}
+                  className="group block hover:bg-gray-50/40 transition-colors rounded-xl"
+                >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-base font-bold text-gray-900 truncate">{cls.name}</p>
@@ -180,8 +183,19 @@ export default function ClassList() {
                     </p>
                   </div>
                 </div>
-              </Link>
-        );
+                </Link>
+
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <Link
+                    href={`/timetable?classId=${cls.id}`}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Timetable
+                  </Link>
+                </div>
+              </div>
+            );
           })}
         </div>
       )}

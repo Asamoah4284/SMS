@@ -8,7 +8,7 @@ export default function LoginPage() {
   return (
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 sm:p-7 w-full max-w-sm mx-auto">
       <Image
-        src="/logo.png"
+        src="/images/logo.png"
         alt={`${schoolConfig.name} Logo`}
         width={64}
         height={64}
