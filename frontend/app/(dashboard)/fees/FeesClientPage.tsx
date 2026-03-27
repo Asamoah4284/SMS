@@ -341,7 +341,7 @@ function FeeStructureModal({ structure, termId, onClose, onSaved }: {
   };
 
   return (
-    <Modal title={structure ? 'Edit Fee Structure' : 'New Fee Structure'} onClose={onClose}>
+    <Modal isOpen title={structure ? 'Edit Fee Structure' : 'New Fee Structure'} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert type="error" message={error} />}
         <div>
