@@ -13,10 +13,12 @@ function authenticate(req, res, next) {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const normalizedRole =
+      typeof payload.role === 'string' ? payload.role.trim().toUpperCase() : '';
     req.user = {
       id: payload.id,
       phone: payload.phone,
-      role: payload.role,
+      role: normalizedRole,
     };
     next();
   } catch (err) {
@@ -32,8 +34,10 @@ function authenticate(req, res, next) {
  * Usage: authorize('ADMIN', 'TEACHER')
  */
 function authorize(...roles) {
+  const allowedRoles = roles.map((role) => String(role).trim().toUpperCase());
   return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    const currentRole = typeof req.user?.role === 'string' ? req.user.role.trim().toUpperCase() : '';
+    if (!req.user || !allowedRoles.includes(currentRole)) {
       return res.status(403).json({ message: 'Access denied' });
     }
     next();

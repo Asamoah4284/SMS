@@ -55,9 +55,9 @@ export default function NewClassForm() {
   };
 
   return (
-    <Card>
+    <Card className="shadow-none">
       <CardBody>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6 pb-20 md:pb-0">
           {error && (
             <Alert
               type="error"
@@ -101,7 +101,8 @@ export default function NewClassForm() {
             helperText="Leave blank if single section"
           />
 
-          <div className="flex gap-3 pt-4">
+          <div className="sticky bottom-0 z-10 -mx-6 px-6 py-3 bg-white/95 backdrop-blur border-t border-gray-100 md:static md:z-auto md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-0 md:border-0">
+            <div className="flex gap-3">
             <Button
               type="submit"
               loading={loading}
@@ -118,6 +119,7 @@ export default function NewClassForm() {
                 Cancel
               </Button>
             </Link>
+            </div>
           </div>
         </form>
       </CardBody>

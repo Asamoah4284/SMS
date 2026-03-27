@@ -1,8 +1,12 @@
 export { Button } from './Button';
 export { Input } from './Input';
+export { PasswordInput } from './PasswordInput';
 export { Card, CardHeader, CardBody, CardFooter } from './Card';
 export { Modal } from './Modal';
 export { Alert } from './Alert';
 export { Badge } from './Badge';
 export { Skeleton, SkeletonCard, SkeletonRow, SkeletonTable } from './Skeleton';
 export { PageHeader } from './PageHeader';
+export { DropdownMenu } from './DropdownMenu';
+export type { DropdownMenuItem } from './DropdownMenu';
+export { default as AdminOnly } from './AdminOnly';

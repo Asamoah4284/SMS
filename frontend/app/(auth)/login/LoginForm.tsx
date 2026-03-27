@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Button, Input, Alert } from '@/components/ui';
+import { Alert, Button, Input, PasswordInput } from '@/components/ui';
 import { Lock, User } from 'lucide-react';
 
 export default function LoginForm() {
@@ -12,13 +12,14 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const invalidCreds = error.toLowerCase().includes('invalid credentials');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (!identifier.trim() || !password.trim()) {
-      setError('Please enter both Staff ID/Phone and password');
+      setError('Please enter your Staff ID/Phone and password to continue.');
       return;
     }
 
@@ -55,9 +56,15 @@ export default function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       {error && (
-        <Alert type="error" message={error} dismissible onDismiss={() => setError('')} />
+        <Alert
+          type="error"
+          title="We couldn’t sign you in"
+          message={error}
+          dismissible
+          onDismiss={() => setError('')}
+        />
       )}
 
       <Input
@@ -68,31 +75,32 @@ export default function LoginForm() {
         onChange={(e) => setIdentifier(e.target.value)}
       />
 
-      <Input
+      <PasswordInput
         label="Password"
-        type="password"
         placeholder="••••••••"
         icon={<Lock className="w-4 h-4" />}
         value={password}
-        onChange={(e) => setPassword(e.target.value)}
+        onChange={(value) => setPassword(value)}
+        error={invalidCreds ? 'Incorrect password' : undefined}
+        helperText={invalidCreds ? 'Tip: check Caps Lock or use “Show password”.' : undefined}
       />
 
       <Button
         type="submit"
         loading={loading}
-        className="w-full mt-2"
+        className="w-full mt-1"
       >
         Sign In
       </Button>
 
-      <div className="flex flex-col gap-3 pt-2 text-center text-sm">
+      <div className="flex flex-col gap-2.5 pt-2 text-center text-sm">
         <Link
           href="/forgot-password"
           className="text-primary-600 hover:underline font-medium"
         >
           Forgot password?
         </Link>
-        <p className="text-gray-600">
+        <p className="text-gray-500">
           New teacher?{' '}
           <Link href="/invite" className="text-primary-600 hover:underline font-medium">
             Use invitation code

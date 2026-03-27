@@ -259,23 +259,87 @@ npm run dev
 
 ---
 
-## 🛠️ Next Steps (Phase 4)
+## ✅ Phase 4 Complete: Teachers, Parents, Students
 
-### Student Management
-- [ ] `POST /students` - Add student to class
-- [ ] `POST /students/bulk-upload` - CSV import
-- [ ] `GET /students` - List with filters
-- [ ] `GET /students/:id` - Student detail + grades
-- [ ] Frontend pages: list, create, bulk upload
+### Phase 4a: Teacher Enhancements
 
-### Features Coming
-- Attendance tracking (auto on teacher login)
-- Exam results + GES grading
-- Fee payment tracking
-- Parent portal (read-only view of child)
-- SMS notifications
-- Timetable management
-- Reports & analytics
+**Backend (`backend/src/routes/teachers.js`)**
+- `GET /teachers` — list with subjectCount + classTeacherOf (with studentCount)
+- `GET /teachers/:id` — full detail: timetable (via SubjectTeacher join), attendance, leaves, class performance
+- `PUT /teachers/:id` — update qualification + user name/email
+- `POST /teachers/bulk-import` — accepts JSON array, validates, creates TeacherInvitations, returns `{ imported, failed }`
+
+**Auth updates (`backend/src/routes/auth.js`)**
+- `POST /auth/invite` — now accepts `firstName`, `lastName`, `classId` (pre-assign as class teacher); 48h expiry
+- `POST /auth/set-password` — uses `$transaction` for atomic User + Teacher + Class assignment; names now correctly read from invitation
+
+**Frontend (`frontend/app/(dashboard)/teachers/`)**
+- Teacher list rows are clickable links to detail page
+- **InviteForm** — class teacher toggle + conditional class dropdown; sends `classId` in invite body
+- **BulkImportForm** — 3-step flow: download template → upload CSV → preview → import
+- **TeacherDetail** (`/teachers/[id]`) — 4 tabs: Overview / Timetable / Attendance / Leaves
+
+### Phase 4b: Class Detail Enhancements
+
+**Backend (`backend/src/routes/classes.js`)**
+- `GET /classes/:id` — extended with `stats`: attendance rate, class average, top 3, struggling students, per-subject breakdown
+
+**Frontend (`frontend/app/(dashboard)/classes/[id]/ClassDetail.tsx`)**
+- 4 tabs: Overview / Students / Subjects / Performance
+- StatCards: total students, attendance rate, class average, subject count
+- OverviewTab: attendance breakdown + top/struggling performers
+- PerformanceTab: per-subject avg bars + GES grade scale
+
+### Phase 4c: Parents & Guardians
+
+**Backend (`backend/src/routes/parents.js`)**
+- `GET /parents` — list with children summary (search)
+- `GET /parents/:id` — detail with per-child attendance rate + fee status
+- `PUT /parents/:id` — update name/email
+- `POST /parents/:id/students/:studentId` — assign student
+- `DELETE /parents/:id/students/:studentId` — unassign
+- `GET /parents/unassigned-students/list` — students without parent link
+
+**Frontend**
+- `Sidebar.tsx` — Parents link added
+- `parents/page.tsx` + `ParentsClientPage.tsx` — list with search
+- `parents/[id]/ParentDetail.tsx` — profile + children with assign/unassign modal
+
+### Phase 4d: Student Management
+
+**Schema changes (`backend/prisma/schema.prisma`)**
+- `Student` — added `parentName String?`, `parentPhone String?`
+- `TeacherInvitation` — added `firstName`, `lastName`, `classId`
+
+**Backend (`backend/src/routes/students.js`)**
+- `GET /students` — paginated list, filter by classId + search + isActive
+- `POST /students` — create with parent phone dedup logic (links to existing Parent account or stores denormalised quick-contact)
+- `GET /students/:id` — full detail: class, parent, attendances (last 30), results, fee payments + attendance summary
+- `PUT /students/:id` — update personal info
+- `POST /students/bulk-import` — accepts JSON array, per-row validation + parent dedup
+
+**Parent linking logic**
+- On add/import, if `guardianPhone` matches an existing `User(role=PARENT)` → `parentId` is set (linked)
+- Otherwise → `parentName` / `parentPhone` stored on Student for quick contact
+- If two students share the same guardian phone and that phone has a portal account, they are both linked to the same Parent
+
+**Frontend (`frontend/app/(dashboard)/students/`)**
+- `page.tsx` + `StudentsClientPage.tsx` — list with search + class filter
+- Add Student modal — First/Middle/Last name, DOB, Gender, Class, Address, Guardian section
+- Clickable rows → `/students/:id` (detail page stub)
+
+---
+
+## 🛠️ Next Steps (Phase 5)
+
+### Remaining
+- [ ] Student detail page (`/students/[id]`)
+- [ ] Bulk student CSV import (frontend modal with preview)
+- [ ] Attendance tracking (daily mark present/absent/late per class)
+- [ ] Exam results entry + GES grading
+- [ ] Fee payment tracking
+- [ ] Parent portal (read-only view of child's data)
+- [ ] Reports & analytics
 
 ---
 
@@ -361,20 +425,26 @@ HUBTEL_SENDER_ID=EduTrack
 ## ✨ Key Features
 
 ✅ **Implemented**
-- Teacher invitation + onboarding
+- Teacher invitation + onboarding (with class pre-assignment)
 - Login (staffId or phone)
 - Forgot password (OTP-based)
-- Class management (CRUD)
+- Class management (CRUD + rich detail stats)
+- Teacher detail pages (timetable, attendance, leaves)
+- Teacher bulk import (CSV via UI)
+- Parent & guardian management (assign/unassign children)
+- Student add (single) with parent phone dedup + portal linking
+- Student list with search + class filter
 - Consistent theme + UI components
 - Protected routes + JWT auth
 - Responsive design (mobile-first)
 
 ⏳ **Next Phase**
-- Student management + CSV upload
+- Student detail page
+- Bulk student CSV upload (frontend)
 - Attendance tracking
-- Exam results + grading
+- Exam results + GES grading
 - Fee payments
-- Parent portal
+- Parent portal (read-only)
 - Analytics & reports
 
 ---

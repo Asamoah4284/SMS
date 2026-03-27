@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Alert, PageHeader, SkeletonTable } from '@/components/ui';
+import { useUser } from '@/lib/UserContext';
 import { UserRound, Phone, Users, ChevronRight, Search } from 'lucide-react';
 
 interface Parent {
@@ -19,6 +20,7 @@ interface Parent {
 }
 
 export default function ParentsClientPage() {
+  const { isClassTeacher } = useUser();
   const [parents, setParents] = useState<Parent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -52,7 +54,7 @@ export default function ParentsClientPage() {
     <div className="p-8 max-w-[1600px] mx-auto animate-fade-in">
       <PageHeader
         title="Parents & Guardians"
-        subtitle={loading ? '' : `${parents.length} guardian${parents.length !== 1 ? 's' : ''}`}
+        subtitle={loading ? '' : `${parents.length} guardian${parents.length !== 1 ? 's' : ''}${isClassTeacher ? ' in your class' : ''}`}
       />
 
       {error && <Alert type="error" message={error} className="mb-6" onDismiss={() => setError('')} />}

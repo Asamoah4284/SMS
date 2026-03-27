@@ -5,6 +5,24 @@
 
 const provider = process.env.SMS_PROVIDER || 'hubtel';
 
+async function parseResponseBody(response) {
+  const contentType = response.headers.get('content-type') || '';
+  const raw = await response.text();
+  if (contentType.includes('application/json')) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return { raw };
+    }
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { raw };
+  }
+}
+
 /**
  * Send an SMS to one or more recipients.
  * @param {string | string[]} to  - Phone number(s) in format 0XXXXXXXXX or +233XXXXXXXXX
@@ -27,12 +45,17 @@ async function sendViaHubtel(numbers, message) {
   const from = process.env.HUBTEL_SENDER_ID || 'EduTrack';
 
   const results = await Promise.allSettled(
-    numbers.map((to) =>
-      fetch(
+    numbers.map(async (to) => {
+      const response = await fetch(
         `https://smsc.hubtel.com/v1/messages/send?clientsecret=${clientSecret}&clientid=${clientId}&from=${from}&to=${to}&content=${encodeURIComponent(message)}`,
         { method: 'GET' }
-      ).then((r) => r.json())
-    )
+      );
+      const body = await parseResponseBody(response);
+      if (!response.ok) {
+        throw new Error(`Hubtel SMS failed (${response.status}): ${typeof body === 'object' ? JSON.stringify(body) : String(body)}`);
+      }
+      return body;
+    })
   );
 
   return results;
@@ -54,7 +77,11 @@ async function sendViaArkesel(numbers, message) {
     }),
   });
 
-  return response.json();
+  const body = await parseResponseBody(response);
+  if (!response.ok) {
+    throw new Error(`Arkesel SMS failed (${response.status}): ${typeof body === 'object' ? JSON.stringify(body) : String(body)}`);
+  }
+  return body;
 }
 
 // Pre-built message templates
@@ -73,6 +100,9 @@ const templates = {
 
   lowAttendance: (studentName, rate) =>
     `Alert: ${studentName}'s attendance rate is ${rate}% this term. Please contact the school. - EduTrack`,
+
+  studentAbsent: (parentName, studentName, className, date) =>
+    `Dear ${parentName}, ${studentName} was marked ABSENT from ${className} on ${date}. Contact the school if this was an error. - EduTrack`,
 };
 
 module.exports = { sendSMS, templates };

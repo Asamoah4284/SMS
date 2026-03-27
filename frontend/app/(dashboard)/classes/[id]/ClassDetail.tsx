@@ -2,12 +2,12 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Alert, Badge } from '@/components/ui';
+import { Alert, Badge, Button, Modal } from '@/components/ui';
 import { classLevelLabels, getGrade } from '@/lib/theme';
 import {
   Users, BookOpen, Award, AlertTriangle, CheckCircle2,
   Clock, BarChart3, ChevronRight, UserCheck, UserX,
-  TrendingDown, Phone,
+  TrendingDown, Phone, UserPlus, GraduationCap, Search, X,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -69,6 +69,8 @@ export default function ClassDetail({ classId }: { classId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [assignTeacherOpen, setAssignTeacherOpen] = useState(false);
+  const [addStudentOpen, setAddStudentOpen] = useState(false);
 
   const fetchClassDetail = useCallback(async () => {
     setLoading(true);
@@ -87,7 +89,9 @@ export default function ClassDetail({ classId }: { classId: string }) {
     }
   }, [classId]);
 
-  useEffect(() => { fetchClassDetail(); }, [fetchClassDetail]);
+  useEffect(() => {
+    fetchClassDetail();
+  }, [fetchClassDetail]);
 
   if (loading) {
     return (
@@ -133,7 +137,13 @@ export default function ClassDetail({ classId }: { classId: string }) {
               <ChevronRight className="w-4 h-4 text-gray-400" />
             </Link>
           ) : (
-            <Badge variant="warning">No teacher assigned</Badge>
+            <Button
+              variant="secondary"
+              icon={<UserPlus className="w-4 h-4" />}
+              onClick={() => setAssignTeacherOpen(true)}
+            >
+              Assign Teacher
+            </Button>
           )}
         </div>
       </div>
@@ -200,9 +210,30 @@ export default function ClassDetail({ classId }: { classId: string }) {
       </div>
 
       {activeTab === 'overview' && <OverviewTab classData={classData} />}
-      {activeTab === 'students' && <StudentsTab students={classData.students} />}
+      {activeTab === 'students' && (
+        <StudentsTab
+          students={classData.students}
+          onAddStudent={() => setAddStudentOpen(true)}
+        />
+      )}
       {activeTab === 'subjects' && <SubjectsTab subjects={classData.subjects} />}
       {activeTab === 'performance' && <PerformanceTab stats={classData.stats} />}
+
+      <AssignTeacherModal
+        isOpen={assignTeacherOpen}
+        classId={classId}
+        className={classData.name}
+        onClose={() => setAssignTeacherOpen(false)}
+        onSuccess={() => { setAssignTeacherOpen(false); fetchClassDetail(); }}
+      />
+
+      <AddStudentModal
+        isOpen={addStudentOpen}
+        classId={classId}
+        className={classData.name}
+        onClose={() => setAddStudentOpen(false)}
+        onSuccess={() => { setAddStudentOpen(false); fetchClassDetail(); }}
+      />
     </div>
   );
 }
@@ -253,17 +284,24 @@ function OverviewTab({ classData }: { classData: ClassData }) {
               />
             </div>
           </div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             {([
               { label: 'Present', val: stats.attendance.PRESENT, icon: <UserCheck className="w-4 h-4" />, bg: 'bg-success-50', text: 'text-success-700' },
               { label: 'Absent', val: stats.attendance.ABSENT, icon: <UserX className="w-4 h-4" />, bg: 'bg-danger-50', text: 'text-danger-700' },
               { label: 'Late', val: stats.attendance.LATE, icon: <Clock className="w-4 h-4" />, bg: 'bg-warning-50', text: 'text-warning-700' },
               { label: 'Excused', val: stats.attendance.EXCUSED, icon: <CheckCircle2 className="w-4 h-4" />, bg: 'bg-blue-50', text: 'text-blue-700' },
             ] as const).map(({ label, val, icon, bg, text }) => (
-              <div key={label} className={`flex flex-col items-center gap-1 p-3 rounded-xl ${bg}`}>
-                <div className={text}>{icon}</div>
-                <p className={`text-xl font-bold ${text}`}>{val}</p>
-                <p className="text-xs text-gray-500">{label}</p>
+              <div
+                key={label}
+                className={`rounded-2xl border border-white/60 ${bg} px-4 py-4 sm:px-5 sm:py-5 shadow-sm`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs sm:text-sm font-semibold text-gray-600 tracking-wide">{label}</p>
+                  <div className={`w-8 h-8 rounded-full grid place-items-center bg-white/80 ${text}`}>
+                    {icon}
+                  </div>
+                </div>
+                <p className={`text-2xl sm:text-3xl font-bold leading-none ${text}`}>{val}</p>
               </div>
             ))}
           </div>
@@ -337,7 +375,7 @@ function OverviewTab({ classData }: { classData: ClassData }) {
 
 // ─── Students Tab ─────────────────────────────────────────────────────────────
 
-function StudentsTab({ students }: { students: Student[] }) {
+function StudentsTab({ students, onAddStudent }: { students: Student[]; onAddStudent: () => void }) {
   const [search, setSearch] = useState('');
   const filtered = students.filter(
     (s) =>
@@ -349,20 +387,28 @@ function StudentsTab({ students }: { students: Student[] }) {
     return (
       <div className="bg-white border border-gray-200 rounded-2xl py-16 text-center shadow-[var(--shadow-card)]">
         <Users className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-        <p className="text-gray-500">No students enrolled yet</p>
+        <p className="font-semibold text-gray-600 mb-4">No students enrolled yet</p>
+        <Button onClick={onAddStudent} icon={<UserPlus className="w-4 h-4" />} size="sm">
+          Add First Student
+        </Button>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <input
-        type="text"
-        placeholder="Search by name or ID..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full max-w-sm px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
-      />
+      <div className="flex items-center justify-between gap-3">
+        <input
+          type="text"
+          placeholder="Search by name or ID..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 max-w-sm px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+        />
+        <Button onClick={onAddStudent} icon={<UserPlus className="w-4 h-4" />} size="sm">
+          Add Student
+        </Button>
+      </div>
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-[var(--shadow-card)]">
         <div className="grid grid-cols-[auto_2fr_1fr_1fr_1fr] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
           <span>#</span>
@@ -388,8 +434,8 @@ function StudentsTab({ students }: { students: Student[] }) {
               </div>
               <span className="hidden sm:block text-xs font-mono text-gray-500">{student.studentId}</span>
               <span className="hidden md:block text-sm text-gray-600">
-                {student.dateOfBirth
-                  ? `${Math.floor((Date.now() - new Date(student.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs`
+                        {student.dateOfBirth 
+                          ? `${Math.floor((new Date().getTime() - new Date(student.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs`
                   : '—'}
               </span>
               <div className="text-sm text-gray-600">
@@ -557,6 +603,292 @@ function PerformanceTab({ stats }: { stats: ClassStats }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Assign Teacher Modal ─────────────────────────────────────────────────────
+
+interface TeacherOption {
+  id: string;
+  staffId: string;
+  user: { firstName: string; lastName: string; phone: string };
+  classTeacherOf: null | { name: string };
+}
+
+function AssignTeacherModal({
+  isOpen,
+  classId,
+  className,
+  onClose,
+  onSuccess,
+}: {
+  isOpen: boolean;
+  classId: string;
+  className: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setLoading(true);
+    setError('');
+    const token = localStorage.getItem('accessToken');
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/teachers`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}: Failed to fetch teachers`);
+        return r.json();
+      })
+      .then((d) => {
+        // Only show teachers not already class teacher of another class
+        setTeachers((d.teachers ?? []).filter((t: TeacherOption) => !t.classTeacherOf));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load teachers'))
+      .finally(() => setLoading(false));
+  }, [isOpen]);
+
+  const filtered = teachers.filter((t) => {
+    const name = `${t.user.firstName} ${t.user.lastName}`.toLowerCase();
+    return name.includes(search.toLowerCase()) || t.staffId.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const handleAssign = async () => {
+    if (!selected) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/classes/${classId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ classTeacherId: selected }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to assign teacher');
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to assign teacher');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    setSearch('');
+    setSelected('');
+    setError('');
+    onClose();
+  };
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={`Assign Class Teacher — ${className}`}
+      size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={handleClose} disabled={submitting} className="flex-1">Cancel</Button>
+          <Button onClick={handleAssign} loading={submitting} disabled={!selected} className="flex-1">
+            Assign Teacher
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {error && <Alert type="error" message={error} onDismiss={() => setError('')} />}
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by name or staff ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+          />
+        </div>
+
+        {loading ? (
+          <div className="space-y-2">
+            {[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />)}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="py-8 text-center text-sm text-gray-400">
+            {teachers.length === 0 ? 'No unassigned teachers available' : 'No teachers match your search'}
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
+            {filtered.map((t) => {
+              const name = `${t.user.firstName} ${t.user.lastName}`;
+              const isSelected = selected === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setSelected(t.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${isSelected ? 'bg-primary-50' : 'hover:bg-gray-50'}`}
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${isSelected ? 'bg-primary-200 text-primary-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-semibold truncate ${isSelected ? 'text-primary-700' : 'text-gray-900'}`}>{name}</p>
+                    <p className="text-xs text-gray-400 font-mono">{t.staffId}</p>
+                  </div>
+                  {isSelected && <CheckCircle2 className="w-5 h-5 text-primary-600 flex-shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Add Student Modal (quick-add to this class) ──────────────────────────────
+
+function AddStudentModal({
+  isOpen,
+  classId,
+  className,
+  onClose,
+  onSuccess,
+}: {
+  isOpen: boolean;
+  classId: string;
+  className: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [form, setForm] = useState({ firstName: '', middleName: '', lastName: '', gender: '', dateOfBirth: '', guardianName: '', guardianPhone: '' });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [apiError, setApiError] = useState('');
+
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setForm((f) => ({ ...f, [field]: e.target.value }));
+    setErrors((e2) => ({ ...e2, [field]: '' }));
+  };
+
+  const handleSubmit = async () => {
+    const errs: Record<string, string> = {};
+    if (!form.firstName.trim()) errs.firstName = 'Required';
+    if (!form.lastName.trim()) errs.lastName = 'Required';
+    if (!form.gender) errs.gender = 'Required';
+    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+
+    setSubmitting(true);
+    setApiError('');
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/students`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          firstName: form.firstName.trim(),
+          middleName: form.middleName.trim() || undefined,
+          lastName: form.lastName.trim(),
+          gender: form.gender,
+          dateOfBirth: form.dateOfBirth || undefined,
+          classId,
+          guardianName: form.guardianName.trim() || undefined,
+          guardianPhone: form.guardianPhone.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to add student');
+      setForm({ firstName: '', middleName: '', lastName: '', gender: '', dateOfBirth: '', guardianName: '', guardianPhone: '' });
+      onSuccess();
+    } catch (err) {
+      setApiError(err instanceof Error ? err.message : 'Failed to add student');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    setForm({ firstName: '', middleName: '', lastName: '', gender: '', dateOfBirth: '', guardianName: '', guardianPhone: '' });
+    setErrors({});
+    setApiError('');
+    onClose();
+  };
+
+  const sel = `w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all`;
+  const inp = `w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all`;
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={`Add Student to ${className}`}
+      size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={handleClose} disabled={submitting} className="flex-1">Cancel</Button>
+          <Button onClick={handleSubmit} loading={submitting} className="flex-1">Add Student</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {apiError && <Alert type="error" message={apiError} onDismiss={() => setApiError('')} />}
+
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">First *</label>
+            <input placeholder="Kofi" value={form.firstName} onChange={set('firstName')} className={inp} />
+            {errors.firstName && <p className="mt-0.5 text-xs text-danger-600">{errors.firstName}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Middle</label>
+            <input placeholder="Optional" value={form.middleName} onChange={set('middleName')} className={inp} />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Last *</label>
+            <input placeholder="Mensah" value={form.lastName} onChange={set('lastName')} className={inp} />
+            {errors.lastName && <p className="mt-0.5 text-xs text-danger-600">{errors.lastName}</p>}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Gender *</label>
+            <select value={form.gender} onChange={set('gender')} className={sel}>
+              <option value="">Select</option>
+              <option value="MALE">Male</option>
+              <option value="FEMALE">Female</option>
+            </select>
+            {errors.gender && <p className="mt-0.5 text-xs text-danger-600">{errors.gender}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Date of Birth</label>
+            <input type="date" value={form.dateOfBirth} onChange={set('dateOfBirth')} className={inp} />
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 pt-3">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Guardian (optional)</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Name</label>
+              <input placeholder="Ama Mensah" value={form.guardianName} onChange={set('guardianName')} className={inp} />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+              <input type="tel" placeholder="0241234567" value={form.guardianPhone} onChange={set('guardianPhone')} className={inp} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

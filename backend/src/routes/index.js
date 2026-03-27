@@ -14,6 +14,7 @@ const timetableRoutes = require('./timetable');
 const announcementRoutes = require('./announcements');
 const permissionRoutes = require('./permissions');
 const reportRoutes = require('./reports');
+const termRoutes = require('./terms');
 
 const router = Router();
 
@@ -31,5 +32,6 @@ router.use('/timetable', timetableRoutes);
 router.use('/announcements', announcementRoutes);
 router.use('/permissions', permissionRoutes);
 router.use('/reports', reportRoutes);
+router.use('/terms', termRoutes);
 
 module.exports = router;

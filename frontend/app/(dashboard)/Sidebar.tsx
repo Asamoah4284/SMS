@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useUser } from "@/lib/UserContext";
 import {
   Home,
   Users,
   GraduationCap,
   BookOpen,
+  BookCopy,
   CalendarCheck,
+  Clock,
   FileText,
   CreditCard,
   UserRound,
@@ -18,94 +20,128 @@ import {
   Library,
   ChevronRight,
   LogOut,
+  Settings,
+  X,
 } from "lucide-react";
 
-type NavChild = {
-  name: string;
-  href: string;
-};
-
+type NavChild = { name: string; href: string };
 type NavItem = {
   name: string;
   icon: React.ComponentType<{ className?: string }>;
   href?: string;
   children?: NavChild[];
+  adminOnly?: boolean;
+  teacherVisible?: boolean; // explicitly allowed for all teachers
+  classTeacherOnly?: boolean; // only admin + class teachers (not subject-only teachers)
 };
 
-export default function Sidebar() {
+type SidebarProps = { isOpen?: boolean; onClose?: () => void };
+
+export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { isAdmin, isTeacher, isClassTeacher, myClassId } = useUser();
 
   const handleSignOut = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     document.cookie = 'accessToken=; path=/; max-age=0; samesite=lax';
+    onClose?.();
     router.push('/login');
   };
 
-  const navItems = useMemo<NavItem[]>(
-    () => [
-      { name: "Dashboard", href: "/overview", icon: Home },
-      {
-        name: "Students",
-        icon: GraduationCap,
-        children: [
-          { name: "Add New Student", href: "/students/new" },
-          { name: "Student List", href: "/students" },
-          { name: "Suspend Student", href: "/students/suspend" },
-          { name: "Student Categories", href: "/students/categories" },
-        ],
-      },
-      {
-        name: "Teachers",
-        icon: Users,
-        children: [
-          { name: "Add New Teacher", href: "/teachers/new" },
-          { name: "Teacher List", href: "/teachers" },
-        ],
-      },
-      { name: "Guardian", href: "/parents", icon: UserRound },
-      {
-        name: "Classes",
-        icon: BookOpen,
-        children: [
-          { name: "New Class", href: "/classes/new" },
-          { name: "Class List", href: "/classes" },
-        ],
-      },
-      { name: "Examinations", href: "/results", icon: FileText },
-      { name: "Fees Collection", href: "/fees", icon: CreditCard },
-      { name: "Attendance", href: "/attendance", icon: CalendarCheck },
-      // Placeholder routes can be added later when pages exist.
-      { name: "Leaves", href: "/leaves", icon: ClipboardList },
-      { name: "Certificate", href: "/certificate", icon: Award },
-      { name: "Library", href: "/library", icon: Library },
-    ],
-    []
-  );
+  // Build the nav dynamically so teacher class link is correct
+  const allNavItems = useMemo<NavItem[]>(() => [
+    { name: "Dashboard", href: "/overview", icon: Home, teacherVisible: true },
+    {
+      name: "Students",
+      icon: GraduationCap,
+      adminOnly: false,
+      children: [
+        // Only admin can add students; teachers can view list
+        ...(isAdmin ? [{ name: "Add New Student", href: "/students/new" }] : []),
+        { name: "Student List", href: "/students" },
+      ],
+    },
+    {
+      name: "Teachers",
+      icon: Users,
+      adminOnly: true, // teachers can't manage teachers
+      children: [
+        { name: "Add New Teacher", href: "/teachers/new" },
+        { name: "Teacher List", href: "/teachers" },
+      ],
+    },
+    { name: "Guardian", href: "/parents", icon: UserRound, classTeacherOnly: true },
+    {
+      name: "Classes",
+      icon: BookOpen,
+      // Admin: full submenu. Class teacher: direct link to their class. Subject teacher: hidden.
+      ...(isAdmin
+        ? {
+            children: [
+              { name: "New Class", href: "/classes/new" },
+              { name: "Class List", href: "/classes" },
+            ],
+          }
+        : myClassId
+        ? { href: `/classes/${myClassId}`, teacherVisible: true }
+        : { classTeacherOnly: true, href: "/classes" }),
+    },
+    {
+      name: "Subjects",
+      href: "/subjects",
+      icon: BookCopy,
+      classTeacherOnly: true,
+    },
+    { name: "Examinations", href: "/results", icon: FileText, teacherVisible: true },
+    { name: "Timetable", href: "/timetable", icon: Clock, teacherVisible: true },
+    { name: "Fees Collection", href: "/fees", icon: CreditCard, adminOnly: true },
+    { name: "Attendance", href: "/attendance", icon: CalendarCheck, classTeacherOnly: true },
+    { name: "Settings", href: "/settings", icon: Settings, adminOnly: true },
+    // Placeholder items — visible to admin only for now
+    { name: "Leaves", href: "/leaves", icon: ClipboardList, teacherVisible: true },
+    { name: "Certificate", href: "/certificate", icon: Award, adminOnly: true },
+    { name: "Library", href: "/library", icon: Library, adminOnly: true },
+  ], [isAdmin, myClassId]);
+
+  // Filter based on role
+  const navItems = useMemo(() => {
+    if (isAdmin) return allNavItems;
+    return allNavItems.filter((item) => {
+      if (item.adminOnly) return false;
+      if (item.teacherVisible === false) return false;
+      // classTeacherOnly: visible to class teachers but not subject-only teachers
+      if (item.classTeacherOnly && !isClassTeacher) return false;
+      return true;
+    });
+  }, [allNavItems, isAdmin, isClassTeacher]);
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    // Auto-open the section that matches the current route.
-    setOpenSections((prev) => {
-      const next = { ...prev };
-      for (const item of navItems) {
-        if (!item.children || item.children.length === 0) continue;
-        const isInSection = item.children.some(
-          (c) => pathname === c.href || pathname.startsWith(`${c.href}/`)
-        );
-        if (isInSection) next[item.name] = true;
-      }
-      return next;
-    });
+  const routeOpenSections = useMemo(() => {
+    const forced = new Set<string>();
+    for (const item of navItems) {
+      if (!item.children?.length) continue;
+      const isInSection = item.children.some(
+        (c) => pathname === c.href || pathname.startsWith(`${c.href}/`),
+      );
+      if (isInSection) forced.add(item.name);
+    }
+    return forced;
   }, [navItems, pathname]);
 
   return (
-    <aside className="w-72 bg-white border-r border-gray-200 flex-shrink-0 flex flex-col h-full shadow-sm relative z-10">
+    <aside
+      className={[
+        "w-72 bg-white border-r border-gray-200 flex flex-col h-full shadow-sm z-40",
+        "fixed inset-y-0 left-0 md:static md:inset-auto",
+        "transition-transform duration-200 ease-out",
+        isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+      ].join(" ")}
+    >
       {/* Brand area */}
-      <div className="p-5 border-b border-gray-100 flex items-center shrink-0">
+      <div className="p-5 border-b border-gray-100 flex items-center justify-between shrink-0">
         <Link href="/" className="flex items-center gap-3 outline-none focus:ring-2 focus:ring-blue-500 rounded px-1 transition-opacity hover:opacity-80">
           <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
             <span className="text-white font-bold text-base tracking-tight">E</span>
@@ -114,6 +150,14 @@ export default function Sidebar() {
             EduTrack <span className="text-blue-600">SMS</span>
           </h1>
         </Link>
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          className="md:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-600"
+          onClick={() => onClose?.()}
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Navigation scroll area */}
@@ -130,7 +174,7 @@ export default function Sidebar() {
                 ? pathname === item.href || pathname.startsWith(`${item.href}/`)
                 : false;
               const isActive = Boolean(isSelfActive || isChildActive);
-              const isOpen = Boolean(openSections[item.name]);
+              const sectionOpen = Boolean(openSections[item.name] || routeOpenSections.has(item.name));
 
               return (
                 <li key={item.href ?? item.name}>
@@ -146,7 +190,7 @@ export default function Sidebar() {
                         }
                         className={[
                           "group flex w-full items-center justify-between rounded-xl px-4 py-2.5 transition-colors",
-                          isOpen || isActive
+                          sectionOpen || isActive
                             ? "bg-teal-50 text-teal-900 border border-teal-100"
                             : "text-gray-700 hover:bg-gray-50",
                         ].join(" ")}
@@ -155,38 +199,35 @@ export default function Sidebar() {
                           <Icon
                             className={[
                               "h-4.5 w-4.5 shrink-0",
-                              isOpen || isActive
+                              sectionOpen || isActive
                                 ? "text-teal-700"
                                 : "text-gray-600 group-hover:text-gray-800",
                             ].join(" ")}
                           />
-                          <span className="text-sm font-medium truncate">
-                            {item.name}
-                          </span>
+                          <span className="text-sm font-medium truncate">{item.name}</span>
                         </span>
-
                         <ChevronRight
                           className={[
                             "h-4.5 w-4.5 shrink-0 transition-transform",
-                            isOpen || isActive
+                            sectionOpen || isActive
                               ? "rotate-90 text-teal-700"
                               : "text-gray-400 group-hover:text-gray-600",
                           ].join(" ")}
                         />
                       </button>
 
-                      {isOpen && (
+                      {sectionOpen && (
                         <div className="mt-1 ml-6 pl-4 border-l border-teal-100">
                           <ul className="space-y-1 py-1">
                             {item.children!.map((child) => {
                               const childActive =
                                 pathname === child.href ||
                                 pathname.startsWith(`${child.href}/`);
-
                               return (
                                 <li key={child.href}>
                                   <Link
                                     href={child.href}
+                                    onClick={() => onClose?.()}
                                     className={[
                                       "group flex items-center gap-3 rounded-lg py-2 pr-2 text-sm",
                                       childActive
@@ -214,6 +255,7 @@ export default function Sidebar() {
                   ) : (
                     <Link
                       href={item.href ?? "#"}
+                      onClick={() => onClose?.()}
                       className={[
                         "group flex items-center rounded-xl px-4 py-2.5 transition-colors",
                         isActive ? "text-gray-900 bg-gray-50" : "text-gray-700 hover:bg-gray-50",

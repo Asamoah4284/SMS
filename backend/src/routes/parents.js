@@ -5,7 +5,6 @@ const prisma = require('../config/db');
 
 const router = Router();
 router.use(authenticate);
-router.use(authorize('ADMIN'));
 
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
@@ -22,16 +21,36 @@ router.get('/', async (req, res) => {
   try {
     const search = req.query.search?.trim();
 
+    // Class teachers can only see parents of students in their class
+    let classIdFilter = null;
+    if (req.user.role === 'TEACHER') {
+      const teacher = await prisma.teacher.findUnique({
+        where: { userId: req.user.id },
+        select: { classTeacherOf: { select: { id: true } } },
+      });
+      if (!teacher?.classTeacherOf) {
+        return res.json({ parents: [] }); // subject teacher — no class guardians
+      }
+      classIdFilter = teacher.classTeacherOf.id;
+    }
+
+    // Build where clause
+    const searchWhere = search
+      ? {
+          OR: [
+            { user: { firstName: { contains: search, mode: 'insensitive' } } },
+            { user: { lastName: { contains: search, mode: 'insensitive' } } },
+            { user: { phone: { contains: search } } },
+          ],
+        }
+      : {};
+
+    const classWhere = classIdFilter
+      ? { children: { some: { classId: classIdFilter, isActive: true } } }
+      : {};
+
     const parents = await prisma.parent.findMany({
-      where: search
-        ? {
-            OR: [
-              { user: { firstName: { contains: search, mode: 'insensitive' } } },
-              { user: { lastName: { contains: search, mode: 'insensitive' } } },
-              { user: { phone: { contains: search } } },
-            ],
-          }
-        : undefined,
+      where: { ...searchWhere, ...classWhere },
       include: {
         user: {
           select: {
@@ -90,6 +109,25 @@ router.get('/', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 
 router.get('/:id', async (req, res) => {
+  // Teachers can only view parents of students in their class
+  if (req.user.role === 'TEACHER') {
+    const teacher = await prisma.teacher.findUnique({
+      where: { userId: req.user.id },
+      select: { classTeacherOf: { select: { id: true } } },
+    });
+    if (teacher?.classTeacherOf) {
+      const parent = await prisma.parent.findUnique({
+        where: { id: req.params.id },
+        select: { children: { where: { classId: teacher.classTeacherOf.id, isActive: true }, select: { id: true } } },
+      });
+      if (!parent || parent.children.length === 0) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+    } else {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+  }
+
   try {
     const { id } = req.params;
 
@@ -186,6 +224,7 @@ router.get('/:id', async (req, res) => {
 
 router.put(
   '/:id',
+  authorize('ADMIN'),
   [
     body('firstName').optional().notEmpty().withMessage('First name cannot be empty'),
     body('lastName').optional().notEmpty().withMessage('Last name cannot be empty'),
@@ -222,7 +261,7 @@ router.put(
 // Assign a student to this parent
 // ─────────────────────────────────────────────────────────────────
 
-router.post('/:id/students/:studentId', async (req, res) => {
+router.post('/:id/students/:studentId', authorize('ADMIN'), async (req, res) => {
   try {
     const { id, studentId } = req.params;
 
@@ -255,7 +294,7 @@ router.post('/:id/students/:studentId', async (req, res) => {
 // Unassign a student from this parent
 // ─────────────────────────────────────────────────────────────────
 
-router.delete('/:id/students/:studentId', async (req, res) => {
+router.delete('/:id/students/:studentId', authorize('ADMIN'), async (req, res) => {
   try {
     const { id, studentId } = req.params;
 
