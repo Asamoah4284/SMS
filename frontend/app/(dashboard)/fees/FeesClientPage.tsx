@@ -170,6 +170,7 @@ export default function FeesClientPage() {
 
       {structureModal !== null && (
         <FeeStructureModal
+          isOpen={structureModal !== null}
           structure={structureModal === 'new' ? null : structureModal}
           termId={selectedTermId}
           onClose={() => setStructureModal(null)}
@@ -309,7 +310,8 @@ const CLASS_LEVELS = [
   'JHS_1','JHS_2','JHS_3',
 ];
 
-function FeeStructureModal({ structure, termId, onClose, onSaved }: {
+function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
+  isOpen: boolean;
   structure: FeeStructure | null;
   termId: string;
   onClose: () => void;
@@ -341,7 +343,7 @@ function FeeStructureModal({ structure, termId, onClose, onSaved }: {
   };
 
   return (
-    <Modal isOpen title={structure ? 'Edit Fee Structure' : 'New Fee Structure'} onClose={onClose}>
+    <Modal isOpen={isOpen} title={structure ? 'Edit Fee Structure' : 'New Fee Structure'} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert type="error" message={error} />}
         <div>
