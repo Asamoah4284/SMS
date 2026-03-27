@@ -11,7 +11,7 @@ const {
 } = require('../utils/validators');
 const { generateStaffId } = require('../utils/staffId');
 const { generateOTP, getOTPExpiry } = require('../utils/otp');
-const sendSMS = require('../services/sms');
+const { sendSMS } = require('../services/sms');
 
 const router = Router();
 
