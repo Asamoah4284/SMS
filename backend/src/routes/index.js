@@ -15,6 +15,7 @@ const announcementRoutes = require('./announcements');
 const permissionRoutes = require('./permissions');
 const reportRoutes = require('./reports');
 const termRoutes = require('./terms');
+const portalRoutes = require('./portal');
 
 const router = Router();
 
@@ -33,5 +34,6 @@ router.use('/announcements', announcementRoutes);
 router.use('/permissions', permissionRoutes);
 router.use('/reports', reportRoutes);
 router.use('/terms', termRoutes);
+router.use('/portal', portalRoutes);
 
 module.exports = router;

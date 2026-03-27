@@ -625,6 +625,99 @@ router.post(
 );
 
 // ─────────────────────────────────────────────────────────────────
+// POST /auth/parent/lookup
+// Parent enters phone → get list of their children (no password needed)
+// Parents are registered when students are created
+// ─────────────────────────────────────────────────────────────────
+
+router.post(
+  '/parent/lookup',
+  [
+    body('phone')
+      .custom((value) => {
+        if (!isValidPhoneGH(value)) throw new Error('Invalid phone number');
+        return true;
+      }),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { phone } = req.body;
+
+      // Normalize to local 0XXXXXXXXX format
+      const digits = phone.replace(/\D/g, '');
+      const localPhone = digits.startsWith('233') ? '0' + digits.slice(3) : digits;
+      const e164Phone = '+233' + localPhone.slice(1);
+      const phoneVariants = [...new Set([localPhone, e164Phone, digits])];
+
+      // Find students by parentPhone (quick-contact, no portal account)
+      const byParentPhone = await prisma.student.findMany({
+        where: { isActive: true, parentPhone: { in: phoneVariants } },
+        select: {
+          id: true,
+          studentId: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          class: { select: { id: true, name: true } },
+        },
+      });
+
+      // Find students via linked Parent → User account
+      const byLinkedParent = await prisma.student.findMany({
+        where: {
+          isActive: true,
+          parent: { user: { phone: { in: phoneVariants } } },
+        },
+        select: {
+          id: true,
+          studentId: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          class: { select: { id: true, name: true } },
+        },
+      });
+
+      // Get the user ID for the parent (if exists - for portal account holders)
+      const user = await prisma.user.findFirst({
+        where: { phone: { in: phoneVariants }, role: 'PARENT' },
+        select: { id: true },
+      });
+
+      // Merge and deduplicate
+      const seen = new Set();
+      const children = [...byParentPhone, ...byLinkedParent].filter((s) => {
+        if (seen.has(s.id)) return false;
+        seen.add(s.id);
+        return true;
+      });
+
+      if (children.length === 0) {
+        return res.status(404).json({ error: 'No children found for this phone number' });
+      }
+
+      // Issue a JWT scoped to this parent
+      // Include user ID if they have a portal account, otherwise use phone
+      const token = jwt.sign(
+        { 
+          id: user?.id || null,
+          phone: localPhone, 
+          role: 'PARENT' 
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      res.json({ children, token });
+    } catch (error) {
+      console.error('Parent lookup error:', error);
+      res.status(500).json({ error: 'Lookup failed' });
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────
 // POST /auth/refresh
 // Refresh JWT token
 // ─────────────────────────────────────────────────────────────────

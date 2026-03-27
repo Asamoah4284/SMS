@@ -24,6 +24,13 @@ const handleValidationErrors = (req, res, next) => {
 	next();
 };
 
+function normalisePhone(raw) {
+	if (!raw) return null;
+	const digits = String(raw).replace(/\D/g, '');
+	if (digits.startsWith('233') && digits.length === 12) return '0' + digits.slice(3);
+	return digits.length === 10 ? digits : null;
+}
+
 async function getTeacherContext(userId) {
 	const teacher = await prisma.teacher.findUnique({
 		where: { userId },
@@ -290,6 +297,159 @@ router.get('/class/:classId', authorize('ADMIN', 'TEACHER'), async (req, res) =>
 	} catch (error) {
 		console.error('Class timetable error:', error);
 		return res.status(500).json({ error: 'Failed to fetch class timetable' });
+	}
+});
+
+// ─────────────────────────────────────────────────────────────────
+// GET /timetable/student/:classId
+// Parent/Student view: Read-only timetable for a class.
+// Parents can only view their child's class timetable.
+// ─────────────────────────────────────────────────────────────────
+
+router.get('/student/:classId', authorize('PARENT'), async (req, res) => {
+	try {
+		const { classId } = req.params;
+
+		// Validate user is authenticated
+		if (!req.user) {
+			return res.status(401).json({ error: 'User not authenticated' });
+		}
+
+		let parent = null;
+
+		// If user has an ID, look up via User → Parent relationship
+		if (req.user.id) {
+			parent = await prisma.parent.findUnique({
+				where: { userId: req.user.id },
+			});
+		} else if (req.user.phone) {
+			// Otherwise, verify this phone has children in the requested class (quick-contact parent)
+			const child = await prisma.student.findFirst({
+				where: {
+					classId,
+					parentPhone: req.user.phone,
+				},
+			});
+
+			if (child) {
+				// Quick-contact parent verified — use a dummy parent record for response
+				parent = { id: req.user.phone }; // Use phone as ID for quick-contact
+			}
+		}
+
+		if (!parent) {
+			return res.status(403).json({ error: 'You do not have access to this class timetable' });
+		}
+
+		// For registered parents (with .id field that looks like a cuid), verify ownership
+		if (parent.id && parent.id.length > 20) {
+			// It's a real parentId, verify child exists
+			const childInClass = await prisma.student.findFirst({
+				where: {
+					classId,
+					parentId: parent.id,
+				},
+			});
+
+			if (!childInClass) {
+				return res.status(403).json({ error: 'You do not have access to this class timetable' });
+			}
+		}
+
+		// Fetch class data and timetable entries
+		const classData = await prisma.class.findUnique({ where: { id: classId } });
+		if (!classData) return res.status(404).json({ error: 'Class not found' });
+
+		const entries = await prisma.timetable.findMany({
+			where: { classId },
+			include: {
+				subject: { select: { id: true, name: true, code: true } },
+			},
+			orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+		});
+
+		return res.json({
+			class: { id: classData.id, name: classData.name, level: classData.level, section: classData.section },
+			canEdit: false, // Parents cannot edit
+			entries: entries.map((e) => ({
+				id: e.id,
+				dayOfWeek: e.dayOfWeek,
+				dayName: DAY_NAMES[e.dayOfWeek] || 'Unknown',
+				startTime: e.startTime,
+				endTime: e.endTime,
+				subject: e.subject,
+			})),
+		});
+	} catch (error) {
+		console.error('Student timetable error:', error);
+		return res.status(500).json({ error: 'Failed to fetch class timetable' });
+	}
+});
+
+// ─────────────────────────────────────────────────────────────────
+// GET /timetable/child/:studentId
+// Parent view: resolve student's current class server-side, then return timetable.
+// This avoids stale class IDs from cached client payloads.
+// ─────────────────────────────────────────────────────────────────
+
+router.get('/child/:studentId', authorize('PARENT'), async (req, res) => {
+	try {
+		const { studentId } = req.params;
+
+		const student = await prisma.student.findUnique({
+			where: { studentId },
+			include: {
+				class: { select: { id: true, name: true, level: true, section: true } },
+				parent: { include: { user: { select: { phone: true } } } },
+			},
+		});
+
+		if (!student) return res.status(404).json({ error: 'Student not found' });
+		if (!student.classId || !student.class) return res.status(404).json({ error: 'Student has no class assigned' });
+
+		let hasAccess = false;
+
+		if (req.user?.id && student.parentId) {
+			const parent = await prisma.parent.findUnique({ where: { userId: req.user.id }, select: { id: true } });
+			hasAccess = !!parent && parent.id === student.parentId;
+		}
+
+		if (!hasAccess && req.user?.phone) {
+			const localPhone = normalisePhone(req.user.phone) || req.user.phone;
+			const e164Phone = localPhone.startsWith('0') ? '+233' + localPhone.slice(1) : localPhone;
+			const phoneVariants = [localPhone, e164Phone, req.user.phone].filter(Boolean);
+
+			hasAccess = phoneVariants.includes(student.parentPhone) ||
+				(student.parent?.user?.phone && phoneVariants.includes(student.parent.user.phone));
+		}
+
+		if (!hasAccess) {
+			return res.status(403).json({ error: 'You do not have access to this student timetable' });
+		}
+
+		const entries = await prisma.timetable.findMany({
+			where: { classId: student.classId },
+			include: {
+				subject: { select: { id: true, name: true, code: true } },
+			},
+			orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+		});
+
+		return res.json({
+			class: student.class,
+			canEdit: false,
+			entries: entries.map((e) => ({
+				id: e.id,
+				dayOfWeek: e.dayOfWeek,
+				dayName: DAY_NAMES[e.dayOfWeek] || 'Unknown',
+				startTime: e.startTime,
+				endTime: e.endTime,
+				subject: e.subject,
+			})),
+		});
+	} catch (error) {
+		console.error('Child timetable error:', error);
+		return res.status(500).json({ error: 'Failed to fetch child timetable' });
 	}
 });
 
