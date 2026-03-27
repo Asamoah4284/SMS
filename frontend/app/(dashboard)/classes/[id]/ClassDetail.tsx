@@ -1052,4 +1052,3 @@ function PromoteModal({ classId, className, level, onClose, onSuccess }: {
     </Modal>
   );
 }
-}
