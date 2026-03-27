@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Button, Modal, Alert,
   Badge, SkeletonTable, PageHeader,
 } from '@/components/ui';
+import { useUser } from '@/lib/UserContext';
 import {
   UserPlus, GraduationCap, Search, ChevronRight,
   Users, Upload, Download,
@@ -33,14 +34,26 @@ interface ClassOption {
 
 export default function StudentsClientPage() {
   const router = useRouter();
+  const { isAdmin, isClassTeacher, isSubjectTeacher, myClassId, mySubjects } = useUser();
+  // Unique classes this subject teacher is assigned to
+  const mySubjectClasses = useMemo(() => {
+    const seen = new Set<string>();
+    return mySubjects
+      .filter((s) => { if (seen.has(s.classId)) return false; seen.add(s.classId); return true; })
+      .map((s) => ({ id: s.classId, name: s.class.name, level: '' }));
+  }, [mySubjects]);
   const [students, setStudents] = useState<Student[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  // Class teachers are locked to their class; admins can filter freely
   const [classFilter, setClassFilter] = useState('');
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [bulkOpen, setBulkOpen] = useState(false);
+
+  // For class teachers, always filter by their class
+  const effectiveClassFilter = isClassTeacher && myClassId ? myClassId : classFilter;
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
@@ -49,7 +62,7 @@ export default function StudentsClientPage() {
       const token = localStorage.getItem('accessToken');
       const params = new URLSearchParams({ limit: '50' });
       if (search) params.set('search', search);
-      if (classFilter) params.set('classId', classFilter);
+      if (effectiveClassFilter) params.set('classId', effectiveClassFilter);
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/students?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -62,7 +75,7 @@ export default function StudentsClientPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, classFilter]);
+  }, [search, effectiveClassFilter]);
 
   const fetchClasses = useCallback(async () => {
     try {
@@ -89,14 +102,14 @@ export default function StudentsClientPage() {
     <div className="p-4 sm:p-6 max-w-[1600px] mx-auto animate-fade-in">
       <PageHeader
         title="Students"
-        subtitle={loading ? '' : `${total} student${total !== 1 ? 's' : ''}`}
-        actions={
+        subtitle={loading ? '' : `${total} student${total !== 1 ? 's' : ''}${isClassTeacher ? ' in your class' : isSubjectTeacher && effectiveClassFilter ? ` in ${[...mySubjectClasses, ...classes].find((c) => c.id === effectiveClassFilter)?.name ?? 'class'}` : ''}`}
+        actions={isAdmin ? (
           <div className="flex w-full sm:w-auto gap-2">
             <Button variant="secondary" onClick={() => setBulkOpen(true)} icon={<Upload className="w-4 h-4" />}>
               Bulk Import
             </Button>
           </div>
-        }
+        ) : undefined}
       />
 
       {error && <Alert type="error" message={error} className="mb-6" onDismiss={() => setError('')} />}
@@ -113,16 +126,18 @@ export default function StudentsClientPage() {
             className="w-full pl-9 pr-4 py-2.25 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
           />
         </div>
-        <select
-          value={classFilter}
-          onChange={(e) => setClassFilter(e.target.value)}
-          className="px-4 py-2.25 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
-        >
-          <option value="">All classes</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+        {(isAdmin || isSubjectTeacher) && (
+          <select
+            value={classFilter}
+            onChange={(e) => setClassFilter(e.target.value)}
+            className="px-4 py-2.25 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+          >
+            <option value="">{isSubjectTeacher ? 'Select class' : 'All classes'}</option>
+            {(isAdmin ? classes : mySubjectClasses).map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {loading ? (

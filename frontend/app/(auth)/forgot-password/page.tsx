@@ -8,7 +8,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="bg-white rounded-xl shadow-md p-8 w-full max-w-sm mx-auto animate-scale-in">
       <Image
-        src="/logo.png"
+        src="/images/logo.png"
         alt={`${schoolConfig.name} Logo`}
         width={64}
         height={64}

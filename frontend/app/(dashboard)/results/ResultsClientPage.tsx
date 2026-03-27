@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Alert, Badge, Button, PageHeader } from '@/components/ui';
 import { FileText, ChevronRight, CheckCircle2, Clock, Lock, Loader2, AlertTriangle } from 'lucide-react';
+import { useUser } from '@/lib/UserContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,11 +36,22 @@ const API = process.env.NEXT_PUBLIC_API_URL;
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ResultsClientPage() {
+  const { isAdmin, isClassTeacher, isSubjectTeacher, myClassId, mySubjects, loading: userLoading } = useUser();
+  const mySubjectClassIds = useMemo(() => new Set(mySubjects.map((s) => s.classId)), [mySubjects]);
+  const router = useRouter();
   const [terms, setTerms] = useState<Term[]>([]);
   const [selectedTermId, setSelectedTermId] = useState('');
   const [classes, setClasses] = useState<ClassResultStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [termsLoading, setTermsLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Redirect class teachers to their class results
+  useEffect(() => {
+    if (!userLoading && isClassTeacher && myClassId) {
+      router.replace(`/results/${myClassId}`);
+    }
+  }, [userLoading, isClassTeacher, myClassId, router]);
 
   // Fetch terms
   useEffect(() => {
@@ -51,8 +64,10 @@ export default function ResultsClientPage() {
         const current = list.find((t) => t.isCurrent);
         if (current) setSelectedTermId(current.id);
         else if (list.length > 0) setSelectedTermId(list[0].id);
+        else setLoading(false); // no terms — stop loading
       })
-      .catch(() => {});
+      .catch(() => setLoading(false))
+      .finally(() => setTermsLoading(false));
   }, []);
 
   const fetchClasses = useCallback(async () => {
@@ -73,10 +88,10 @@ export default function ResultsClientPage() {
         statusMap[s.classId] = s;
       });
 
-      const allClasses: ClassResultStatus[] = (classData.classes ?? classData ?? []).map((c: {
+      let allClasses: ClassResultStatus[] = (classData.classes ?? classData ?? []).map((c: {
         id: string; name: string; level: string;
         classTeacher: { id: string; name: string } | null;
-        _count?: { students: number }; totalStudents?: number;
+        studentCount?: number;
       }) => {
         const s = statusMap[c.id];
         return {
@@ -84,12 +99,17 @@ export default function ResultsClientPage() {
           name: c.name,
           level: c.level,
           classTeacher: c.classTeacher,
-          totalStudents: c._count?.students ?? c.totalStudents ?? 0,
+          totalStudents: c.studentCount ?? 0,
           status: s ? (s.isPublished ? 'PUBLISHED' : 'DRAFT') : 'NOT_GENERATED',
           isPublished: s?.isPublished ?? false,
           publishedAt: s?.publishedAt ?? null,
         };
       });
+
+      // Subject teachers: only show classes where they have assigned subjects
+      if (!isAdmin && isSubjectTeacher) {
+        allClasses = allClasses.filter((c) => mySubjectClassIds.has(c.id));
+      }
 
       setClasses(allClasses);
     } catch (err) {
@@ -97,7 +117,7 @@ export default function ResultsClientPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedTermId]);
+  }, [selectedTermId, isAdmin, isSubjectTeacher, mySubjectClassIds]);
 
   useEffect(() => { fetchClasses(); }, [fetchClasses]);
 
@@ -124,26 +144,38 @@ export default function ResultsClientPage() {
       <PageHeader
         title="Results"
         subtitle="Manage end-of-term assessments and report cards"
-        icon={<FileText size={22} />}
       />
 
-      {/* Term selector */}
-      <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-gray-700">Term:</label>
-        <select
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-          value={selectedTermId}
-          onChange={(e) => setSelectedTermId(e.target.value)}
-        >
-          {terms.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name} {t.year}{t.isCurrent ? ' (Current)' : ''}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* No terms state */}
+      {!termsLoading && terms.length === 0 && (
+        <div className="bg-warning-50 border border-warning-200 rounded-2xl p-6 text-center">
+          <FileText size={36} className="mx-auto mb-3 text-warning-400" />
+          <p className="font-semibold text-warning-800">No academic terms set up yet</p>
+          <p className="text-sm text-warning-700 mt-1">
+            Go to <a href="/settings" className="underline font-medium">Settings → Academic Terms</a> and create a term first.
+          </p>
+        </div>
+      )}
 
-      {error && <Alert variant="error">{error}</Alert>}
+      {/* Term selector */}
+      {terms.length > 0 && (
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-700">Term:</label>
+          <select
+            className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+            value={selectedTermId}
+            onChange={(e) => setSelectedTermId(e.target.value)}
+          >
+            {terms.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} {t.year}{t.isCurrent ? ' (Current)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {error && <Alert type="error" message={error} />}
 
       {/* Summary cards */}
       {!loading && classes.length > 0 && (

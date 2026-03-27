@@ -672,4 +672,48 @@ router.post(
   }
 );
 
+// ─────────────────────────────────────────────────────────────────
+// GET /auth/me
+// Returns current user's profile + teacher context (if TEACHER)
+// ─────────────────────────────────────────────────────────────────
+
+router.get('/me', authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        phone: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        teacherProfile: {
+          select: {
+            id: true,
+            staffId: true,
+            classTeacherOf: {
+              select: { id: true, name: true, level: true },
+            },
+            subjectTeachers: {
+              select: {
+                classId: true,
+                class: { select: { id: true, name: true } },
+                subjectId: true,
+                subject: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    res.json({ user });
+  } catch (err) {
+    console.error('GET /auth/me', err);
+    res.status(500).json({ message: 'Failed to fetch profile' });
+  }
+});
+
 module.exports = router;

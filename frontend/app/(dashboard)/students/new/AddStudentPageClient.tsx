@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Button, Input, PageHeader } from "@/components/ui";
+import { Alert, Button, Input, PageHeader, AdminOnly } from "@/components/ui";
 import { Calendar, GraduationCap, Phone, Users } from "lucide-react";
 
 type ClassOption = { id: string; name: string };
@@ -161,6 +161,7 @@ export default function AddStudentPageClient() {
   };
 
   return (
+    <AdminOnly>
     <div className="p-4 sm:p-6 md:p-8 max-w-[1600px] w-full mx-auto animate-in fade-in duration-500">
       <PageHeader
         title="Add New Student"
@@ -322,6 +323,7 @@ export default function AddStudentPageClient() {
         </div>
       </div>
     </div>
+    </AdminOnly>
   );
 }
 

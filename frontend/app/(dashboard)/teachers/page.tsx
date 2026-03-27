@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   Button, Modal, Alert,
-  SkeletonTable, PageHeader,
+  SkeletonTable, PageHeader, AdminOnly,
 } from '@/components/ui';
 import {
   GraduationCap, Phone, Hash,
@@ -60,6 +60,7 @@ export default function TeachersPage() {
   useEffect(() => { fetchTeachers(); }, [fetchTeachers]);
 
   return (
+    <AdminOnly>
     <div className="p-6 max-w-[1600px] mx-auto animate-fade-in">
       <PageHeader
         title="Teachers"
@@ -97,6 +98,7 @@ export default function TeachersPage() {
         <BulkImportForm onDone={() => { setBulkOpen(false); fetchTeachers(); }} onCancel={() => setBulkOpen(false)} />
       </Modal>
     </div>
+    </AdminOnly>
   );
 }
 

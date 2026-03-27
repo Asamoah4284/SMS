@@ -578,6 +578,14 @@ router.get('/:classId/:termId', async (req, res) => {
       });
     });
 
+    // Fetch remarks for all students in class+term
+    const studentIds = Object.keys(byStudent);
+    const allRemarks = studentIds.length
+      ? await prisma.termRemarks.findMany({ where: { studentId: { in: studentIds }, termId } })
+      : [];
+    const remarksMap = {};
+    allRemarks.forEach((r) => { remarksMap[r.studentId] = r; });
+
     // Compute overall avg per student, JHS aggregate (best 6 positions)
     const isJHS = cls?.level?.startsWith('JHS');
     Object.values(byStudent).forEach((data) => {
@@ -587,6 +595,10 @@ router.get('/:classId/:termId', async (req, res) => {
         const positions = data.subjects.map((s) => s.position).filter((p) => p !== null).sort((a, b) => a - b);
         data.aggregate = positions.slice(0, 6).reduce((s, p) => s + p, 0);
       }
+      const rem = remarksMap[data.student.id];
+      data.teacherRemarks = rem?.teacherRemarks ?? null;
+      data.headmasterRemarks = rem?.headmasterRemarks ?? null;
+      data.nextTermBegins = rem?.nextTermBegins ?? null;
     });
 
     res.json({

@@ -253,9 +253,14 @@ router.get('/:id', async (req, res) => {
           )
         : null;
 
+    // Fee summary
+    const feeTotalPaid = student.feePayments.reduce((s, p) => s + p.amountPaid, 0);
+    const feeTotalDue = student.feePayments.reduce((s, p) => s + p.feeStructure.amount, 0);
+
     res.json({
       ...student,
       attendanceSummary: { ...attendanceSummary, total: totalDays, rate: attendanceRate },
+      feeSummary: { totalPaid: feeTotalPaid, totalDue: feeTotalDue, balance: Math.max(0, feeTotalDue - feeTotalPaid) },
     });
   } catch (err) {
     console.error('GET /students/:id', err);

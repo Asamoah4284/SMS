@@ -407,4 +407,65 @@ router.delete('/:id', authorize('ADMIN'), async (req, res) => {
   }
 });
 
+// ─── POST /classes/:id/promote ────────────────────────────────────────────────
+// Admin: bulk promote students from this class to another class
+// Body: { termId, targetClassId }
+// Promotes all students with isPromoted=true in the latest term results.
+// Students with isPromoted=false (repeat) stay in current class.
+router.post('/:id/promote', authorize('ADMIN'), async (req, res) => {
+  try {
+    const { id: classId } = req.params;
+    const { termId, targetClassId } = req.body;
+    if (!termId || !targetClassId) {
+      return res.status(400).json({ message: 'termId and targetClassId are required' });
+    }
+
+    // Get all active students in this class
+    const students = await prisma.student.findMany({
+      where: { classId, isActive: true },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    if (students.length === 0) {
+      return res.status(400).json({ message: 'No active students in this class' });
+    }
+
+    const studentIds = students.map((s) => s.id);
+
+    // Find which students are marked promoted in latest results for this term
+    const results = await prisma.result.findMany({
+      where: { studentId: { in: studentIds }, termId },
+      select: { studentId: true, isPromoted: true },
+      distinct: ['studentId'],
+    });
+
+    // Build a map: studentId → isPromoted (default true if no result)
+    const promotionMap = {};
+    results.forEach((r) => { promotionMap[r.studentId] = r.isPromoted; });
+
+    const toPromote = students.filter((s) => promotionMap[s.id] !== false); // promoted or no result
+    const toRepeat = students.filter((s) => promotionMap[s.id] === false);
+
+    if (toPromote.length === 0) {
+      return res.status(400).json({ message: 'No students marked for promotion' });
+    }
+
+    // Move promoted students to target class
+    await prisma.student.updateMany({
+      where: { id: { in: toPromote.map((s) => s.id) } },
+      data: { classId: targetClassId },
+    });
+
+    res.json({
+      message: `${toPromote.length} student(s) promoted successfully`,
+      promoted: toPromote.length,
+      repeated: toRepeat.length,
+      promotedStudents: toPromote.map((s) => ({ id: s.id, name: `${s.firstName} ${s.lastName}` })),
+      repeatedStudents: toRepeat.map((s) => ({ id: s.id, name: `${s.firstName} ${s.lastName}` })),
+    });
+  } catch (err) {
+    console.error('POST /classes/:id/promote', err);
+    res.status(500).json({ message: 'Failed to promote students' });
+  }
+});
+
 module.exports = router;
