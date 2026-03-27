@@ -7,10 +7,10 @@ import { UserProvider, useUser } from '@/lib/UserContext';
 
 function DashboardHeader({ onMenuClick }: { onMenuClick: () => void }) {
   const { user } = useUser();
-  const initials = user
-    ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase()
-    : 'AD';
-  const displayName = user ? `${user.firstName} ${user.lastName}` : 'Loading…';
+  const first = user?.firstName?.trim() ?? '';
+  const last = user?.lastName?.trim() ?? '';
+  const initials = `${first.charAt(0)}${last.charAt(0)}`.trim().toUpperCase() || 'AD';
+  const displayName = user ? `${first} ${last}`.trim() || 'Account' : 'Loading…';
   const roleLabel = user?.role === 'ADMIN' ? 'Administrator' : user?.role === 'TEACHER' ? 'Teacher' : 'User';
 
   return (
@@ -51,7 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <UserProvider>
-      <div className="flex h-screen bg-gray-50 overflow-hidden font-sans relative">
+      <div className="flex h-screen bg-white overflow-hidden font-sans relative">
         {sidebarOpen && (
           <button
             type="button"
@@ -66,7 +66,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="flex-1 flex flex-col h-screen min-w-0">
           <DashboardHeader onMenuClick={() => setSidebarOpen(true)} />
 
-          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 custom-scrollbar h-full w-full">
+          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-white custom-scrollbar h-full w-full">
             <div className="min-h-full">
               {children}
             </div>

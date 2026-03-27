@@ -28,8 +28,13 @@ export default function SettingsClientPage() {
       const token = getToken();
       const res = await fetch(`${API}/terms`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || 'Failed to load terms');
+      }
       setTerms(data.terms ?? []);
-    } catch { setError('Failed to load terms'); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load terms');
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -59,7 +64,7 @@ export default function SettingsClientPage() {
 
   return (
     <AdminOnly>
-    <div className="animate-fade-in space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 animate-fade-in space-y-6">
       <PageHeader
         title="Settings"
         subtitle="Manage school configuration and academic terms"
@@ -183,7 +188,7 @@ function TermModal({ term, onClose, onSaved }: {
   };
 
   return (
-    <Modal title={term ? 'Edit Term' : 'New Academic Term'} onClose={onClose}>
+    <Modal isOpen={true} title={term ? 'Edit Term' : 'New Academic Term'} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert type="error" message={error} />}
         <div className="grid grid-cols-2 gap-3">

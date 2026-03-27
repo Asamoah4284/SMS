@@ -284,17 +284,24 @@ function OverviewTab({ classData }: { classData: ClassData }) {
               />
             </div>
           </div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             {([
               { label: 'Present', val: stats.attendance.PRESENT, icon: <UserCheck className="w-4 h-4" />, bg: 'bg-success-50', text: 'text-success-700' },
               { label: 'Absent', val: stats.attendance.ABSENT, icon: <UserX className="w-4 h-4" />, bg: 'bg-danger-50', text: 'text-danger-700' },
               { label: 'Late', val: stats.attendance.LATE, icon: <Clock className="w-4 h-4" />, bg: 'bg-warning-50', text: 'text-warning-700' },
               { label: 'Excused', val: stats.attendance.EXCUSED, icon: <CheckCircle2 className="w-4 h-4" />, bg: 'bg-blue-50', text: 'text-blue-700' },
             ] as const).map(({ label, val, icon, bg, text }) => (
-              <div key={label} className={`flex flex-col items-center gap-1 p-3 rounded-xl ${bg}`}>
-                <div className={text}>{icon}</div>
-                <p className={`text-xl font-bold ${text}`}>{val}</p>
-                <p className="text-xs text-gray-500">{label}</p>
+              <div
+                key={label}
+                className={`rounded-2xl border border-white/60 ${bg} px-4 py-4 sm:px-5 sm:py-5 shadow-sm`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs sm:text-sm font-semibold text-gray-600 tracking-wide">{label}</p>
+                  <div className={`w-8 h-8 rounded-full grid place-items-center bg-white/80 ${text}`}>
+                    {icon}
+                  </div>
+                </div>
+                <p className={`text-2xl sm:text-3xl font-bold leading-none ${text}`}>{val}</p>
               </div>
             ))}
           </div>

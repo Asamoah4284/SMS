@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { body, validationResult } = require('express-validator');
+const { body, query, validationResult } = require('express-validator');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 
@@ -24,6 +24,24 @@ async function getTeacherContext(userId) {
 			subjectTeachers: { select: { classId: true, subjectId: true } },
 		},
 	});
+}
+
+/** Only admin or the class teacher for `classId` may manage that class’s subject list. */
+async function assertClassTeacherOrAdmin(req, classId) {
+	if (req.user.role === 'ADMIN') return { ok: true };
+	if (req.user.role !== 'TEACHER') {
+		return { ok: false, status: 403, error: 'Forbidden' };
+	}
+	const teacher = await getTeacherContext(req.user.id);
+	if (!teacher) return { ok: false, status: 404, error: 'Teacher profile not found' };
+	if (teacher.classTeacherOf?.id !== classId) {
+		return {
+			ok: false,
+			status: 403,
+			error: 'Only the class teacher or an admin can change subjects for this class',
+		};
+	}
+	return { ok: true };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -200,6 +218,158 @@ router.post(
 		} catch (error) {
 			console.error('Create subject error:', error);
 			return res.status(500).json({ error: 'Failed to create subject' });
+		}
+	}
+);
+
+// ─────────────────────────────────────────────────────────────────
+// PATCH /subjects/class-link
+// Update subject name/code (global Subject row). Admin or class teacher only.
+// ─────────────────────────────────────────────────────────────────
+
+router.patch(
+	'/class-link',
+	[
+		body('classId').notEmpty().withMessage('classId is required'),
+		body('subjectId').notEmpty().withMessage('subjectId is required'),
+		body('name').optional({ values: 'falsy' }).isString(),
+		body('code').optional({ values: 'null' }).isString(),
+	],
+	handleValidationErrors,
+	authorize('ADMIN', 'TEACHER'),
+	async (req, res) => {
+		try {
+			const classId = String(req.body.classId);
+			const subjectId = String(req.body.subjectId);
+			const hasName = req.body.name !== undefined;
+			const hasCode = req.body.code !== undefined;
+
+			if (!hasName && !hasCode) {
+				return res.status(400).json({ error: 'Provide name and/or code to update' });
+			}
+
+			const gate = await assertClassTeacherOrAdmin(req, classId);
+			if (!gate.ok) return res.status(gate.status).json({ error: gate.error });
+
+			const link = await prisma.subjectTeacher.findFirst({
+				where: { classId, subjectId },
+				include: { subject: true },
+			});
+			if (!link) {
+				return res.status(404).json({ error: 'This subject is not assigned to this class' });
+			}
+
+			const data = {};
+			if (hasName) {
+				const n = String(req.body.name ?? '').trim().replace(/\s+/g, ' ');
+				if (!n) {
+					return res.status(400).json({ error: 'name cannot be empty' });
+				}
+				data.name = n;
+			}
+			if (hasCode) {
+				data.code =
+					req.body.code === null || req.body.code === ''
+						? null
+						: String(req.body.code).trim().toUpperCase();
+			}
+
+			if (Object.keys(data).length === 0) {
+				return res.status(400).json({ error: 'Nothing to update' });
+			}
+
+			try {
+				const updated = await prisma.subject.update({
+					where: { id: subjectId },
+					data,
+				});
+				return res.json({
+					message: 'Subject updated',
+					subject: { id: updated.id, name: updated.name, code: updated.code },
+				});
+			} catch (e) {
+				if (e && e.code === 'P2002') {
+					return res.status(409).json({ error: 'A subject with that name already exists' });
+				}
+				throw e;
+			}
+		} catch (error) {
+			console.error('Patch subject class link error:', error);
+			return res.status(500).json({ error: 'Failed to update subject' });
+		}
+	}
+);
+
+// ─────────────────────────────────────────────────────────────────
+// DELETE /subjects/class-link
+// Remove subject from class (SubjectTeacher + class timetables for that subject).
+// Blocked if assessments or term results exist for this class+subject.
+// ─────────────────────────────────────────────────────────────────
+
+router.delete(
+	'/class-link',
+	[
+		query('classId').notEmpty().withMessage('classId is required'),
+		query('subjectId').notEmpty().withMessage('subjectId is required'),
+	],
+	handleValidationErrors,
+	authorize('ADMIN', 'TEACHER'),
+	async (req, res) => {
+		try {
+			const classId = String(req.query.classId);
+			const subjectId = String(req.query.subjectId);
+
+			const gate = await assertClassTeacherOrAdmin(req, classId);
+			if (!gate.ok) return res.status(gate.status).json({ error: gate.error });
+
+			const link = await prisma.subjectTeacher.findFirst({
+				where: { classId, subjectId },
+			});
+			if (!link) {
+				return res.status(404).json({ error: 'This subject is not assigned to this class' });
+			}
+
+			const assessmentCount = await prisma.assessment.count({
+				where: { classId, subjectId },
+			});
+			if (assessmentCount > 0) {
+				return res.status(409).json({
+					error: 'Cannot remove subject',
+					message:
+						'This class has assessments linked to this subject. Remove or reassign those assessments first.',
+				});
+			}
+
+			const studentsInClass = await prisma.student.findMany({
+				where: { classId, isActive: true },
+				select: { id: true },
+			});
+			const studentIds = studentsInClass.map((s) => s.id);
+			if (studentIds.length > 0) {
+				const resultCount = await prisma.result.count({
+					where: {
+						subjectId,
+						studentId: { in: studentIds },
+					},
+				});
+				if (resultCount > 0) {
+					return res.status(409).json({
+						error: 'Cannot remove subject',
+						message:
+							'Students in this class already have results for this subject. Contact an administrator if you need this changed.',
+					});
+				}
+			}
+
+			await prisma.$transaction([
+				prisma.timetable.deleteMany({ where: { classId, subjectId } }),
+				prisma.subjectTeacher.deleteMany({ where: { classId, subjectId } }),
+			]);
+
+			return res.json({ message: 'Subject removed from this class' });
+		} catch (error) {
+			console.error('Delete subject class link error:', error);
+			return res.status(500).json({ error: 'Failed to remove subject from class' });
 		}
 	}
 );

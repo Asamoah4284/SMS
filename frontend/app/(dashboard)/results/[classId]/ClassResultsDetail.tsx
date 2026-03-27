@@ -261,7 +261,7 @@ export default function ClassResultsDetail({ classId, initialTermId }: { classId
   ];
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-[1400px] mx-auto w-full animate-fade-in space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
         <Link href="/results" className="text-gray-400 hover:text-gray-700 transition-colors">
@@ -734,7 +734,7 @@ function AddAssessmentModal({ classId, termId, subjects, editableSubjectIds, onC
   };
 
   return (
-    <Modal title="Add Assessment" onClose={onClose}>
+    <Modal isOpen={true} title="Add Assessment" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert type="error" message={error} />}
         <div>
@@ -837,7 +837,7 @@ function ScoreEntryModal({ assessment, onClose, onSaved }: {
   };
 
   return (
-    <Modal title={`Scores — ${assessment.name}`} onClose={onClose}>
+    <Modal isOpen={true} title={`Scores — ${assessment.name}`} onClose={onClose}>
       <div className="space-y-3">
         {error && <Alert type="error" message={error} />}
         <p className="text-sm text-gray-500">
@@ -907,7 +907,7 @@ function RemarksModal({ student, termId, userRole, onClose, onSaved }: {
   };
 
   return (
-    <Modal title={`Remarks — ${student.student.firstName} ${student.student.lastName}`} onClose={onClose}>
+    <Modal isOpen={true} title={`Remarks — ${student.student.firstName} ${student.student.lastName}`} onClose={onClose}>
       <div className="space-y-4">
         {error && <Alert type="error" message={error} />}
         {(userRole === 'TEACHER' || userRole === 'ADMIN') && (

@@ -87,7 +87,7 @@ router.get('/', async (req, res) => {
 });
 
 // ─── POST /students ──────────────────────────────────────────────────────────
-router.post('/', authorize('ADMIN'), async (req, res) => {
+router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
   try {
     const {
       firstName,
@@ -102,6 +102,28 @@ router.post('/', authorize('ADMIN'), async (req, res) => {
       guardianPhone,
       guardianAddress,
     } = req.body;
+
+    // Class teachers can only add students to their own class.
+    if (req.user.role === 'TEACHER') {
+      const teacher = await prisma.teacher.findUnique({
+        where: { userId: req.user.id },
+        include: { classTeacherOf: { select: { id: true, name: true } } },
+      });
+
+      if (!teacher?.classTeacherOf) {
+        return res.status(403).json({ message: 'Only assigned class teachers can add students' });
+      }
+
+      if (!classId) {
+        return res.status(400).json({ message: 'Class is required for teacher-created students' });
+      }
+
+      if (classId !== teacher.classTeacherOf.id) {
+        return res.status(403).json({
+          message: `You can only add students to your assigned class (${teacher.classTeacherOf.name})`,
+        });
+      }
+    }
 
     // Basic validation
     if (!firstName || !lastName) {

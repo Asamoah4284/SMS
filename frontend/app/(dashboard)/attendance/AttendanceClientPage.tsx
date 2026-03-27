@@ -6,7 +6,7 @@ import { Alert, Badge, Button, PageHeader } from '@/components/ui';
 import {
   CalendarCheck, Users, GraduationCap, ChevronRight,
   CheckCircle2, X, Clock, Shield, UserCheck, UserX,
-  BarChart3, AlertTriangle, Loader2, Phone,
+  BarChart3, AlertTriangle, Loader2, Phone, Search,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -54,10 +54,10 @@ type Tab = 'students' | 'teachers';
 // ─── Status config ────────────────────────────────────────────────────────────
 
 const STATUS_CFG = {
-  PRESENT: { label: 'Present', icon: CheckCircle2, bg: 'bg-success-50', activeBg: 'bg-success-500', text: 'text-success-700', activeText: 'text-white', border: 'border-success-200' },
-  LATE:    { label: 'Late',    icon: Clock,         bg: 'bg-warning-50', activeBg: 'bg-warning-500', text: 'text-warning-700', activeText: 'text-white', border: 'border-warning-200' },
-  ABSENT:  { label: 'Absent',  icon: X,             bg: 'bg-danger-50',  activeBg: 'bg-danger-500',  text: 'text-danger-700',  activeText: 'text-white', border: 'border-danger-200' },
-  EXCUSED: { label: 'Excused', icon: Shield,        bg: 'bg-blue-50',    activeBg: 'bg-blue-500',    text: 'text-blue-700',    activeText: 'text-white', border: 'border-blue-200' },
+  PRESENT: { label: 'Present', icon: CheckCircle2, bg: 'bg-success-50', activeBg: 'bg-success-500', text: 'text-success-700', activeText: 'text-white', border: 'border-success-200', accent: 'border-l-success-700' },
+  LATE:    { label: 'Late',    icon: Clock,         bg: 'bg-warning-50', activeBg: 'bg-warning-500', text: 'text-warning-700', activeText: 'text-white', border: 'border-warning-200', accent: 'border-l-warning-700' },
+  ABSENT:  { label: 'Absent',  icon: X,             bg: 'bg-danger-50',  activeBg: 'bg-danger-500',  text: 'text-danger-700',  activeText: 'text-white', border: 'border-danger-200', accent: 'border-l-danger-700' },
+  EXCUSED: { label: 'Excused', icon: Shield,        bg: 'bg-blue-50',    activeBg: 'bg-blue-500',    text: 'text-blue-700',    activeText: 'text-white', border: 'border-blue-200', accent: 'border-l-blue-700' },
 } as const;
 
 type AttendanceStatus = keyof typeof STATUS_CFG;
@@ -314,16 +314,32 @@ function AdminTeacherAttendance({ date }: { date: string }) {
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {([
-          { label: 'Present', val: present, cfg: STATUS_CFG.PRESENT },
-          { label: 'Late', val: late, cfg: STATUS_CFG.LATE },
-          { label: 'Absent', val: absent, cfg: STATUS_CFG.ABSENT },
-          { label: 'Excused', val: excused, cfg: STATUS_CFG.EXCUSED },
-        ]).map(({ label, val, cfg }) => (
-          <div key={label} className={`${cfg.bg} border ${cfg.border} rounded-2xl p-3.5 text-center`}>
-            <p className={`text-2xl font-bold ${cfg.text}`}>{val}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+          { label: 'Present', val: present, cfg: STATUS_CFG.PRESENT, progress: 'bg-success-700' },
+          { label: 'Late', val: late, cfg: STATUS_CFG.LATE, progress: 'bg-warning-700' },
+          { label: 'Absent', val: absent, cfg: STATUS_CFG.ABSENT, progress: 'bg-danger-700' },
+          { label: 'Excused', val: excused, cfg: STATUS_CFG.EXCUSED, progress: 'bg-blue-700' },
+        ]).map(({ label, val, cfg, progress }) => (
+          <div
+            key={label}
+            className={`relative overflow-hidden ${cfg.bg} rounded-2xl border-l-4 ${cfg.accent} px-4 py-3.5 sm:px-5 sm:py-4.5 shadow-sm`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
+                <p className={`mt-1.5 text-2xl sm:text-[28px] font-bold leading-none ${cfg.text}`}>{val}</p>
+              </div>
+              <div className={`w-10 h-10 rounded-xl bg-white/90 border border-white/80 grid place-items-center shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ${cfg.text}`}>
+                <cfg.icon className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 h-1.5 rounded-full bg-white/50 overflow-hidden">
+              <div
+                className={`h-1.5 rounded-full ${progress}`}
+                style={{ width: `${Math.min(100, Math.max(6, (val / Math.max(1, teachers.length || 1)) * 100))}%` }}
+              />
+            </div>
           </div>
         ))}
       </div>
@@ -460,7 +476,6 @@ function TeacherView() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-[1400px] mx-auto animate-fade-in space-y-4 sm:space-y-6">
-      <PageHeader title="Attendance" subtitle={className} />
       <AttendanceMarkView classId={classId} date={todayStr()} isAdmin={false} onBack={() => {}} />
     </div>
   );
@@ -480,13 +495,14 @@ function AttendanceMarkView({
   onBack: () => void;
 }) {
   const [data, setData] = useState<{ className: string; alreadyMarked: boolean; students: AttendanceStudent[]; classTeacher: { id: string; name: string } | null } | null>(null);
-  const [statuses, setStatuses] = useState<Record<string, AttendanceStatus>>({});
+  const [statuses, setStatuses] = useState<Record<string, AttendanceStatus | undefined>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const isToday = date === todayStr();
   const canEdit = isAdmin || isToday;
@@ -503,15 +519,16 @@ function AttendanceMarkView({
       const d = await res.json();
       setData(d);
 
-      // Pre-fill statuses: if already marked use existing, else default to PRESENT
-      const initial: Record<string, AttendanceStatus> = {};
+      // Pre-fill statuses: if already marked use existing, else leave unselected
+      const initial: Record<string, AttendanceStatus | undefined> = {};
       d.students.forEach((s: AttendanceStudent) => {
-        initial[s.id] = (s.status as AttendanceStatus) ?? 'PRESENT';
+        initial[s.id] = (s.status as AttendanceStatus) ?? undefined;
       });
       setStatuses(initial);
       setNotes({});
       setSubmitted(d.alreadyMarked);
       setIsEditing(false);
+      setSearchTerm('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -535,9 +552,13 @@ function AttendanceMarkView({
     try {
       const records = data.students.map((s) => ({
         studentId: s.id,
-        status: statuses[s.id] ?? 'PRESENT',
+        status: statuses[s.id],
         note: notes[s.id] || undefined,
       }));
+      const hasUnselected = records.some((r) => !r.status);
+      if (hasUnselected) {
+        throw new Error('Please choose attendance status for every student (or use Mark all)');
+      }
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance/students/mark`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
@@ -565,11 +586,20 @@ function AttendanceMarkView({
   if (!data) return null;
 
   const showMarkingUI = !data.alreadyMarked || isEditing;
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredStudents = normalizedSearch
+    ? data.students.filter((student) =>
+        student.name.toLowerCase().includes(normalizedSearch) ||
+        student.studentId.toLowerCase().includes(normalizedSearch) ||
+        (student.parentPhone ?? '').toLowerCase().includes(normalizedSearch)
+      )
+    : data.students;
 
-  const counts = Object.values(statuses).reduce(
-    (acc, s) => { acc[s] = (acc[s] ?? 0) + 1; return acc; },
-    {} as Record<string, number>
-  );
+  const counts = Object.values(statuses).reduce((acc, s) => {
+    if (!s) return acc;
+    acc[s] = (acc[s] ?? 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   return (
     <div className="space-y-4">
@@ -606,7 +636,7 @@ function AttendanceMarkView({
             const cfg = STATUS_CFG[s];
             const count = data.students.filter((st) => st.status === s).length;
             return (
-              <div key={s} className={`flex flex-col items-center gap-1 p-3.5 rounded-2xl border ${cfg.bg} ${cfg.border}`}>
+              <div key={s} className={`flex flex-col items-center gap-1 p-3.5 rounded-2xl border-l-4 ${cfg.accent} ${cfg.bg}`}>
                 <p className={`text-2xl font-bold ${cfg.text}`}>{count}</p>
                 <p className="text-xs text-gray-500">{cfg.label}</p>
               </div>
@@ -636,8 +666,19 @@ function AttendanceMarkView({
 
       {/* Student list */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="px-4 sm:px-6 py-3 border-b border-gray-100 bg-gray-50/50">
+          <div className="relative min-w-0">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search student name, ID or phone"
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+        </div>
         <div className="px-4 sm:px-6 py-2.5 bg-white border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between">
-          <span>{data.students.length} Students</span>
+          <span>{filteredStudents.length} Students</span>
           {showMarkingUI && (
             <span className="font-normal text-gray-400 normal-case">
               {counts['PRESENT'] ?? 0} present · {counts['ABSENT'] ?? 0} absent · {counts['LATE'] ?? 0} late
@@ -645,71 +686,78 @@ function AttendanceMarkView({
           )}
         </div>
         <div className="divide-y divide-gray-100">
-          {data.students.map((student, idx) => {
-            const currentStatus = statuses[student.id] ?? 'PRESENT';
+          {filteredStudents.map((student, idx) => {
+            const currentStatus = statuses[student.id];
 
             return (
-              <div key={student.id} className="flex items-center gap-3 px-4 sm:px-6 py-3">
+              <div key={student.id} className="flex items-start gap-3 px-4 sm:px-6 py-3">
                 {/* Index + avatar */}
                 <span className="text-xs text-gray-400 font-mono w-5 text-center flex-shrink-0">{idx + 1}</span>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${showMarkingUI ? (STATUS_CFG[currentStatus]?.bg ?? 'bg-gray-100') : 'bg-gray-100'} ${showMarkingUI ? (STATUS_CFG[currentStatus]?.text ?? 'text-gray-600') : 'text-gray-600'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${showMarkingUI ? (currentStatus ? STATUS_CFG[currentStatus].bg : 'bg-gray-100') : 'bg-gray-100'} ${showMarkingUI ? (currentStatus ? STATUS_CFG[currentStatus].text : 'text-gray-600') : 'text-gray-600'}`}>
                   {student.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
                 </div>
 
-                {/* Name */}
-                <div className="flex-1 min-w-0">
-                  <Link href={`/students/${student.id}`} className="text-sm font-semibold text-gray-900 hover:text-primary-700 truncate block">
-                    {student.name}
-                  </Link>
-                  {student.parentPhone && (
-                    <a href={`tel:${student.parentPhone}`} className="text-xs text-gray-400 flex items-center gap-1 hover:text-primary-600">
-                      <Phone className="w-3 h-3" />{student.parentPhone}
-                    </a>
-                  )}
-                </div>
-
-                {/* Status buttons (mark mode) or badge (view mode) */}
-                {showMarkingUI ? (
-                  <div className="flex gap-1.5">
-                    {(Object.keys(STATUS_CFG) as AttendanceStatus[]).map((s) => {
-                      const cfg = STATUS_CFG[s];
-                      const active = currentStatus === s;
-                      const Icon = cfg.icon;
-                      return (
-                        <button
-                          key={s}
-                          title={cfg.label}
-                          onClick={() => setStatuses((prev) => ({ ...prev, [student.id]: s }))}
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all border ${
-                            active
-                              ? `${cfg.activeBg} ${cfg.activeText} border-transparent shadow-sm`
-                              : `${cfg.bg} ${cfg.text} ${cfg.border} opacity-50 hover:opacity-100`
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div>
-                    {student.status ? (
-                      (() => {
-                        const cfg = STATUS_CFG[student.status as AttendanceStatus];
-                        return (
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-                            {cfg.label}
-                          </span>
-                        );
-                      })()
-                    ) : (
-                      <span className="text-xs text-gray-400 italic">Not marked</span>
+                <div className="flex-1 min-w-0 sm:flex sm:items-center sm:justify-between sm:gap-3">
+                  <div className="min-w-0">
+                    {/* Name */}
+                    <Link href={`/students/${student.id}`} className="text-sm font-semibold text-gray-900 hover:text-primary-700 block truncate leading-tight">
+                      {student.name}
+                    </Link>
+                    {student.parentPhone && (
+                      <a href={`tel:${student.parentPhone}`} className="text-xs text-gray-400 flex items-center gap-1 hover:text-primary-600 mt-0.5">
+                        <Phone className="w-3 h-3" />{student.parentPhone}
+                      </a>
                     )}
                   </div>
-                )}
+
+                  {/* Status buttons (mark mode) or badge (view mode) */}
+                  {showMarkingUI ? (
+                    <div className="flex gap-1.5 mt-2 sm:mt-0 sm:flex-shrink-0">
+                      {(Object.keys(STATUS_CFG) as AttendanceStatus[]).map((s) => {
+                        const cfg = STATUS_CFG[s];
+                        const active = currentStatus === s;
+                        const Icon = cfg.icon;
+                        return (
+                          <button
+                            key={s}
+                            title={cfg.label}
+                            onClick={() => setStatuses((prev) => ({ ...prev, [student.id]: s }))}
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all border ${
+                              active
+                                ? `${cfg.activeBg} ${cfg.activeText} border-transparent shadow-sm`
+                                : `${cfg.bg} ${cfg.text} ${cfg.border} opacity-50 hover:opacity-100`
+                            }`}
+                          >
+                            <Icon className="w-4 h-4" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mt-2 sm:mt-0 sm:flex-shrink-0">
+                      {student.status ? (
+                        (() => {
+                          const cfg = STATUS_CFG[student.status as AttendanceStatus];
+                          return (
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+                              {cfg.label}
+                            </span>
+                          );
+                        })()
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">Not marked</span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
+          {filteredStudents.length === 0 && (
+            <div className="py-8 text-center text-sm text-gray-500">
+              No students match your search.
+            </div>
+          )}
         </div>
       </div>
 
