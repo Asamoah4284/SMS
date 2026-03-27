@@ -406,10 +406,10 @@ model TermRemarks {
   headmasterRemarks String?
   nextTermBegins    DateTime?
 
-  studentId String
+  studentId String                                                                                                              
   student   Student @relation(fields: [studentId], references: [id])
   termId    String
-  term      Term    @relation(fields: [termId], references: [id])
+  term      Term    @relation(fields: [termId], references: [id]) 
   classId   String
 
   @@unique([studentId, termId])

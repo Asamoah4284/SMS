@@ -59,6 +59,26 @@ function normalizeTime(value) {
 	return String(value || '').trim();
 }
 
+function timeToMinutes(hhmm) {
+	const parts = String(hhmm || '').split(':');
+	if (parts.length !== 2) return NaN;
+	const h = Number(parts[0]);
+	const m = Number(parts[1]);
+	if (!Number.isFinite(h) || !Number.isFinite(m)) return NaN;
+	return h * 60 + m;
+}
+
+function minutesToTime(total) {
+	const t = ((total % 1440) + 1440) % 1440;
+	const hh = Math.floor(t / 60);
+	const mm = t % 60;
+	return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+function addMinutesToTime(hhmm, deltaMins) {
+	return minutesToTime(timeToMinutes(hhmm) + Number(deltaMins));
+}
+
 // Check if two time ranges overlap
 function timesOverlap(startA, endA, startB, endB) {
 	return startA < endB && endA > startB;
@@ -226,6 +246,30 @@ router.get('/my-upcoming', authorize('TEACHER'), async (req, res) => {
 			take: limit,
 		});
 
+		const teacherNameBySubjectClass = new Map();
+		if (slots.length > 0) {
+			const classIds = [...new Set(slots.map((s) => s.classId))];
+			const subjectIds = [...new Set(slots.map((s) => s.subjectId))];
+			const links = await prisma.subjectTeacher.findMany({
+				where: { classId: { in: classIds }, subjectId: { in: subjectIds } },
+				include: {
+					teacher: {
+						include: {
+							user: { select: { firstName: true, lastName: true } },
+						},
+					},
+				},
+			});
+			for (const st of links) {
+				const u = st.teacher.user;
+				const full = `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim();
+				if (!full) continue;
+				const k = `${st.classId}\t${st.subjectId}`;
+				const prev = teacherNameBySubjectClass.get(k);
+				teacherNameBySubjectClass.set(k, prev ? `${prev}, ${full}` : full);
+			}
+		}
+
 		return res.json({
 			entries: slots.map((s) => ({
 				id: s.id,
@@ -235,6 +279,7 @@ router.get('/my-upcoming', authorize('TEACHER'), async (req, res) => {
 				endTime: s.endTime,
 				class: s.class,
 				subject: s.subject,
+				teacherName: teacherNameBySubjectClass.get(`${s.classId}\t${s.subjectId}`) ?? null,
 			})),
 		});
 	} catch (error) {
@@ -275,6 +320,28 @@ router.get('/class/:classId', authorize('ADMIN', 'TEACHER'), async (req, res) =>
 			orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
 		});
 
+		const subjectIds = [...new Set(entries.map((e) => e.subjectId))];
+		const teacherNameBySubjectId = new Map();
+		if (subjectIds.length > 0) {
+			const links = await prisma.subjectTeacher.findMany({
+				where: { classId, subjectId: { in: subjectIds } },
+				include: {
+					teacher: {
+						include: {
+							user: { select: { firstName: true, lastName: true } },
+						},
+					},
+				},
+			});
+			for (const st of links) {
+				const u = st.teacher.user;
+				const full = `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim();
+				if (!full) continue;
+				const prev = teacherNameBySubjectId.get(st.subjectId);
+				teacherNameBySubjectId.set(st.subjectId, prev ? `${prev}, ${full}` : full);
+			}
+		}
+
 		return res.json({
 			class: { id: classData.id, name: classData.name, level: classData.level, section: classData.section },
 			canEdit,
@@ -285,6 +352,7 @@ router.get('/class/:classId', authorize('ADMIN', 'TEACHER'), async (req, res) =>
 				startTime: e.startTime,
 				endTime: e.endTime,
 				subject: e.subject,
+				teacherName: teacherNameBySubjectId.get(e.subjectId) ?? null,
 			})),
 		});
 	} catch (error) {
@@ -346,7 +414,23 @@ router.post(
 				where: { name: { equals: subjectName, mode: 'insensitive' } },
 			});
 
-			if (!subject) {
+			if (req.user.role === 'TEACHER' && isClassTeacher) {
+				if (!subject) {
+					return res.status(400).json({
+						error: 'Subject not found',
+						message: 'Add this subject to the class under class settings before it can appear on the timetable.',
+					});
+				}
+				const offered = await prisma.subjectTeacher.findFirst({
+					where: { classId, subjectId: subject.id },
+				});
+				if (!offered) {
+					return res.status(400).json({
+						error: 'Subject not offered for this class',
+						message: 'Only subjects already assigned to this class can be added to the timetable.',
+					});
+				}
+			} else if (!subject) {
 				subject = await prisma.subject.create({ data: { name: subjectName, code: null } });
 			}
 
@@ -473,6 +557,185 @@ router.post(
 		}
 	}
 );
+
+// ─────────────────────────────────────────────────────────────────
+// POST /timetable/generate
+// Build a full weekly timetable from day start, period length, optional breaks,
+// and subjects assigned to the class (SubjectTeacher). Admin or class teacher only.
+// ─────────────────────────────────────────────────────────────────
+
+router.post('/generate', authorize('ADMIN', 'TEACHER'), async (req, res) => {
+	try {
+		const classId = String(req.body.classId || '').trim();
+		const schoolStart = normalizeTime(req.body.schoolStart);
+		const periodsPerDay = Number(req.body.periodsPerDay);
+		const periodDurationMinutes = Number(req.body.periodDurationMinutes);
+		const rawDays = Array.isArray(req.body.daysOfWeek) ? req.body.daysOfWeek : [1, 2, 3, 4, 5];
+		const daysOfWeek = [...new Set(rawDays.map((d) => Number(d)))].filter((d) => d >= 1 && d <= 5).sort((a, b) => a - b);
+		const rawBreaks = Array.isArray(req.body.breaks) ? req.body.breaks : [];
+		const subjectIdsOrder = Array.isArray(req.body.subjectIds) ? req.body.subjectIds.map((x) => String(x)) : null;
+
+		if (!classId) {
+			return res.status(400).json({ error: 'classId is required' });
+		}
+		if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(schoolStart)) {
+			return res.status(400).json({ error: 'schoolStart must be HH:MM' });
+		}
+		if (!Number.isFinite(periodsPerDay) || periodsPerDay < 1 || periodsPerDay > 14) {
+			return res.status(400).json({ error: 'periodsPerDay must be between 1 and 14' });
+		}
+		if (!Number.isFinite(periodDurationMinutes) || periodDurationMinutes < 5 || periodDurationMinutes > 120) {
+			return res.status(400).json({ error: 'periodDurationMinutes must be between 5 and 120' });
+		}
+		if (daysOfWeek.length === 0) {
+			return res.status(400).json({ error: 'daysOfWeek must include at least one weekday (1–5)' });
+		}
+
+		const breaks = [];
+		for (const b of rawBreaks) {
+			if (!b || typeof b !== 'object') continue;
+			const ap = Number(b.afterPeriod);
+			const mins = Number(b.minutes);
+			if (!Number.isFinite(ap) || ap < 1 || ap >= periodsPerDay) continue;
+			if (!Number.isFinite(mins) || mins < 0 || mins > 120) continue;
+			breaks.push({ afterPeriod: ap, minutes: mins });
+		}
+		breaks.sort((a, b) => a.afterPeriod - b.afterPeriod);
+
+		const classData = await prisma.class.findUnique({ where: { id: classId } });
+		if (!classData) return res.status(404).json({ error: 'Class not found' });
+
+		let canAccessClass = req.user.role === 'ADMIN';
+		let isClassTeacher = false;
+
+		if (req.user.role === 'TEACHER') {
+			const ctx = await getTeacherContext(req.user.id);
+			if (!ctx) return res.status(404).json({ error: 'Teacher profile not found' });
+
+			canAccessClass = ctx.allAccessibleClassIds.includes(classId);
+			isClassTeacher = ctx.classTeacherClassIds.includes(classId);
+
+			if (!canAccessClass) {
+				return res.status(403).json({ error: 'You are not assigned to this class' });
+			}
+			if (!isClassTeacher) {
+				return res.status(403).json({
+					error: 'Only the class teacher or an admin can generate the full class timetable',
+				});
+			}
+		}
+
+		const subjectMappings = await prisma.subjectTeacher.findMany({
+			where: { classId },
+			include: {
+				subject: { select: { id: true, name: true, code: true } },
+			},
+			orderBy: [{ subject: { name: 'asc' } }],
+		});
+
+		if (subjectMappings.length === 0) {
+			return res.status(400).json({
+				error: 'No subjects for this class',
+				message: 'Add at least one subject to the class before generating a timetable.',
+			});
+		}
+
+		let orderedSubjectIds = subjectMappings.map((m) => m.subjectId);
+		if (subjectIdsOrder && subjectIdsOrder.length > 0) {
+			const allowed = new Set(orderedSubjectIds);
+			const filtered = subjectIdsOrder.filter((id) => allowed.has(id));
+			if (filtered.length === 0) {
+				return res.status(400).json({ error: 'subjectIds must list subjects that belong to this class' });
+			}
+			orderedSubjectIds = filtered;
+		}
+
+		const teacherBySubject = new Map(subjectMappings.map((m) => [m.subjectId, m.teacherId]));
+
+		const breakAfter = new Map(breaks.map((b) => [b.afterPeriod, b.minutes]));
+
+		const planned = [];
+		for (const dayOfWeek of daysOfWeek) {
+			let current = schoolStart;
+			for (let periodIndex = 1; periodIndex <= periodsPerDay; periodIndex += 1) {
+				const subjectId = orderedSubjectIds[(periodIndex - 1) % orderedSubjectIds.length];
+				const startTime = current;
+				const endTime = addMinutesToTime(startTime, periodDurationMinutes);
+				if (timeToMinutes(endTime) > 24 * 60) {
+					return res.status(400).json({
+						error: 'School day extends past midnight',
+						message: 'Reduce periods, shorten period length, or start earlier.',
+					});
+				}
+				planned.push({ dayOfWeek, startTime, endTime, subjectId });
+				current = endTime;
+				const br = breakAfter.get(periodIndex);
+				if (br !== undefined) {
+					current = addMinutesToTime(current, br);
+					if (timeToMinutes(current) > 24 * 60) {
+						return res.status(400).json({
+							error: 'School day extends past midnight',
+							message: 'Reduce break lengths or fewer periods.',
+						});
+					}
+				}
+			}
+		}
+
+		for (const slot of planned) {
+			const tid = teacherBySubject.get(slot.subjectId);
+			if (!tid) {
+				return res.status(500).json({ error: 'Missing subject assignment for class' });
+			}
+			const conflicts = await checkTeacherConflicts(tid, [slot.dayOfWeek], slot.startTime, slot.endTime, classId);
+			if (conflicts.length > 0) {
+				const sub = subjectMappings.find((m) => m.subjectId === slot.subjectId)?.subject?.name || 'Subject';
+				return res.status(409).json({
+					error: 'Teacher schedule conflict',
+					message: `Cannot place ${sub} at ${slot.startTime}–${slot.endTime} (${DAY_NAMES[slot.dayOfWeek]})`,
+					conflicts,
+				});
+			}
+		}
+
+		const created = await prisma.$transaction(async (tx) => {
+			await tx.timetable.deleteMany({ where: { classId } });
+
+			const out = [];
+			for (const slot of planned) {
+				const saved = await tx.timetable.create({
+					data: {
+						classId,
+						subjectId: slot.subjectId,
+						dayOfWeek: slot.dayOfWeek,
+						startTime: slot.startTime,
+						endTime: slot.endTime,
+					},
+					include: {
+						subject: { select: { id: true, name: true, code: true } },
+					},
+				});
+				out.push({
+					id: saved.id,
+					dayOfWeek: saved.dayOfWeek,
+					dayName: DAY_NAMES[saved.dayOfWeek] || 'Unknown',
+					startTime: saved.startTime,
+					endTime: saved.endTime,
+					subject: saved.subject,
+				});
+			}
+			return out;
+		});
+
+		return res.status(201).json({
+			message: `Generated ${created.length} timetable slot(s)`,
+			entries: created,
+		});
+	} catch (error) {
+		console.error('Generate timetable error:', error);
+		return res.status(500).json({ error: 'Failed to generate timetable' });
+	}
+});
 
 // ─────────────────────────────────────────────────────────────────
 // POST /timetable/slots/copy

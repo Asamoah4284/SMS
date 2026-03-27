@@ -734,7 +734,7 @@ function AddAssessmentModal({ classId, termId, subjects, editableSubjectIds, onC
   };
 
   return (
-    <Modal title="Add Assessment" onClose={onClose}>
+    <Modal isOpen={true} title="Add Assessment" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert type="error" message={error} />}
         <div>
@@ -837,7 +837,7 @@ function ScoreEntryModal({ assessment, onClose, onSaved }: {
   };
 
   return (
-    <Modal title={`Scores — ${assessment.name}`} onClose={onClose}>
+    <Modal isOpen={true} title={`Scores — ${assessment.name}`} onClose={onClose}>
       <div className="space-y-3">
         {error && <Alert type="error" message={error} />}
         <p className="text-sm text-gray-500">
@@ -907,7 +907,7 @@ function RemarksModal({ student, termId, userRole, onClose, onSaved }: {
   };
 
   return (
-    <Modal title={`Remarks — ${student.student.firstName} ${student.student.lastName}`} onClose={onClose}>
+    <Modal isOpen={true} title={`Remarks — ${student.student.firstName} ${student.student.lastName}`} onClose={onClose}>
       <div className="space-y-4">
         {error && <Alert type="error" message={error} />}
         {(userRole === 'TEACHER' || userRole === 'ADMIN') && (

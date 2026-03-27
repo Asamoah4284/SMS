@@ -9,6 +9,7 @@ import {
   Users,
   GraduationCap,
   BookOpen,
+  BookCopy,
   CalendarCheck,
   Clock,
   FileText,
@@ -87,6 +88,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         : myClassId
         ? { href: `/classes/${myClassId}`, teacherVisible: true }
         : { classTeacherOnly: true, href: "/classes" }),
+    },
+    {
+      name: "Subjects",
+      href: "/subjects",
+      icon: BookCopy,
+      classTeacherOnly: true,
     },
     { name: "Examinations", href: "/results", icon: FileText, teacherVisible: true },
     { name: "Timetable", href: "/timetable", icon: Clock, teacherVisible: true },
