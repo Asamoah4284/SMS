@@ -773,7 +773,7 @@ function StudentPaymentModal({ studentId, onClose, onSaved }: {
   };
 
   return (
-    <Modal title="Record Payment" onClose={onClose}>
+    <Modal isOpen title="Record Payment" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert type="error" message={error} />}
         <div>
