@@ -11,7 +11,7 @@ const {
 } = require('../utils/validators');
 const { generateStaffId } = require('../utils/staffId');
 const { generateOTP, getOTPExpiry } = require('../utils/otp');
-const sendSMS = require('../services/sms');
+const { sendSMS } = require('../services/sms');
 
 const router = Router();
 
@@ -102,11 +102,17 @@ router.post(
       // Send SMS with invite code
       const e164Phone = formatPhoneE164(phone);
       const smsText = `[${process.env.SCHOOL_ABBREVIATION || 'SMS'}] Welcome ${firstName}! Staff ID: ${staffId} | Code: ${inviteCode} | ${process.env.FRONTEND_URL}/invite`;
-
-      await sendSMS(e164Phone, smsText);
+      let smsWarning = null;
+      try {
+        await sendSMS(e164Phone, smsText);
+      } catch (smsError) {
+        console.error('Invite SMS send failed:', smsError);
+        smsWarning = 'Invitation created, but SMS delivery failed. Share the code manually or retry.';
+      }
 
       res.json({
-        message: 'Invitation sent successfully',
+        message: smsWarning ? 'Invitation created with SMS warning' : 'Invitation sent successfully',
+        warning: smsWarning,
         staffId,
         phone: '****' + phone.slice(-4),
       });

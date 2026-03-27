@@ -4,11 +4,10 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Alert, Badge, Button, Modal } from '@/components/ui';
 import { classLevelLabels, getGrade } from '@/lib/theme';
-import { useUser } from '@/lib/UserContext';
 import {
   Users, BookOpen, Award, AlertTriangle, CheckCircle2,
   Clock, BarChart3, ChevronRight, UserCheck, UserX,
-  TrendingDown, Phone, UserPlus, GraduationCap, Search, X, ArrowUpCircle,
+  TrendingDown, Phone, UserPlus, GraduationCap, Search, X,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -66,14 +65,12 @@ type Tab = 'overview' | 'students' | 'subjects' | 'performance';
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ClassDetail({ classId }: { classId: string }) {
-  const { isAdmin } = useUser();
   const [classData, setClassData] = useState<ClassData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [assignTeacherOpen, setAssignTeacherOpen] = useState(false);
   const [addStudentOpen, setAddStudentOpen] = useState(false);
-  const [promoteOpen, setPromoteOpen] = useState(false);
 
   const fetchClassDetail = useCallback(async () => {
     setLoading(true);
@@ -139,7 +136,7 @@ export default function ClassDetail({ classId }: { classId: string }) {
               </div>
               <ChevronRight className="w-4 h-4 text-gray-400" />
             </Link>
-          ) : isAdmin ? (
+          ) : (
             <Button
               variant="secondary"
               icon={<UserPlus className="w-4 h-4" />}
@@ -147,7 +144,7 @@ export default function ClassDetail({ classId }: { classId: string }) {
             >
               Assign Teacher
             </Button>
-          ) : null}
+          )}
         </div>
       </div>
 
@@ -212,19 +209,6 @@ export default function ClassDetail({ classId }: { classId: string }) {
         </nav>
       </div>
 
-      {/* Promote button — admin only, students tab */}
-      {isAdmin && activeTab === 'students' && stats.totalStudents > 0 && (
-        <div className="flex justify-end">
-          <Button
-            variant="secondary"
-            icon={<ArrowUpCircle className="w-4 h-4" />}
-            onClick={() => setPromoteOpen(true)}
-          >
-            Promote Students
-          </Button>
-        </div>
-      )}
-
       {activeTab === 'overview' && <OverviewTab classData={classData} />}
       {activeTab === 'students' && (
         <StudentsTab
@@ -250,16 +234,6 @@ export default function ClassDetail({ classId }: { classId: string }) {
         onClose={() => setAddStudentOpen(false)}
         onSuccess={() => { setAddStudentOpen(false); fetchClassDetail(); }}
       />
-
-      {promoteOpen && (
-        <PromoteModal
-          classId={classId}
-          className={classData.name}
-          level={classData.level}
-          onClose={() => setPromoteOpen(false)}
-          onSuccess={() => { setPromoteOpen(false); fetchClassDetail(); }}
-        />
-      )}
     </div>
   );
 }
@@ -310,17 +284,24 @@ function OverviewTab({ classData }: { classData: ClassData }) {
               />
             </div>
           </div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             {([
               { label: 'Present', val: stats.attendance.PRESENT, icon: <UserCheck className="w-4 h-4" />, bg: 'bg-success-50', text: 'text-success-700' },
               { label: 'Absent', val: stats.attendance.ABSENT, icon: <UserX className="w-4 h-4" />, bg: 'bg-danger-50', text: 'text-danger-700' },
               { label: 'Late', val: stats.attendance.LATE, icon: <Clock className="w-4 h-4" />, bg: 'bg-warning-50', text: 'text-warning-700' },
               { label: 'Excused', val: stats.attendance.EXCUSED, icon: <CheckCircle2 className="w-4 h-4" />, bg: 'bg-blue-50', text: 'text-blue-700' },
             ] as const).map(({ label, val, icon, bg, text }) => (
-              <div key={label} className={`flex flex-col items-center gap-1 p-3 rounded-xl ${bg}`}>
-                <div className={text}>{icon}</div>
-                <p className={`text-xl font-bold ${text}`}>{val}</p>
-                <p className="text-xs text-gray-500">{label}</p>
+              <div
+                key={label}
+                className={`rounded-2xl border border-white/60 ${bg} px-4 py-4 sm:px-5 sm:py-5 shadow-sm`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs sm:text-sm font-semibold text-gray-600 tracking-wide">{label}</p>
+                  <div className={`w-8 h-8 rounded-full grid place-items-center bg-white/80 ${text}`}>
+                    {icon}
+                  </div>
+                </div>
+                <p className={`text-2xl sm:text-3xl font-bold leading-none ${text}`}>{val}</p>
               </div>
             ))}
           </div>
@@ -395,7 +376,6 @@ function OverviewTab({ classData }: { classData: ClassData }) {
 // ─── Students Tab ─────────────────────────────────────────────────────────────
 
 function StudentsTab({ students, onAddStudent }: { students: Student[]; onAddStudent: () => void }) {
-  const { isAdmin } = useUser();
   const [search, setSearch] = useState('');
   const filtered = students.filter(
     (s) =>
@@ -408,9 +388,9 @@ function StudentsTab({ students, onAddStudent }: { students: Student[]; onAddStu
       <div className="bg-white border border-gray-200 rounded-2xl py-16 text-center shadow-[var(--shadow-card)]">
         <Users className="w-10 h-10 text-gray-200 mx-auto mb-3" />
         <p className="font-semibold text-gray-600 mb-4">No students enrolled yet</p>
-        {isAdmin && <Button onClick={onAddStudent} icon={<UserPlus className="w-4 h-4" />} size="sm">
+        <Button onClick={onAddStudent} icon={<UserPlus className="w-4 h-4" />} size="sm">
           Add First Student
-        </Button>}
+        </Button>
       </div>
     );
   }
@@ -425,9 +405,9 @@ function StudentsTab({ students, onAddStudent }: { students: Student[]; onAddStu
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 max-w-sm px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
         />
-        {isAdmin && <Button onClick={onAddStudent} icon={<UserPlus className="w-4 h-4" />} size="sm">
+        <Button onClick={onAddStudent} icon={<UserPlus className="w-4 h-4" />} size="sm">
           Add Student
-        </Button>}
+        </Button>
       </div>
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-[var(--shadow-card)]">
         <div className="grid grid-cols-[auto_2fr_1fr_1fr_1fr] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
@@ -925,130 +905,5 @@ function ScoreBadge({ score, large }: { score: number; large?: boolean }) {
     <span className={`inline-flex items-center gap-1 border font-bold rounded-full ${large ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-xs'} ${cls}`}>
       {score}% <span className="opacity-60">{grade.grade}</span>
     </span>
-  );
-}
-
-// ─── Promote Modal ─────────────────────────────────────────────────────────────
-
-const LEVEL_ORDER = [
-  'NURSERY_1','NURSERY_2','KG_1','KG_2',
-  'BASIC_1','BASIC_2','BASIC_3','BASIC_4','BASIC_5','BASIC_6',
-  'JHS_1','JHS_2','JHS_3',
-];
-
-function PromoteModal({ classId, className, level, onClose, onSuccess }: {
-  classId: string; className: string; level: string;
-  onClose: () => void; onSuccess: () => void;
-}) {
-  const API = process.env.NEXT_PUBLIC_API_URL;
-  const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
-
-  const [terms, setTerms] = useState<Array<{ id: string; name: string; year: number; isCurrent: boolean }>>([]);
-  const [classes, setClasses] = useState<Array<{ id: string; name: string; level: string }>>([]);
-  const [termId, setTermId] = useState('');
-  const [targetClassId, setTargetClassId] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<{ promoted: number; repeated: number } | null>(null);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const token = getToken();
-    Promise.all([
-      fetch(`${API}/terms`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
-      fetch(`${API}/classes`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
-    ]).then(([td, cd]) => {
-      const termList = td.terms ?? [];
-      setTerms(termList);
-      const cur = termList.find((t: { isCurrent: boolean }) => t.isCurrent);
-      if (cur) setTermId(cur.id);
-
-      // Suggest next class level
-      const idx = LEVEL_ORDER.indexOf(level);
-      const nextLevel = idx >= 0 && idx < LEVEL_ORDER.length - 1 ? LEVEL_ORDER[idx + 1] : null;
-      const allClasses: Array<{ id: string; name: string; level: string }> = cd.classes ?? [];
-      setClasses(allClasses.filter((c) => c.id !== classId));
-      if (nextLevel) {
-        const suggested = allClasses.find((c) => c.level === nextLevel);
-        if (suggested) setTargetClassId(suggested.id);
-      }
-    }).catch(() => {});
-  }, []);
-
-  const handlePromote = async () => {
-    if (!termId || !targetClassId) { setError('Select a term and target class'); return; }
-    setSaving(true); setError('');
-    const token = getToken();
-    const res = await fetch(`${API}/classes/${classId}/promote`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ termId, targetClassId }),
-    });
-    const data = await res.json();
-    setSaving(false);
-    if (!res.ok) { setError(data.message); return; }
-    setResult({ promoted: data.promoted, repeated: data.repeated });
-  };
-
-  return (
-    <Modal title={`Promote Students — ${className}`} onClose={onClose}>
-      <div className="space-y-4">
-        {error && <Alert type="error" message={error} />}
-
-        {result ? (
-          <div className="space-y-3">
-            <div className="bg-success-50 border border-success-100 rounded-xl p-4 text-center">
-              <p className="text-2xl font-bold text-success-700">{result.promoted}</p>
-              <p className="text-sm text-success-600">students promoted to next class</p>
-            </div>
-            {result.repeated > 0 && (
-              <div className="bg-warning-50 border border-warning-100 rounded-xl p-3 text-center">
-                <p className="text-lg font-bold text-warning-700">{result.repeated}</p>
-                <p className="text-sm text-warning-600">students remaining (marked Repeat)</p>
-              </div>
-            )}
-            <Button variant="primary" className="w-full" onClick={onSuccess}>Done</Button>
-          </div>
-        ) : (
-          <>
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm text-blue-800">
-              Students marked <strong>Promoted</strong> in the selected term's results will be moved to the target class.
-              Students marked <strong>Repeat</strong> stay in {className}.
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">From Term (results) *</label>
-              <select
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-                value={termId} onChange={(e) => setTermId(e.target.value)}
-              >
-                <option value="">Select term...</option>
-                {terms.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name} {t.year}{t.isCurrent ? ' ★' : ''}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Promote to Class *</label>
-              <select
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-                value={targetClassId} onChange={(e) => setTargetClassId(e.target.value)}
-              >
-                <option value="">Select target class...</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({classLevelLabels[c.level as keyof typeof classLevelLabels] ?? c.level})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button variant="primary" onClick={handlePromote} disabled={saving || !termId || !targetClassId}>
-                {saving ? 'Promoting...' : <><ArrowUpCircle size={14} className="mr-1" />Promote Students</>}
-              </Button>
-            </div>
-          </>
-        )}
-      </div>
-    </Modal>
   );
 }

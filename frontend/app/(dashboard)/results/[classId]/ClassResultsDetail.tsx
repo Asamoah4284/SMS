@@ -261,7 +261,7 @@ export default function ClassResultsDetail({ classId, initialTermId }: { classId
   ];
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-[1400px] mx-auto w-full animate-fade-in space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
         <Link href="/results" className="text-gray-400 hover:text-gray-700 transition-colors">

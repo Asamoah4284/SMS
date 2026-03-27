@@ -2,8 +2,9 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Button, Input, PageHeader, AdminOnly } from "@/components/ui";
+import { Alert, Button, Input, PageHeader } from "@/components/ui";
 import { Calendar, GraduationCap, Phone, Users } from "lucide-react";
+import { useUser } from "@/lib/UserContext";
 
 type ClassOption = { id: string; name: string };
 
@@ -37,6 +38,7 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api
 
 export default function AddStudentPageClient() {
   const router = useRouter();
+  const { loading: userLoading, isAdmin, isClassTeacher, myClassId } = useUser();
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [classesLoading, setClassesLoading] = useState(true);
   const [classesError, setClassesError] = useState("");
@@ -106,9 +108,21 @@ export default function AddStudentPageClient() {
   }, []);
 
   const sortedClasses = useMemo(
-    () => [...classes].sort((a, b) => a.name.localeCompare(b.name)),
-    [classes],
+    () => {
+      const base = [...classes].sort((a, b) => a.name.localeCompare(b.name));
+      if (isClassTeacher && myClassId) {
+        return base.filter((c) => c.id === myClassId);
+      }
+      return base;
+    },
+    [classes, isClassTeacher, myClassId],
   );
+
+  useEffect(() => {
+    if (isClassTeacher && myClassId) {
+      setForm((prev) => ({ ...prev, classId: myClassId }));
+    }
+  }, [isClassTeacher, myClassId]);
 
   const validate = () => {
     const errs: Partial<Record<keyof AddForm, string>> = {};
@@ -160,8 +174,21 @@ export default function AddStudentPageClient() {
     }
   };
 
+  if (userLoading) return null;
+
+  const canAddStudent = isAdmin || isClassTeacher;
+  if (!canAddStudent) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+        <p className="text-xl font-bold text-gray-900 mb-2">Access Restricted</p>
+        <p className="text-gray-500 max-w-md">
+          Only administrators and assigned class teachers can add new students.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <AdminOnly>
     <div className="p-4 sm:p-6 md:p-8 max-w-[1600px] w-full mx-auto animate-in fade-in duration-500">
       <PageHeader
         title="Add New Student"
@@ -266,7 +293,7 @@ export default function AddStudentPageClient() {
                 <select
                   value={form.classId}
                   onChange={set("classId")}
-                  disabled={classesLoading}
+                  disabled={classesLoading || (isClassTeacher && !!myClassId)}
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all disabled:opacity-60"
                 >
                   <option value="">No class assigned</option>
@@ -323,7 +350,6 @@ export default function AddStudentPageClient() {
         </div>
       </div>
     </div>
-    </AdminOnly>
   );
 }
 

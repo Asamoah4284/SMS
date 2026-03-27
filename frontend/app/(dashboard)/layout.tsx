@@ -7,10 +7,10 @@ import { UserProvider, useUser } from '@/lib/UserContext';
 
 function DashboardHeader({ onMenuClick }: { onMenuClick: () => void }) {
   const { user } = useUser();
-  const initials = user
-    ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase()
-    : 'AD';
-  const displayName = user ? `${user.firstName} ${user.lastName}` : 'Loading…';
+  const first = user?.firstName?.trim() ?? '';
+  const last = user?.lastName?.trim() ?? '';
+  const initials = `${first.charAt(0)}${last.charAt(0)}`.trim().toUpperCase() || 'AD';
+  const displayName = user ? `${first} ${last}`.trim() || 'Account' : 'Loading…';
   const roleLabel = user?.role === 'ADMIN' ? 'Administrator' : user?.role === 'TEACHER' ? 'Teacher' : 'User';
 
   return (
