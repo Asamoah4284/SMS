@@ -9,9 +9,31 @@ const prisma = require('./src/config/db');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+/** Comma-separated browser origins allowed for CORS. Prefer CORS_ORIGINS when FRONTEND_URL is a single public URL (invite links). */
+const allowedCorsOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:3000')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+/** Any https://*.netlify.app (production + deploy previews + branch deploys). */
+function isNetlifyAppOrigin(origin) {
+  try {
+    const { protocol, hostname } = new URL(origin);
+    if (protocol !== 'https:') return false;
+    return hostname === 'netlify.app' || hostname.endsWith('.netlify.app');
+  } catch {
+    return false;
+  }
+}
+
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedCorsOrigins.includes(origin)) return callback(null, true);
+    if (isNetlifyAppOrigin(origin)) return callback(null, true);
+    callback(new Error(`CORS blocked origin: ${origin}`));
+  },
   credentials: true,
 }));
 app.use(express.json());
