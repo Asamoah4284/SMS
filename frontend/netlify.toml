@@ -1,8 +1,10 @@
-# Next.js on Netlify (OpenNext adapter). Do not set Publish directory in the UI — the plugin handles output.
-# Monorepo: set Site settings → Build & deploy → Base directory to `frontend`.
+# Next.js on Netlify (OpenNext adapter).
+# Monorepo: Site settings → Base directory = `frontend`.
+# Publish must NOT equal the base directory. Use `.next` (Next build output), not `frontend`.
 
 [build]
   command = "npm run build"
+  publish = ".next"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
