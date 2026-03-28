@@ -318,22 +318,32 @@ router.post(
   handleValidationErrors,
   async (req, res) => {
     try {
-      const { identifier, password } = req.body;
+      const raw = String(req.body.identifier ?? '').trim();
+      const { password } = req.body;
 
-      // Find user by phone or teacher by staffId
+      /** Phone may be stored as +233… while user types 024… — try both. */
+      const phoneCandidates = new Set([raw]);
+      if (isValidPhoneGH(raw)) {
+        const e164 = formatPhoneE164(raw);
+        if (e164) phoneCandidates.add(e164);
+      }
+
       let user;
-
-      user = await prisma.user.findUnique({
-        where: { phone: identifier },
-      });
+      for (const phone of phoneCandidates) {
+        const byPhone = await prisma.user.findUnique({
+          where: { phone },
+        });
+        if (byPhone) {
+          user = byPhone;
+          break;
+        }
+      }
 
       if (!user) {
-        // Try to find by staffId
         const teacher = await prisma.teacher.findUnique({
-          where: { staffId: identifier },
+          where: { staffId: raw },
           include: { user: true },
         });
-
         user = teacher?.user;
       }
 

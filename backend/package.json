@@ -10,6 +10,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
+    "seed:admin": "node src/scripts/seed-admin.js",
     "seed:classes": "node src/scripts/seed-classes.js",
     "seed:subjects": "node src/scripts/seed-subjects.js",
     "seed:teachers": "node src/scripts/seed-teachers.js",
