@@ -178,6 +178,7 @@ router.get('/overview', authorize('ADMIN'), async (req, res) => {
         id: cls.id,
         name: cls.name,
         level: cls.level,
+        section: cls.section,
         classTeacher: cls.classTeacher
           ? { name: `${cls.classTeacher.user.firstName} ${cls.classTeacher.user.lastName}` }
           : null,

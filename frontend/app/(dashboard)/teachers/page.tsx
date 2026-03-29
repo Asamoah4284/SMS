@@ -61,7 +61,7 @@ export default function TeachersPage() {
 
   return (
     <AdminOnly>
-    <div className="p-6 max-w-[1600px] mx-auto animate-fade-in">
+    <div className="px-5 py-6 sm:px-8 md:px-10 lg:px-12 max-w-[1600px] mx-auto animate-fade-in">
       <PageHeader
         title="Teachers"
         subtitle={loading ? '' : `${teachers.length} staff member${teachers.length !== 1 ? 's' : ''}`}
@@ -89,7 +89,7 @@ export default function TeachersPage() {
           </div>
 
           <div className="hidden md:block">
-        <TeachersTable teachers={teachers} />
+            <TeachersTable teachers={teachers} />
           </div>
         </>
       )}
@@ -106,8 +106,8 @@ export default function TeachersPage() {
 
 function TeachersTable({ teachers }: { teachers: Teacher[] }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-5 py-2.5 bg-white border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden px-5 py-5 sm:px-7 sm:py-6 md:px-8 md:py-6">
+      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-1 sm:px-2 py-2.5 border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
         <span>Teacher</span>
         <span>Staff ID</span>
         <span className="hidden md:block">Phone</span>
@@ -131,7 +131,7 @@ function TeacherRow({ teacher }: { teacher: Teacher }) {
   return (
     <Link
       href={`/teachers/${teacher.id}`}
-      className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-5 py-3 hover:bg-gray-50/60 transition-colors"
+      className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-1 sm:px-2 py-3.5 hover:bg-gray-50/60 transition-colors"
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-sm flex-shrink-0">

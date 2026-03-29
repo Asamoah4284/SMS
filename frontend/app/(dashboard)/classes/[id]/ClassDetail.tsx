@@ -95,10 +95,10 @@ export default function ClassDetail({ classId }: { classId: string }) {
 
   if (loading) {
     return (
-      <div className="animate-fade-in space-y-6">
+      <div className="animate-fade-in space-y-4 px-4 sm:px-6 md:px-8 max-w-[1400px] mx-auto">
         <div className="h-8 w-48 bg-gray-100 rounded-lg animate-pulse" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-gray-100 rounded-2xl animate-pulse" />)}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-24 sm:h-28 bg-gray-100 rounded-xl sm:rounded-2xl animate-pulse" />)}
         </div>
         <div className="h-64 bg-gray-100 rounded-2xl animate-pulse" />
       </div>
@@ -111,7 +111,7 @@ export default function ClassDetail({ classId }: { classId: string }) {
   const { stats } = classData;
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
+    <div className="px-4 py-5 sm:px-6 sm:py-6 md:px-8 max-w-[1400px] mx-auto animate-fade-in space-y-4 sm:space-y-5">
       {/* Header */}
       <div>
         <Link href="/classes" className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium mb-3">
@@ -126,7 +126,7 @@ export default function ClassDetail({ classId }: { classId: string }) {
             </p>
           </div>
           {classData.classTeacher ? (
-            <Link href={`/teachers/${classData.classTeacher.id}`} className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors shadow-sm">
+            <Link href={`/teachers/${classData.classTeacher.id}`} className="flex items-center gap-2.5 bg-white border border-gray-200 rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 hover:bg-gray-50 transition-colors shadow-sm">
               <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm">
                 {classData.classTeacher.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
@@ -149,7 +149,7 @@ export default function ClassDetail({ classId }: { classId: string }) {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
         <StatCard
           icon={<Users className="w-5 h-5 text-primary-600" />}
           label="Total Students"
@@ -251,13 +251,13 @@ function StatCard({
   highlight?: 'success' | 'danger';
 }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-[var(--shadow-card)]">
-      <div className={`w-10 h-10 ${colorClass} rounded-xl flex items-center justify-center mb-3`}>{icon}</div>
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{label}</p>
-      <p className={`text-2xl font-bold ${highlight === 'success' ? 'text-success-700' : highlight === 'danger' ? 'text-danger-700' : 'text-gray-900'}`}>
+    <div className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-[var(--shadow-card)]">
+      <div className={`w-9 h-9 sm:w-10 sm:h-10 ${colorClass} rounded-lg sm:rounded-xl flex items-center justify-center mb-2`}>{icon}</div>
+      <p className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider mb-0.5 sm:mb-1 leading-tight">{label}</p>
+      <p className={`text-xl sm:text-2xl font-bold leading-tight ${highlight === 'success' ? 'text-success-700' : highlight === 'danger' ? 'text-danger-700' : 'text-gray-900'}`}>
         {value}
       </p>
-      <p className="text-xs text-gray-500 mt-0.5">{sub}</p>
+      <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 leading-snug">{sub}</p>
     </div>
   );
 }
@@ -395,62 +395,143 @@ function StudentsTab({ students, onAddStudent }: { students: Student[]; onAddStu
     );
   }
 
+  const studentAgeYears = (dob: string | null) => {
+    if (!dob) return null;
+    const y = Math.floor(
+      (Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000),
+    );
+    return Number.isFinite(y) ? y : null;
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <input
           type="text"
           placeholder="Search by name or ID..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 max-w-sm px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+          className="w-full sm:flex-1 sm:max-w-sm px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
         />
-        <Button onClick={onAddStudent} icon={<UserPlus className="w-4 h-4" />} size="sm">
+        <Button onClick={onAddStudent} icon={<UserPlus className="w-4 h-4" />} size="sm" className="shrink-0 w-full sm:w-auto">
           Add Student
         </Button>
       </div>
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-[var(--shadow-card)]">
-        <div className="grid grid-cols-[auto_2fr_1fr_1fr_1fr] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
-          <span>#</span>
-          <span>Student</span>
-          <span className="hidden sm:block">ID</span>
-          <span className="hidden md:block">Age</span>
-          <span>Parent Contact</span>
-        </div>
-        <div className="divide-y divide-gray-100">
-          {filtered.map((student, idx) => (
-            <div key={student.id} className="grid grid-cols-[auto_2fr_1fr_1fr_1fr] gap-4 items-center px-6 py-3.5 hover:bg-gray-50 transition-colors">
-              <span className="text-sm text-gray-400 font-mono w-6 text-center">{idx + 1}</span>
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-primary-50 flex items-center justify-center text-primary-700 font-bold text-xs flex-shrink-0">
-                  {student.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-                </div>
-                <div className="min-w-0">
-                  <Link href={`/students/${student.id}`} className="text-sm font-semibold text-gray-900 hover:text-primary-700 truncate block">
-                    {student.name}
-                  </Link>
-                  <p className="text-xs text-gray-400">{student.gender === 'MALE' ? 'Male' : 'Female'}</p>
+        {/* Mobile: stacked cards (fixed 5-col grid + hidden cells broke alignment) */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {filtered.map((student, idx) => {
+            const ageY = studentAgeYears(student.dateOfBirth);
+            return (
+              <div key={student.id} className="px-4 py-4 hover:bg-gray-50/80 transition-colors">
+                <div className="flex gap-3">
+                  <span className="text-xs text-gray-400 font-mono w-5 shrink-0 pt-1">{idx + 1}</span>
+                  <div className="w-9 h-9 rounded-full bg-primary-50 flex items-center justify-center text-primary-700 font-bold text-xs shrink-0">
+                    {student.name
+                      .split(' ')
+                      .map((n) => n[0])
+                      .join('')
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div>
+                      <Link
+                        href={`/students/${student.id}`}
+                        className="text-sm font-semibold text-gray-900 hover:text-primary-700 break-words [overflow-wrap:anywhere] leading-snug"
+                      >
+                        {student.name}
+                      </Link>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {student.gender === 'MALE' ? 'Male' : 'Female'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                      <span className="font-mono">{student.studentId}</span>
+                      {ageY !== null && <span>{ageY} yrs</span>}
+                    </div>
+                    {student.parentPhone ? (
+                      <a
+                        href={`tel:${student.parentPhone}`}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-800 hover:text-primary-700 break-all"
+                      >
+                        <Phone className="w-4 h-4 text-gray-400 shrink-0" />
+                        {student.parentPhone}
+                      </a>
+                    ) : (
+                      <span className="text-sm text-gray-300 italic">No parent phone</span>
+                    )}
+                  </div>
                 </div>
               </div>
-              <span className="hidden sm:block text-xs font-mono text-gray-500">{student.studentId}</span>
-              <span className="hidden md:block text-sm text-gray-600">
-                        {student.dateOfBirth 
-                          ? `${Math.floor((new Date().getTime() - new Date(student.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs`
-                  : '—'}
-              </span>
-              <div className="text-sm text-gray-600">
-                {student.parentPhone ? (
-                  <a href={`tel:${student.parentPhone}`} className="flex items-center gap-1 hover:text-primary-700">
-                    <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                    <span className="truncate">{student.parentPhone}</span>
-                  </a>
-                ) : (
-                  <span className="text-gray-300 italic">—</span>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+
+        {/* md+: table */}
+        <div className="hidden md:block">
+          <div className="grid grid-cols-[2.5rem_minmax(0,2fr)_minmax(0,7rem)_4rem_minmax(0,9rem)] gap-3 lg:gap-4 px-4 lg:px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
+            <span className="text-center">#</span>
+            <span>Student</span>
+            <span>ID</span>
+            <span className="text-center">Age</span>
+            <span>Parent</span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {filtered.map((student, idx) => {
+              const ageY = studentAgeYears(student.dateOfBirth);
+              return (
+                <div
+                  key={student.id}
+                  className="grid grid-cols-[2.5rem_minmax(0,2fr)_minmax(0,7rem)_4rem_minmax(0,9rem)] gap-3 lg:gap-4 items-center px-4 lg:px-6 py-3.5 hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-sm text-gray-400 font-mono text-center">{idx + 1}</span>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-primary-50 flex items-center justify-center text-primary-700 font-bold text-xs shrink-0">
+                      {student.name
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <Link
+                        href={`/students/${student.id}`}
+                        className="text-sm font-semibold text-gray-900 hover:text-primary-700 line-clamp-2 break-words"
+                      >
+                        {student.name}
+                      </Link>
+                      <p className="text-xs text-gray-400">{student.gender === 'MALE' ? 'Male' : 'Female'}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono text-gray-500 truncate" title={student.studentId}>
+                    {student.studentId}
+                  </span>
+                  <span className="text-sm text-gray-600 text-center tabular-nums">
+                    {ageY !== null ? `${ageY}` : '—'}
+                  </span>
+                  <div className="text-sm text-gray-600 min-w-0">
+                    {student.parentPhone ? (
+                      <a
+                        href={`tel:${student.parentPhone}`}
+                        className="flex items-center gap-1 hover:text-primary-700 min-w-0"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="truncate" title={student.parentPhone}>
+                          {student.parentPhone}
+                        </span>
+                      </a>
+                    ) : (
+                      <span className="text-gray-300 italic">—</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {filtered.length === 0 && (
           <div className="py-12 text-center text-sm text-gray-400">No students match your search</div>
         )}

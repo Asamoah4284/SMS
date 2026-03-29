@@ -159,62 +159,75 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
       </Link>
 
       {/* Profile Header */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
-        <div className="flex items-start gap-4 flex-wrap">
-          <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
-            {initials}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 flex-wrap mb-1">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{fullName}</h1>
-              <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
-                  student.isActive
-                    ? 'bg-success-50 text-success-700 border-success-100'
-                    : 'bg-gray-50 text-gray-700 border-gray-200'
-                }`}
-              >
-                {student.isActive ? 'Active' : 'Inactive'}
-              </span>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border bg-gray-50 text-gray-700 border-gray-200">
-                {student.gender === 'MALE' ? 'Male' : 'Female'}
-              </span>
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-sm">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+          <div className="flex gap-4 min-w-0 flex-1">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-lg sm:text-xl shrink-0">
+              {initials}
             </div>
-            <div className="flex items-center gap-1.5 text-sm text-gray-500 font-mono mb-3">
-              <Hash className="w-3.5 h-3.5" />
-              {student.studentId}
-            </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600">
-              {age !== null && (
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-gray-400" />
-                  {age} years old
+            <div className="min-w-0 flex-1 space-y-3">
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words [overflow-wrap:anywhere] leading-snug">
+                  {fullName}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                      student.isActive
+                        ? 'bg-success-50 text-success-700 border-success-100'
+                        : 'bg-gray-50 text-gray-700 border-gray-200'
+                    }`}
+                  >
+                    {student.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border bg-gray-50 text-gray-700 border-gray-200">
+                    {student.gender === 'MALE' ? 'Male' : 'Female'}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-start gap-1.5 text-sm text-gray-500 font-mono">
+                <Hash className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span className="break-all">{student.studentId}</span>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600">
+                {age !== null && (
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                    {age} years old
+                  </span>
+                )}
+                {student.address && (
+                  <span className="flex items-start gap-1.5 min-w-0">
+                    <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                    <span className="break-words">{student.address}</span>
+                  </span>
+                )}
+                <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                  Enrolled{' '}
+                  {new Date(student.enrolledAt).toLocaleDateString('en-GB', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
                 </span>
-              )}
-              {student.address && (
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-gray-400" />
-                  {student.address}
-                </span>
-              )}
-              <span className="flex items-center gap-1.5 text-xs text-gray-400">
-                Enrolled {new Date(student.enrolledAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </span>
+              </div>
             </div>
           </div>
 
-          {/* Class chip */}
+          {/* Class chip — full width on small screens, fixed block on large */}
           {student.class && (
             <Link
               href={`/classes/${student.class.id}`}
-              className="flex items-center gap-2.5 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 hover:bg-gray-100 transition-colors"
+              className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 hover:bg-gray-100 transition-colors w-full lg:w-auto lg:min-w-[220px] lg:max-w-[280px] shrink-0"
             >
-              <GraduationCap className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-xs text-gray-500 font-medium">Class</p>
-                <p className="text-sm font-bold text-gray-900">{student.class.name}</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <GraduationCap className="w-5 h-5 text-gray-500 shrink-0" />
+                <div className="min-w-0 text-left">
+                  <p className="text-xs text-gray-500 font-medium">Class</p>
+                  <p className="text-sm sm:text-base font-bold text-gray-900 truncate">{student.class.name}</p>
+                </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
+              <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
             </Link>
           )}
         </div>
@@ -254,7 +267,7 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
             const unpaid = student.feePayments.filter(f => f.paymentStatus !== 'FULLY_PAID');
             if (unpaid.length === 0) return 'Paid';
             const bal = unpaid.reduce((s, f) => s + (f.feeStructure.amount - f.amountPaid), 0);
-            return `GHS ${bal.toLocaleString()}`;
+            return `GHS ${bal.toLocaleString('en-GB')}`;
           })()}
           sub={student.feePayments.length === 0 ? 'No fee records' : `${student.feePayments.length} payment record${student.feePayments.length !== 1 ? 's' : ''}`}
           colorClass="bg-warning-50"
@@ -589,32 +602,72 @@ function ResultsTab({ results }: { results: ResultRecord[] }) {
         const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
         return (
           <div key={termLabel} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="font-bold text-gray-900">{termLabel}</h3>
+            <div className="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <h3 className="font-bold text-gray-900 text-base sm:text-lg min-w-0 break-words pr-1">{termLabel}</h3>
               {avg !== null && (
-                <ScoreBadge score={avg} large />
+                <div className="shrink-0 self-start sm:self-center max-w-full">
+                  <ScoreBadge score={avg} large />
+                </div>
               )}
             </div>
             <div className="divide-y divide-gray-100">
               {termResults.map((r) => (
-                <div key={r.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-4 items-center px-6 py-3.5">
-                  <span className="text-sm font-semibold text-gray-900">{r.subject.name}</span>
-                  <span className="text-xs text-gray-500">
-                    <span className="font-medium text-gray-700">{r.classScore ?? '—'}</span>
-                    <span className="text-gray-400">/30</span>
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    <span className="font-medium text-gray-700">{r.examScore ?? '—'}</span>
-                    <span className="text-gray-400">/70</span>
-                  </span>
-                  <span className="text-sm font-bold text-gray-900">
-                    {r.totalScore !== null ? `${r.totalScore}%` : '—'}
-                  </span>
-                  {r.totalScore !== null ? (
-                    <ScoreBadge score={r.totalScore} />
-                  ) : (
-                    <span className="text-gray-300 text-xs">—</span>
-                  )}
+                <div key={r.id} className="px-4 sm:px-6 py-4 sm:py-3.5">
+                  {/* Mobile / narrow: stacked card row */}
+                  <div className="md:hidden space-y-3 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 leading-snug break-words [overflow-wrap:anywhere]">
+                      {r.subject.name}
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="rounded-lg bg-gray-50 px-2 py-2 border border-gray-100">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-0.5">Class</p>
+                        <p className="font-semibold text-gray-800 tabular-nums">
+                          {r.classScore ?? '—'}<span className="text-gray-400 font-normal">/30</span>
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-gray-50 px-2 py-2 border border-gray-100">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-0.5">Exam</p>
+                        <p className="font-semibold text-gray-800 tabular-nums">
+                          {r.examScore ?? '—'}<span className="text-gray-400 font-normal">/70</span>
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-gray-50 px-2 py-2 border border-gray-100">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-0.5">Total</p>
+                        <p className="font-bold text-gray-900 tabular-nums">
+                          {r.totalScore !== null ? `${r.totalScore}%` : '—'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-start pt-0.5">
+                      {r.totalScore !== null ? (
+                        <ScoreBadge score={r.totalScore} />
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* md+: table-style row */}
+                  <div className="hidden md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:gap-3 lg:gap-4 md:items-center min-w-0">
+                    <span className="text-sm font-semibold text-gray-900 min-w-0 break-words">{r.subject.name}</span>
+                    <span className="text-xs text-gray-500 tabular-nums">
+                      <span className="font-medium text-gray-700">{r.classScore ?? '—'}</span>
+                      <span className="text-gray-400">/30</span>
+                    </span>
+                    <span className="text-xs text-gray-500 tabular-nums">
+                      <span className="font-medium text-gray-700">{r.examScore ?? '—'}</span>
+                      <span className="text-gray-400">/70</span>
+                    </span>
+                    <span className="text-sm font-bold text-gray-900 tabular-nums">
+                      {r.totalScore !== null ? `${r.totalScore}%` : '—'}
+                    </span>
+                    <div className="justify-self-end shrink-0">
+                      {r.totalScore !== null ? (
+                        <ScoreBadge score={r.totalScore} />
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -661,9 +714,9 @@ function FeesTab({ payments, studentId, onPaymentRecorded }: {
       {/* Summary */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Total Due', value: `GHS ${totalDue.toLocaleString()}`, color: 'text-gray-900' },
-          { label: 'Total Paid', value: `GHS ${totalPaid.toLocaleString()}`, color: 'text-success-700' },
-          { label: 'Balance', value: balance > 0 ? `GHS ${balance.toLocaleString()}` : 'Cleared', color: balance > 0 ? 'text-danger-700' : 'text-success-700' },
+          { label: 'Total Due', value: `GHS ${totalDue.toLocaleString('en-GB')}`, color: 'text-gray-900' },
+          { label: 'Total Paid', value: `GHS ${totalPaid.toLocaleString('en-GB')}`, color: 'text-success-700' },
+          { label: 'Balance', value: balance > 0 ? `GHS ${balance.toLocaleString('en-GB')}` : 'Cleared', color: balance > 0 ? 'text-danger-700' : 'text-success-700' },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm text-center">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{label}</p>
@@ -700,7 +753,7 @@ function FeesTab({ payments, studentId, onPaymentRecorded }: {
                   {p.receiptNumber && <p className="text-xs text-gray-400 font-mono">#{p.receiptNumber}</p>}
                 </div>
                 <span className="text-sm text-gray-600">{p.term.name} {p.term.year}</span>
-                <span className="text-sm font-bold text-gray-900">GHS {p.amountPaid.toLocaleString()}</span>
+                <span className="text-sm font-bold text-gray-900">GHS {p.amountPaid.toLocaleString('en-GB')}</span>
                 <span className="text-sm text-gray-500 capitalize">{p.paymentMethod ?? '—'}</span>
                 {isAdmin && (
                   <button onClick={() => handleDelete(p.id)}
@@ -788,7 +841,7 @@ function StudentPaymentModal({ studentId, onClose, onSaved }: {
           >
             <option value="">Select fee structure...</option>
             {structures.map((s) => (
-              <option key={s.id} value={s.id}>{s.name} — GHS {s.amount.toLocaleString()}</option>
+              <option key={s.id} value={s.id}>{s.name} — GHS {s.amount.toLocaleString('en-GB')}</option>
             ))}
           </select>
         </div>
@@ -864,8 +917,11 @@ function ScoreBadge({ score, large }: { score: number; large?: boolean }) {
     : 'bg-danger-50 text-danger-700 border-danger-200';
 
   return (
-    <span className={`inline-flex items-center gap-1 border font-bold rounded-full ${large ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-xs'} ${cls}`}>
-      {score}% <span className="opacity-60">{grade.grade}</span>
+    <span
+      className={`inline-flex flex-wrap items-center gap-x-1 gap-y-0.5 border font-bold rounded-full max-w-full ${large ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-xs'} ${cls}`}
+    >
+      <span className="tabular-nums whitespace-nowrap">{score}%</span>
+      <span className="opacity-60 whitespace-nowrap">{grade.grade}</span>
     </span>
   );
 }

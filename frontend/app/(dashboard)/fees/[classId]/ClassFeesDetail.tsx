@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { Alert, Badge, Button, Modal, AdminOnly } from '@/components/ui';
-import { ChevronLeft, Banknote, Plus, Trash2, CheckCircle2, AlertTriangle, Clock, Loader2, Save, Phone } from 'lucide-react';
+import { Alert, Button, Modal, AdminOnly } from '@/components/ui';
+import { ChevronLeft, Banknote, Plus, Trash2, Loader2, Save, Search } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,6 +56,8 @@ export default function ClassFeesDetail({ classId, initialTermId }: { classId: s
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<Filter>('ALL');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
   const [paymentModal, setPaymentModal] = useState<StudentPayment | null>(null);
 
@@ -103,7 +105,24 @@ export default function ClassFeesDetail({ classId, initialTermId }: { classId: s
     fetchData();
   };
 
-  const filtered = filter === 'ALL' ? students : students.filter((s) => s.status === filter);
+  const studentsForTab = useMemo(
+    () => (filter === 'ALL' ? students : students.filter((s) => s.status === filter)),
+    [students, filter],
+  );
+
+  const filteredStudents = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return studentsForTab;
+    const digitsOnly = q.replace(/\D/g, '');
+    return studentsForTab.filter((st) => {
+      const name = st.name.toLowerCase();
+      const parent = (st.parentName ?? '').toLowerCase();
+      const phoneDigits = (st.parentPhone ?? '').replace(/\D/g, '');
+      if (name.includes(q) || parent.includes(q)) return true;
+      if (digitsOnly.length > 0 && phoneDigits.includes(digitsOnly)) return true;
+      return false;
+    });
+  }, [studentsForTab, searchQuery]);
 
   const totalStudents = students.length;
   const fullyPaid = students.filter((s) => s.status === 'FULLY_PAID').length;
@@ -116,7 +135,7 @@ export default function ClassFeesDetail({ classId, initialTermId }: { classId: s
 
   return (
     <AdminOnly>
-    <div className="animate-fade-in space-y-6">
+    <div className="animate-fade-in space-y-6 px-5 py-6 sm:px-8 md:px-10 lg:px-12 max-w-[1600px] mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
         <Link href="/fees" className="text-gray-400 hover:text-gray-700 transition-colors">
@@ -149,19 +168,19 @@ export default function ClassFeesDetail({ classId, initialTermId }: { classId: s
       {/* Summary */}
       {!loading && totalStudents > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-success-50 border border-success-100 rounded-2xl p-3 text-center">
+          <div className="bg-success-50 border border-success-100 rounded-2xl p-4 sm:p-5 text-center">
             <p className="text-2xl font-bold text-success-700">{fullyPaid}</p>
             <p className="text-xs text-success-600">Fully Paid</p>
           </div>
-          <div className="bg-warning-50 border border-warning-100 rounded-2xl p-3 text-center">
+          <div className="bg-warning-50 border border-warning-100 rounded-2xl p-4 sm:p-5 text-center">
             <p className="text-2xl font-bold text-warning-700">{partial}</p>
             <p className="text-xs text-warning-600">Partial</p>
           </div>
-          <div className="bg-danger-50 border border-danger-100 rounded-2xl p-3 text-center">
+          <div className="bg-danger-50 border border-danger-100 rounded-2xl p-4 sm:p-5 text-center">
             <p className="text-2xl font-bold text-danger-700">{unpaid}</p>
             <p className="text-xs text-danger-600">Unpaid</p>
           </div>
-          <div className="bg-white border border-gray-100 rounded-2xl p-3 text-center">
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 text-center">
             <p className="text-2xl font-bold text-gray-900">GHS {totalCollected.toLocaleString()}</p>
             <p className="text-xs text-gray-500">of GHS {totalDue.toLocaleString()}</p>
           </div>
@@ -190,26 +209,66 @@ export default function ClassFeesDetail({ classId, initialTermId }: { classId: s
         })}
       </div>
 
+      {/* Search students */}
+      {!loading && students.length > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1 max-w-xl">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setSearchQuery(searchInput.trim());
+              }}
+              placeholder="Search by student name, parent, or phone…"
+              className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              aria-label="Search students"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="primary"
+            className="shrink-0"
+            onClick={() => setSearchQuery(searchInput.trim())}
+            icon={<Search className="w-4 h-4" />}
+          >
+            Search
+          </Button>
+        </div>
+      )}
+
       {/* Student list */}
       {loading ? (
         <div className="space-y-3">
           {[...Array(6)].map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-2xl animate-pulse" />)}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : students.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <Banknote size={36} className="mx-auto mb-2 opacity-40" />
+          <p>No students in this class</p>
+        </div>
+      ) : studentsForTab.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <Banknote size={36} className="mx-auto mb-2 opacity-40" />
           <p>No students match this filter</p>
         </div>
+      ) : filteredStudents.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <Search size={36} className="mx-auto mb-2 opacity-40" />
+          <p className="font-medium text-gray-600">No students match your search.</p>
+          <p className="text-sm mt-1">Try a different name or phone number.</p>
+        </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((st) => {
+        <div className="space-y-3">
+          {filteredStudents.map((st) => {
             const cfg = STATUS_CFG[st.status];
             const isExpanded = expandedStudent === st.id;
 
             return (
               <div key={st.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <button
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-5 py-4 sm:px-6 sm:py-5 hover:bg-gray-50 transition-colors text-left"
                   onClick={() => setExpandedStudent(isExpanded ? null : st.id)}
                 >
                   <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${cfg.dot}`} />
@@ -233,7 +292,7 @@ export default function ClassFeesDetail({ classId, initialTermId }: { classId: s
                 </button>
 
                 {isExpanded && (
-                  <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
+                  <div className="border-t border-gray-100 px-5 py-4 sm:px-6 sm:py-5 bg-gray-50">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Payment History</p>
                       {feeStructure && (

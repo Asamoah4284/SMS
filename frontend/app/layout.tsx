@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -12,12 +12,34 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/** Set NEXT_PUBLIC_SITE_URL in production for correct absolute metadata URLs. */
+function metadataBaseUrl(): URL {
+  const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (explicit) {
+    try {
+      return new URL(explicit);
+    } catch {
+      /* fall through */
+    }
+  }
+  if (process.env.VERCEL_URL) {
+    return new URL(`https://${process.env.VERCEL_URL}`);
+  }
+  return new URL("http://localhost:3000");
+}
+
 export const metadata: Metadata = {
+  metadataBase: metadataBaseUrl(),
   title: {
-    template: '%s — EduTrack SMS',
-    default: 'EduTrack SMS',
+    template: "%s — EduTrack SMS",
+    default: "EduTrack SMS",
   },
-  description: 'School Management System for Ghanaian schools',
+  description: "School Management System for Ghanaian schools",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -26,11 +48,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
-      suppressHydrationWarning
-    >
+    <html lang="en" className={`${inter.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col font-sans" suppressHydrationWarning>
         {children}
       </body>
