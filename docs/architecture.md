@@ -31,7 +31,7 @@ Single-school deployment. One database per school. School identity (name, logo, 
 ┌─────────────────▼───────────────────────────────────────────┐
 │                    EXTERNAL SERVICES                        │
 │                                                             │
-│   Hubtel / Arkesel (SMS)     File Storage (local / S3)      │
+│   Moolre (SMS)               File Storage (local / S3)      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -106,7 +106,7 @@ Exposed to frontend via a `/api/v1/school` endpoint that reads from `src/config/
 
 ## SMS Service
 
-Handled server-side in `src/services/sms.js`. Supports Hubtel and Arkesel. Switch via `SMS_PROVIDER` env var.
+Handled server-side in `src/services/sms.js` using the **Moolre** HTTP API (`MOOLRE_API_KEY`, optional `MOOLRE_SENDER_ID`).
 
 Triggered for:
 - Permission request approved / rejected

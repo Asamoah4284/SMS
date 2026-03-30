@@ -404,16 +404,13 @@ SMS/
 
 ## 📞 SMS Integration
 
-### Providers Configured
-- **Hubtel** (recommended for Ghana)
-- **Arkesel** (alternative)
+### Provider
+- **Moolre** (`backend/src/services/sms.js`) — Open SMS API
 
-### Env Variables
+### Env Variables (backend `.env`)
 ```bash
-SMS_PROVIDER=hubtel
-HUBTEL_CLIENT_ID=your_id
-HUBTEL_CLIENT_SECRET=your_secret
-HUBTEL_SENDER_ID=EduTrack
+MOOLRE_API_KEY=your_moolre_api_key
+MOOLRE_SENDER_ID=EduTrack
 ```
 
 ### SMS Templates

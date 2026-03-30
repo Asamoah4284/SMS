@@ -35,6 +35,8 @@ interface UserContextValue {
   isClassTeacher: boolean;
   /** Teacher with subject assignments but no class of their own */
   isSubjectTeacher: boolean;
+  /** Subject-only teacher who must pick at least one subject+class (from /auth/me) */
+  needsTeachingSetup: boolean;
   /** The classId this teacher is class-teacher of (null if not a class teacher) */
   myClassId: string | null;
   /** Subject+class combos this teacher teaches */
@@ -50,6 +52,7 @@ const UserContext = createContext<UserContextValue>({
   isTeacher: false,
   isClassTeacher: false,
   isSubjectTeacher: false,
+  needsTeachingSetup: false,
   myClassId: null,
   mySubjects: [],
   refresh: async () => {},
@@ -59,6 +62,7 @@ const UserContext = createContext<UserContextValue>({
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
+  const [needsTeachingSetup, setNeedsTeachingSetup] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -74,7 +78,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     // Fetch full profile from /auth/me
     const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-    if (!token) { setLoading(false); return; }
+    if (!token) {
+      setNeedsTeachingSetup(false);
+      setLoading(false);
+      return;
+    }
 
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
@@ -84,6 +92,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         const data = await res.json();
         const fullUser: AppUser = data.user;
         setUser(fullUser);
+        setNeedsTeachingSetup(Boolean(data.needsTeachingSetup));
         // Update localStorage so next page load is instant
         localStorage.setItem('user', JSON.stringify({
           id: fullUser.id,
@@ -107,7 +116,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const isSubjectTeacher = isTeacher && !isClassTeacher && mySubjects.length > 0;
 
   return (
-    <UserContext.Provider value={{ user, loading, isAdmin, isTeacher, isClassTeacher, isSubjectTeacher, myClassId, mySubjects, refresh: load }}>
+    <UserContext.Provider
+      value={{
+        user,
+        loading,
+        isAdmin,
+        isTeacher,
+        isClassTeacher,
+        isSubjectTeacher,
+        needsTeachingSetup,
+        myClassId,
+        mySubjects,
+        refresh: load,
+      }}
+    >
       {children}
     </UserContext.Provider>
   );

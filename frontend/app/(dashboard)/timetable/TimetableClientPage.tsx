@@ -416,8 +416,11 @@ export default function TimetableClientPage() {
     }
   }, [orderedDays, selectedDay]);
 
-  const entryAt = (dayOfWeek: number, startTime: string) =>
-    classTimetable?.entries.find((e) => e.dayOfWeek === dayOfWeek && e.startTime === startTime) ?? null;
+  const entryAt = (dayOfWeek: number, startTime: string, endTime: string) =>
+    classTimetable?.entries.find(
+      (e) =>
+        e.dayOfWeek === dayOfWeek && e.startTime === startTime && e.endTime === endTime,
+    ) ?? null;
 
   const lessonTone = (subjectName: string) => {
     const tones = [
@@ -783,15 +786,15 @@ export default function TimetableClientPage() {
                           ))}
 
                           {orderedTimes.map((time) => (
-                            <Fragment key={time.startTime}>
+                            <Fragment key={`${time.startTime}-${time.endTime}`}>
                               <div className="border-b border-r border-gray-200 px-3 py-3 text-xs font-semibold text-gray-600">
                                 {time.startTime} - {time.endTime}
                               </div>
                               {orderedDays.map((d) => {
-                                const entry = entryAt(d.dayOfWeek, time.startTime);
+                                const entry = entryAt(d.dayOfWeek, time.startTime, time.endTime);
                                 return (
                                   <div
-                                    key={`${d.dayOfWeek}-${time.startTime}`}
+                                    key={`${d.dayOfWeek}-${time.startTime}-${time.endTime}`}
                                     className="border-b border-r border-gray-200 last:border-r-0 p-2"
                                   >
                                     {entry ? (

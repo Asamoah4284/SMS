@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import { useState } from 'react';
 import { Bell, Menu } from 'lucide-react';
 import { UserProvider, useUser } from '@/lib/UserContext';
+import { TeachingOnboardingGuard } from './TeachingOnboardingGuard';
 
 function DashboardHeader({ onMenuClick }: { onMenuClick: () => void }) {
   const { user } = useUser();
@@ -68,7 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           <main className="flex-1 overflow-x-hidden overflow-y-auto bg-white custom-scrollbar h-full w-full">
             <div className="min-h-full">
-              {children}
+              <TeachingOnboardingGuard>{children}</TeachingOnboardingGuard>
             </div>
           </main>
         </div>

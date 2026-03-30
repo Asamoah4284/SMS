@@ -141,7 +141,7 @@ Pricing: ₵10 per active student per term
 - Admin or teacher creates announcements
 - Audience targeting: All, Teachers only, Parents only, Specific class
 - Announcements appear in dashboard and parent portal
-- **SMS Notifications** sent via Hubtel/Arkesel for:
+- **SMS Notifications** sent via Moolre for:
   - Approved/rejected permission requests
   - Fee payment reminders
   - Exam results published

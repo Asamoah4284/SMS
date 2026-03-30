@@ -1,9 +1,9 @@
 /**
- * SMS service — wraps Hubtel and Arkesel providers.
- * Switch provider via SMS_PROVIDER env variable.
+ * SMS via Moolre Open API (https://api.moolre.com/open/sms/send)
+ * Requires MOOLRE_API_KEY and optional MOOLRE_SENDER_ID in environment.
  */
 
-const provider = process.env.SMS_PROVIDER || 'hubtel';
+const MOOLRE_API_URL = 'https://api.moolre.com/open/sms/send';
 
 async function parseResponseBody(response) {
   const contentType = response.headers.get('content-type') || '';
@@ -15,7 +15,6 @@ async function parseResponseBody(response) {
       return { raw };
     }
   }
-
   try {
     return JSON.parse(raw);
   } catch {
@@ -24,67 +23,81 @@ async function parseResponseBody(response) {
 }
 
 /**
- * Send an SMS to one or more recipients.
- * @param {string | string[]} to  - Phone number(s) in format 0XXXXXXXXX or +233XXXXXXXXX
- * @param {string} message        - SMS body (max 160 chars per segment)
+ * Format phone for Moolre: international digits without + (e.g. 233XXXXXXXXX).
+ * Accepts +233…, 233…, 0XXXXXXXXX (Ghana).
+ */
+function formatPhoneForMoolre(phone) {
+  if (phone == null || phone === '') {
+    throw new Error('Valid phone number is required');
+  }
+  const clean = String(phone).replace(/[\s\-()]/g, '');
+  let digits = clean.startsWith('+') ? clean.slice(1) : clean;
+  digits = digits.replace(/\D/g, '');
+  if (digits.startsWith('0') && digits.length >= 10) {
+    digits = `233${digits.slice(1)}`;
+  } else if (!digits.startsWith('233')) {
+    digits = `233${digits}`;
+  }
+  if (digits.length < 12) {
+    throw new Error(`Invalid phone number after formatting: ${phone}`);
+  }
+  return digits;
+}
+
+/**
+ * Send SMS to one or more recipients (same body for all).
+ * @param {string | string[]} to - Phone(s); Ghana formats supported
+ * @param {string} message
+ * @returns {Promise<object>} Parsed API body on success
+ * @throws {Error} On missing config, HTTP error, or status !== 1
  */
 async function sendSMS(to, message) {
-  const numbers = Array.isArray(to) ? to : [to];
-
-  if (provider === 'hubtel') {
-    return sendViaHubtel(numbers, message);
+  const apiKey = process.env.MOOLRE_API_KEY;
+  if (!apiKey) {
+    throw new Error('MOOLRE_API_KEY environment variable is not set');
   }
 
-  return sendViaArkesel(numbers, message);
-}
+  const senderId = process.env.MOOLRE_SENDER_ID || 'EduTrack';
+  const numbers = Array.isArray(to) ? to : [to];
+  const recipients = numbers.map((n) => formatPhoneForMoolre(n));
 
-async function sendViaHubtel(numbers, message) {
-  // Hubtel Quick Send API
-  const clientId = process.env.HUBTEL_CLIENT_ID;
-  const clientSecret = process.env.HUBTEL_CLIENT_SECRET;
-  const from = process.env.HUBTEL_SENDER_ID || 'EduTrack';
+  const payload = {
+    type: 1,
+    senderid: senderId,
+    messages: recipients.map((recipient) => ({
+      recipient,
+      message,
+    })),
+  };
 
-  const results = await Promise.allSettled(
-    numbers.map(async (to) => {
-      const response = await fetch(
-        `https://smsc.hubtel.com/v1/messages/send?clientsecret=${clientSecret}&clientid=${clientId}&from=${from}&to=${to}&content=${encodeURIComponent(message)}`,
-        { method: 'GET' }
-      );
-      const body = await parseResponseBody(response);
-      if (!response.ok) {
-        throw new Error(`Hubtel SMS failed (${response.status}): ${typeof body === 'object' ? JSON.stringify(body) : String(body)}`);
-      }
-      return body;
-    })
-  );
-
-  return results;
-}
-
-async function sendViaArkesel(numbers, message) {
-  const apiKey = process.env.ARKESEL_API_KEY;
-  const sender = process.env.ARKESEL_SENDER_ID || 'EduTrack';
-
-  const response = await fetch('https://sms.arkesel.com/sms/api', {
+  const response = await fetch(MOOLRE_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'send-sms',
-      api_key: apiKey,
-      to: numbers.join(','),
-      from: sender,
-      sms: message,
-    }),
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-VASKEY': apiKey,
+    },
+    body: JSON.stringify(payload),
   });
 
-  const body = await parseResponseBody(response);
+  const responseData = await parseResponseBody(response);
+
   if (!response.ok) {
-    throw new Error(`Arkesel SMS failed (${response.status}): ${typeof body === 'object' ? JSON.stringify(body) : String(body)}`);
+    const msg =
+      typeof responseData === 'object' && responseData !== null && 'message' in responseData
+        ? String(responseData.message)
+        : JSON.stringify(responseData);
+    throw new Error(`Moolre SMS failed (${response.status}): ${msg}`);
   }
-  return body;
+
+  if (responseData.status !== 1) {
+    throw new Error(
+      `Moolre SMS failed: ${responseData.message || JSON.stringify(responseData)}`,
+    );
+  }
+
+  return responseData;
 }
 
-// Pre-built message templates
 const templates = {
   permissionApproved: (name, dates) =>
     `Dear ${name}, your leave request from ${dates.start} to ${dates.end} has been APPROVED. - EduTrack`,
@@ -105,4 +118,4 @@ const templates = {
     `Dear ${parentName}, ${studentName} was marked ABSENT from ${className} on ${date}. Contact the school if this was an error. - EduTrack`,
 };
 
-module.exports = { sendSMS, templates };
+module.exports = { sendSMS, templates, formatPhoneForMoolre };

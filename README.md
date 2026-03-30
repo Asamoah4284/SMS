@@ -13,7 +13,7 @@ A School Management System for Ghanaian schools (Nursery to JHS 3).
 | Frontend | Next.js 16, React 19, Tailwind CSS 4    |
 | Backend  | Express.js 5, Node.js 20+               |
 | Database | PostgreSQL 15+ via Prisma ORM           |
-| SMS      | Hubtel / Arkesel (Ghana SMS gateway)    |
+| SMS      | Moolre (HTTP API)                      |
 | Auth     | JWT (access + refresh tokens)           |
 
 ---

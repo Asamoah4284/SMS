@@ -89,7 +89,11 @@ export default function SetPasswordForm() {
       sessionStorage.removeItem('tempToken');
       sessionStorage.removeItem('staffId');
 
-      router.push('/overview');
+      if (data.needsTeachingSetup) {
+        router.push('/onboarding/teaching');
+      } else {
+        router.push('/overview');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set password');
     } finally {

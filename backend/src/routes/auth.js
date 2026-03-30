@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const prisma = require('../config/db');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 const {
   isValidPhoneGH,
   formatPhoneE164,
@@ -293,7 +293,15 @@ router.post(
         message: 'Account created successfully',
         token,
         refreshToken,
-        user: { id: user.id, phone: user.phone, role: user.role },
+        user: {
+          id: user.id,
+          phone: user.phone,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+        },
+        /** Invited without a pre-assigned class → subject teacher must pick subjects & classes */
+        needsTeachingSetup: !invitation.classId,
       });
     } catch (error) {
       console.error('Set password error:', error);
@@ -782,6 +790,86 @@ router.post(
 );
 
 // ─────────────────────────────────────────────────────────────────
+// POST /auth/teaching-assignments
+// Subject-only teachers: register which subjects they teach and for which classes
+// (Class teachers manage subject assignments via class settings.)
+// ─────────────────────────────────────────────────────────────────
+
+router.post(
+  '/teaching-assignments',
+  authenticate,
+  authorize('TEACHER'),
+  [
+    body('assignments').isArray({ min: 1 }).withMessage('At least one assignment is required'),
+    body('assignments.*.subjectId').notEmpty().withMessage('Each assignment needs subjectId'),
+    body('assignments.*.classId').notEmpty().withMessage('Each assignment needs classId'),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { assignments: raw } = req.body;
+
+      const teacher = await prisma.teacher.findUnique({
+        where: { userId: req.user.id },
+        include: { classTeacherOf: { select: { id: true } } },
+      });
+
+      if (!teacher) {
+        return res.status(404).json({ error: 'Teacher profile not found' });
+      }
+
+      if (teacher.classTeacherOf) {
+        return res.status(400).json({
+          error: 'Class teachers assign subjects from class settings, not this screen.',
+        });
+      }
+
+      const seen = new Set();
+      const pairs = [];
+      for (const row of raw) {
+        const subjectId = String(row.subjectId ?? '').trim();
+        const classId = String(row.classId ?? '').trim();
+        const key = `${subjectId}:${classId}`;
+        if (!subjectId || !classId) {
+          return res.status(400).json({ error: 'Each assignment must have subjectId and classId' });
+        }
+        if (seen.has(key)) continue;
+        seen.add(key);
+        pairs.push({ subjectId, classId });
+      }
+
+      if (pairs.length === 0) {
+        return res.status(400).json({ error: 'Add at least one subject and class pair' });
+      }
+
+      for (const { subjectId, classId } of pairs) {
+        const [subject, cls] = await Promise.all([
+          prisma.subject.findUnique({ where: { id: subjectId } }),
+          prisma.class.findUnique({ where: { id: classId } }),
+        ]);
+        if (!subject || !cls) {
+          return res.status(400).json({ error: 'Invalid subject or class selected' });
+        }
+      }
+
+      await prisma.subjectTeacher.createMany({
+        data: pairs.map((p) => ({
+          teacherId: teacher.id,
+          subjectId: p.subjectId,
+          classId: p.classId,
+        })),
+        skipDuplicates: true,
+      });
+
+      res.json({ message: 'Teaching assignments saved' });
+    } catch (err) {
+      console.error('POST /auth/teaching-assignments', err);
+      res.status(500).json({ error: 'Failed to save assignments' });
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────
 // GET /auth/me
 // Returns current user's profile + teacher context (if TEACHER)
 // ─────────────────────────────────────────────────────────────────
@@ -818,7 +906,13 @@ router.get('/me', authenticate, async (req, res) => {
 
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    res.json({ user });
+    const needsTeachingSetup =
+      user.role === 'TEACHER' &&
+      user.teacherProfile &&
+      !user.teacherProfile.classTeacherOf &&
+      (user.teacherProfile.subjectTeachers?.length ?? 0) === 0;
+
+    res.json({ user, needsTeachingSetup });
   } catch (err) {
     console.error('GET /auth/me', err);
     res.status(500).json({ message: 'Failed to fetch profile' });
