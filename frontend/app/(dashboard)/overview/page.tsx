@@ -20,7 +20,7 @@ import Link from "next/link";
 import { DropdownMenu } from "@/components/ui";
 import OverviewRoleGate from "./OverviewRoleGate";
 
-export const metadata = { title: 'Overview — EduTrack SMS' };
+export const metadata = { title: `${process.env.NEXT_PUBLIC_APP_NAME || 'EduTrack SMS'} — Overview` };
 
 type OverviewStats = {
   students: { total: number; active: number; inactive: number; addedThisMonth: number };

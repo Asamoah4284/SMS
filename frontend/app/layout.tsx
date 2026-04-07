@@ -31,10 +31,10 @@ function metadataBaseUrl(): URL {
 export const metadata: Metadata = {
   metadataBase: metadataBaseUrl(),
   title: {
-    template: "%s — EduTrack SMS",
+    template: `%s — ${process.env.NEXT_PUBLIC_APP_NAME || 'EduTrack SMS'}`,
     default: "EduTrack SMS",
   },
-  description: "School Management System for Ghanaian schools",
+  description: `${process.env.NEXT_PUBLIC_APP_MOTTO || 'School Motto'}`,
 };
 
 export const viewport: Viewport = {
