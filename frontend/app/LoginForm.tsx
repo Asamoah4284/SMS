@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Alert, Button, Input, PasswordInput } from '@/components/ui';
 import { Lock, User } from 'lucide-react';
 
@@ -57,19 +56,7 @@ export default function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">      {/* School Logo */}
-      {process.env.NEXT_PUBLIC_SCHOOL_LOGO && (
-        <div className="flex justify-center mb-2">
-          <Image
-            src={process.env.NEXT_PUBLIC_SCHOOL_LOGO}
-            alt={process.env.NEXT_PUBLIC_SCHOOL_NAME || 'School Logo'}
-            width={80}
-            height={80}
-            className="object-contain"
-            priority
-          />
-        </div>
-      )}
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       {error && (
         <Alert
           type="error"

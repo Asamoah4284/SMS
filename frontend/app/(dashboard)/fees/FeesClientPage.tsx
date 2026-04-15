@@ -24,12 +24,22 @@ import {
 
 interface Term { id: string; name: string; year: number; isCurrent: boolean; }
 
+type FeeCategory = 'TUITION' | 'UNIFORM' | 'OTHER';
+
 interface FeeStructure {
   id: string; name: string; amount: number;
+  category: FeeCategory;
+  notes: string | null;
   classLevel: string | null;
   term: { id: string; name: string; year: number } | null;
   _count: { feePayments: number };
 }
+
+const FEE_CATEGORY_LABEL: Record<FeeCategory, string> = {
+  TUITION: 'School / Tuition',
+  UNIFORM: 'Uniform',
+  OTHER: 'Other fee',
+};
 
 interface ClassOverview {
   id: string; name: string; level: string;
@@ -135,13 +145,13 @@ export default function FeesClientPage() {
                 tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {t === 'structures' ? 'Fee Structures' : 'Overview'}
+              {t === 'structures' ? 'Fee items' : 'Overview'}
             </button>
           ))}
         </div>
         {tab === 'structures' && (
           <Button variant="primary" size="sm" onClick={() => setStructureModal('new')} className="ml-auto">
-            <Plus size={14} className="mr-1" />New Structure
+            <Plus size={14} className="mr-1" />Add fee item
           </Button>
         )}
       </div>
@@ -187,11 +197,18 @@ export default function FeesClientPage() {
       ) : tab === 'overview' ? (
         <ClassOverviewList classes={classes} termId={selectedTermId} />
       ) : (
-        <FeeStructuresList
-          structures={structures}
-          onEdit={(s) => setStructureModal(s)}
-          onDelete={handleDeleteStructure}
-        />
+        <>
+          <p className="text-sm text-gray-600 max-w-3xl">
+            Add <strong>school fees</strong> (tuition) per class level, plus <strong>uniform</strong> or <strong>other</strong> charges
+            (maintenance, robotics, music, graduation, etc.). Leave &quot;Applies to class level&quot; empty for a fee that applies to{' '}
+            <em>all</em> classes (e.g. school-wide maintenance).
+          </p>
+          <FeeStructuresList
+            structures={structures}
+            onEdit={(s) => setStructureModal(s)}
+            onDelete={handleDeleteStructure}
+          />
+        </>
       )}
 
       {structureModal !== null && (
@@ -468,10 +485,24 @@ function FeeStructuresList({ structures, onEdit, onDelete }: {
       {structures.map((s) => (
         <div key={s.id} className="flex items-center justify-between bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-sm">
           <div>
-            <p className="font-semibold text-gray-900">{s.name}</p>
-            <p className="text-sm text-gray-500">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                  s.category === 'TUITION'
+                    ? 'bg-primary-50 text-primary-800 border border-primary-100'
+                    : s.category === 'UNIFORM'
+                      ? 'bg-violet-50 text-violet-800 border border-violet-100'
+                      : 'bg-amber-50 text-amber-900 border border-amber-100'
+                }`}
+              >
+                {FEE_CATEGORY_LABEL[s.category]}
+              </span>
+              <p className="font-semibold text-gray-900">{s.name}</p>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">
               GHS {s.amount.toLocaleString()}
-              {s.classLevel && ` · ${classLevelLabels[s.classLevel] ?? s.classLevel}`}
+              {s.classLevel ? ` · ${classLevelLabels[s.classLevel] ?? s.classLevel}` : ' · All levels'}
+              {s.notes ? ` · ${s.notes}` : ''}
               {' · '}{s._count.feePayments} payments recorded
             </p>
           </div>
@@ -492,8 +523,9 @@ function FeeStructuresList({ structures, onEdit, onDelete }: {
 // ─── Fee Structure Modal ──────────────────────────────────────────────────────
 
 const CLASS_LEVELS = [
-  'BASIC_1','BASIC_2','BASIC_3','BASIC_4','BASIC_5','BASIC_6',
-  'JHS_1','JHS_2','JHS_3',
+  'NURSERY_1', 'NURSERY_2', 'KG_1', 'KG_2',
+  'BASIC_1', 'BASIC_2', 'BASIC_3', 'BASIC_4', 'BASIC_5', 'BASIC_6',
+  'JHS_1', 'JHS_2', 'JHS_3',
 ];
 
 function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
@@ -506,10 +538,24 @@ function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
   const [form, setForm] = useState({
     name: structure?.name ?? '',
     amount: structure?.amount?.toString() ?? '',
+    category: (structure?.category ?? 'TUITION') as FeeCategory,
+    notes: structure?.notes ?? '',
     classLevel: structure?.classLevel ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setForm({
+      name: structure?.name ?? '',
+      amount: structure?.amount?.toString() ?? '',
+      category: (structure?.category ?? 'TUITION') as FeeCategory,
+      notes: structure?.notes ?? '',
+      classLevel: structure?.classLevel ?? '',
+    });
+    setError('');
+  }, [isOpen, structure]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -520,7 +566,14 @@ function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
     const res = await fetch(url, {
       method,
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, termId }),
+      body: JSON.stringify({
+        name: form.name,
+        amount: form.amount,
+        classLevel: form.classLevel || null,
+        termId,
+        category: form.category,
+        notes: form.notes.trim() || null,
+      }),
     });
     const data = await res.json();
     setSaving(false);
@@ -529,14 +582,29 @@ function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
   };
 
   return (
-    <Modal isOpen={isOpen} title={structure ? 'Edit Fee Structure' : 'New Fee Structure'} onClose={onClose}>
+    <Modal isOpen={isOpen} title={structure ? 'Edit fee item' : 'Add fee item'} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert type="error" message={error} />}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+          <select
+            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+            value={form.category}
+            onChange={(e) => setForm({ ...form, category: e.target.value as FeeCategory })}
+          >
+            <option value="TUITION">{FEE_CATEGORY_LABEL.TUITION}</option>
+            <option value="UNIFORM">{FEE_CATEGORY_LABEL.UNIFORM}</option>
+            <option value="OTHER">{FEE_CATEGORY_LABEL.OTHER}</option>
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Use <strong>Other fee</strong> for robotics, maintenance, music, graduation, PTA, etc.
+          </p>
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
           <input type="text"
             className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-            placeholder="e.g. Term 1 School Fees"
+            placeholder="e.g. Term 1 Tuition, Robotics, Maintenance"
             value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required
           />
         </div>
@@ -549,16 +617,29 @@ function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Applies to Class Level</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Applies to class level</label>
           <select
             className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
             value={form.classLevel} onChange={(e) => setForm({ ...form, classLevel: e.target.value })}
           >
-            <option value="">All levels (generic)</option>
+            <option value="">All classes (school-wide)</option>
             {CLASS_LEVELS.map((l) => (
               <option key={l} value={l}>{classLevelLabels[l] ?? l}</option>
             ))}
           </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Pick one level for class-specific fees, or leave as all classes for items like maintenance.
+          </p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+          <input
+            type="text"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+            placeholder="e.g. KG1–JHS, graduands only…"
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          />
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" type="button" onClick={onClose}>Cancel</Button>

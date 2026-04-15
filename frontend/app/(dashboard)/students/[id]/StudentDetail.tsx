@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Alert, Badge, Button, Modal } from '@/components/ui';
-import { getGrade } from '@/lib/theme';
+import { getGrade, classLevelLabels } from '@/lib/theme';
 import { useUser } from '@/lib/UserContext';
 import {
   GraduationCap, Calendar, MapPin, Phone, Users,
   CheckCircle2, UserX, Clock, AlertCircle,
   BookOpen, Banknote, UserCheck, TrendingUp,
   ChevronRight, Hash, ExternalLink, Plus, Loader2, Save, Trash2,
+  ImageIcon, FileImage, Pencil, Briefcase,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -50,15 +52,20 @@ interface FeePayment {
   paymentMethod: string | null;
   receiptNumber: string | null;
   paidAt: string | null;
-  feeStructure: { name: string; amount: number };
-  term: { name: string; year: number };
+  feeStructure: { id: string; name: string; amount: number };
+  term: { id: string; name: string; year: number };
 }
 
 interface ParentInfo {
   id: string;
+  homeAddress: string | null;
+  occupation: string | null;
   user: { id: string; firstName: string; lastName: string; phone: string; email: string | null };
   children: Array<{ id: string; studentId: string; firstName: string; lastName: string }>;
 }
+
+/** Overall class rank for a term (by average subject score among classmates). */
+type ClassPositionEntry = { position: number; outOf: number };
 
 interface StudentData {
   id: string;
@@ -68,6 +75,8 @@ interface StudentData {
   dateOfBirth: string | null;
   gender: 'MALE' | 'FEMALE';
   address: string | null;
+  photo: string | null;
+  healthInsuranceCard: string | null;
   isActive: boolean;
   enrolledAt: string;
   parentName: string | null;
@@ -83,6 +92,8 @@ interface StudentData {
   results: ResultRecord[];
   feePayments: FeePayment[];
   attendanceSummary: AttendanceSummary;
+  /** Maps term id → class rank for that term */
+  classPositionByTerm?: Record<string, ClassPositionEntry>;
 }
 
 type Tab = 'overview' | 'attendance' | 'results' | 'fees';
@@ -298,11 +309,99 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
         </nav>
       </div>
 
-      {activeTab === 'overview' && <OverviewTab student={student} parentName={parentName} parentPhone={parentPhone} parentLinked={parentLinked} age={age} />}
+      {activeTab === 'overview' && (
+        <OverviewTab
+          student={student}
+          parentName={parentName}
+          parentPhone={parentPhone}
+          parentLinked={parentLinked}
+          age={age}
+          onRefresh={fetchStudent}
+        />
+      )}
       {activeTab === 'attendance' && <AttendanceTab attendances={student.attendances} summary={student.attendanceSummary} />}
-      {activeTab === 'results' && <ResultsTab results={student.results} />}
-      {activeTab === 'fees' && <FeesTab payments={student.feePayments} studentId={student.id} onPaymentRecorded={fetchStudent} />}
+      {activeTab === 'results' && (
+        <ResultsTab results={student.results} classPositionByTerm={student.classPositionByTerm} />
+      )}
+      {activeTab === 'fees' && (
+        <FeesTab
+          payments={student.feePayments}
+          studentId={student.id}
+          classLevel={student.class?.level ?? null}
+          classNameLabel={student.class?.name ?? null}
+          onPaymentRecorded={fetchStudent}
+        />
+      )}
     </div>
+  );
+}
+
+function StudentDocumentsForm({
+  studentId,
+  initial,
+  onSaved,
+  onCancel,
+}: {
+  studentId: string;
+  initial: { photo: string; healthInsuranceCard: string };
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [photo, setPhoto] = useState(initial.photo);
+  const [healthInsuranceCard, setHealthInsuranceCard] = useState(initial.healthInsuranceCard);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setErr('');
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/students/${studentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ photo, healthInsuranceCard }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Save failed');
+      onSaved();
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <p className="text-sm text-gray-500">
+        Paste a hosted image URL (e.g. from your school storage or CDN). Same for the insurance card image/PDF link.
+      </p>
+      {err && <Alert type="error" message={err} onDismiss={() => setErr('')} />}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Image of the child (URL)</label>
+        <input
+          value={photo}
+          onChange={(e) => setPhoto(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+          placeholder="https://…"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Health insurance card (URL)</label>
+        <input
+          value={healthInsuranceCard}
+          onChange={(e) => setHealthInsuranceCard(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+          placeholder="https://…"
+        />
+      </div>
+      <div className="flex gap-2 justify-end pt-2">
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>Cancel</Button>
+        <Button type="submit" loading={saving}>Save</Button>
+      </div>
+    </form>
   );
 }
 
@@ -333,14 +432,18 @@ function StatCard({
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 
 function OverviewTab({
-  student, parentName, parentPhone, parentLinked, age,
+  student, parentName, parentPhone, parentLinked, age, onRefresh,
 }: {
   student: StudentData;
   parentName: string | null | undefined;
   parentPhone: string | null | undefined;
   parentLinked: boolean;
   age: number | null;
+  onRefresh: () => void;
 }) {
+  const { isAdmin } = useUser();
+  const [docModal, setDocModal] = useState(false);
+
   return (
     <div className="grid md:grid-cols-2 gap-5">
       {/* Personal Info */}
@@ -411,7 +514,17 @@ function OverviewTab({
                 </a>
               </InfoRow>
             )}
-            {parentLinked && student.parent && student.parent.children.length > 1 && (
+            {parentLinked && student.parent && (student.parent.homeAddress || student.parent.occupation) && (
+              <>
+                {student.parent.homeAddress && (
+                  <InfoRow icon={<MapPin className="w-4 h-4" />} label="Parent home address" value={student.parent.homeAddress} />
+                )}
+                {student.parent.occupation && (
+                  <InfoRow icon={<Briefcase className="w-4 h-4" />} label="Parent occupation" value={student.parent.occupation} />
+                )}
+              </>
+            )}
+        {parentLinked && student.parent && student.parent.children.length > 1 && (
               <InfoRow icon={<Users className="w-4 h-4" />} label="Siblings">
                 <div className="flex flex-wrap gap-1.5">
                   {student.parent.children
@@ -436,6 +549,71 @@ function OverviewTab({
           </div>
         )}
       </div>
+
+      {/* Child photo & insurance documents */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm md:col-span-2">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <ImageIcon className="w-4 h-4 text-gray-400" /> Child photo & documents
+          </h3>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setDocModal(true)}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:text-primary-700"
+            >
+              <Pencil className="w-4 h-4" /> Edit
+            </button>
+          )}
+        </div>
+        <div className="flex flex-col sm:flex-row gap-8">
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Image of the child</p>
+            {student.photo ? (
+              <div className="relative w-36 h-36 rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
+                <Image
+                  src={student.photo}
+                  alt=""
+                  fill
+                  className="object-cover"
+                  sizes="144px"
+                  unoptimized={/^https?:\/\//i.test(student.photo)}
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">No image URL set</p>
+            )}
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+              <FileImage className="w-3.5 h-3.5" /> Health insurance card
+            </p>
+            {student.healthInsuranceCard ? (
+              <a
+                href={student.healthInsuranceCard}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-semibold text-primary-600 hover:underline break-all"
+              >
+                Open link
+              </a>
+            ) : (
+              <p className="text-sm text-gray-400">No scan or URL set</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {isAdmin && (
+        <Modal isOpen={docModal} onClose={() => setDocModal(false)} title="Edit child photo & documents" size="md">
+          <StudentDocumentsForm
+            studentId={student.id}
+            initial={{ photo: student.photo ?? '', healthInsuranceCard: student.healthInsuranceCard ?? '' }}
+            onSaved={() => { setDocModal(false); onRefresh(); }}
+            onCancel={() => setDocModal(false)}
+          />
+        </Modal>
+      )}
 
       {/* Quick Attendance Summary */}
       {student.attendanceSummary.total > 0 && (
@@ -577,7 +755,13 @@ function AttendanceTab({
 
 // ─── Results Tab ──────────────────────────────────────────────────────────────
 
-function ResultsTab({ results }: { results: ResultRecord[] }) {
+function ResultsTab({
+  results,
+  classPositionByTerm,
+}: {
+  results: ResultRecord[];
+  classPositionByTerm?: Record<string, ClassPositionEntry>;
+}) {
   if (results.length === 0) {
     return (
       <div className="bg-white border border-gray-200 rounded-2xl py-14 text-center shadow-sm">
@@ -587,23 +771,38 @@ function ResultsTab({ results }: { results: ResultRecord[] }) {
     );
   }
 
-  // Group by term
-  const byTerm: Record<string, ResultRecord[]> = {};
+  // Group by term (label → rows; keep first row for term id)
+  const byTerm: Record<string, { rows: ResultRecord[]; termId: string }> = {};
   results.forEach((r) => {
     const key = `${r.term.name} ${r.term.year}`;
-    if (!byTerm[key]) byTerm[key] = [];
-    byTerm[key].push(r);
+    if (!byTerm[key]) {
+      byTerm[key] = { rows: [], termId: r.term.id };
+    }
+    byTerm[key].rows.push(r);
   });
 
   return (
     <div className="space-y-5">
-      {Object.entries(byTerm).map(([termLabel, termResults]) => {
+      {Object.entries(byTerm).map(([termLabel, { rows: termResults, termId }]) => {
         const scores = termResults.filter(r => r.totalScore !== null).map(r => r.totalScore as number);
         const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+        const classPos = classPositionByTerm?.[termId];
         return (
           <div key={termLabel} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-            <div className="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <h3 className="font-bold text-gray-900 text-base sm:text-lg min-w-0 break-words pr-1">{termLabel}</h3>
+            <div className="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="min-w-0 space-y-1">
+                <h3 className="font-bold text-gray-900 text-base sm:text-lg break-words pr-1">{termLabel}</h3>
+                {classPos && (
+                  <p className="text-sm text-gray-600">
+                    <span className="text-gray-500">Class position:</span>{' '}
+                    <span className="font-semibold text-gray-900 tabular-nums">
+                      #{classPos.position}
+                    </span>
+                    <span className="text-gray-500"> of {classPos.outOf}</span>
+                    <span className="text-gray-400 text-xs ml-1">(by average score)</span>
+                  </p>
+                )}
+              </div>
               {avg !== null && (
                 <div className="shrink-0 self-start sm:self-center max-w-full">
                   <ScoreBadge score={avg} large />
@@ -618,7 +817,7 @@ function ResultsTab({ results }: { results: ResultRecord[] }) {
                     <p className="text-sm font-semibold text-gray-900 leading-snug break-words [overflow-wrap:anywhere]">
                       {r.subject.name}
                     </p>
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="grid grid-cols-2 gap-2 text-center text-xs">
                       <div className="rounded-lg bg-gray-50 px-2 py-2 border border-gray-100">
                         <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-0.5">Class</p>
                         <p className="font-semibold text-gray-800 tabular-nums">
@@ -637,6 +836,12 @@ function ResultsTab({ results }: { results: ResultRecord[] }) {
                           {r.totalScore !== null ? `${r.totalScore}%` : '—'}
                         </p>
                       </div>
+                      <div className="rounded-lg bg-gray-50 px-2 py-2 border border-gray-100" title="Position in class for this subject">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-0.5">Pos.</p>
+                        <p className="font-bold text-primary-800 tabular-nums">
+                          {r.position !== null ? `#${r.position}` : '—'}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center justify-start pt-0.5">
                       {r.totalScore !== null ? (
@@ -647,7 +852,7 @@ function ResultsTab({ results }: { results: ResultRecord[] }) {
                     </div>
                   </div>
                   {/* md+: table-style row */}
-                  <div className="hidden md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:gap-3 lg:gap-4 md:items-center min-w-0">
+                  <div className="hidden md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.75fr)_auto] md:gap-3 lg:gap-4 md:items-center min-w-0">
                     <span className="text-sm font-semibold text-gray-900 min-w-0 break-words">{r.subject.name}</span>
                     <span className="text-xs text-gray-500 tabular-nums">
                       <span className="font-medium text-gray-700">{r.classScore ?? '—'}</span>
@@ -659,6 +864,12 @@ function ResultsTab({ results }: { results: ResultRecord[] }) {
                     </span>
                     <span className="text-sm font-bold text-gray-900 tabular-nums">
                       {r.totalScore !== null ? `${r.totalScore}%` : '—'}
+                    </span>
+                    <span
+                      className="text-sm font-semibold text-primary-800 tabular-nums text-center"
+                      title="Position in class for this subject"
+                    >
+                      {r.position !== null ? `#${r.position}` : '—'}
                     </span>
                     <div className="justify-self-end shrink-0">
                       {r.totalScore !== null ? (
@@ -687,15 +898,56 @@ const FEE_STATUS_CONFIG = {
   UNPAID: { label: 'Unpaid', variant: 'error' as const },
 };
 
-function FeesTab({ payments, studentId, onPaymentRecorded }: {
+/** Fees that apply to this student: their class level, or school-wide (no level — e.g. feeding, maintenance). */
+function filterFeesForStudent<T extends { classLevel: string | null }>(structures: T[], classLevel: string | null): T[] {
+  if (!classLevel) return structures;
+  return structures.filter((s) => s.classLevel === null || s.classLevel === classLevel);
+}
+
+/** Prefer TUITION for this class level; else first fee scoped to this level (within applicable list). */
+function pickFeeStructureForClass(
+  structures: Array<{ id: string; category?: string; classLevel: string | null; amount: number }>,
+  classLevel: string | null,
+) {
+  if (!classLevel) return null;
+  const tuition = structures.find((s) => s.category === 'TUITION' && s.classLevel === classLevel);
+  if (tuition) return tuition;
+  return structures.find((s) => s.classLevel === classLevel) ?? null;
+}
+
+/** One line’s due amount per (fee structure, term); partial payments share the same line. */
+function totalDueUniqueLines(payments: FeePayment[]): number {
+  const seen = new Map<string, number>();
+  for (const p of payments) {
+    const key = `${p.feeStructure.id}-${p.term.id}`;
+    if (!seen.has(key)) seen.set(key, p.feeStructure.amount);
+  }
+  let s = 0;
+  for (const v of seen.values()) s += v;
+  return s;
+}
+
+function sumPaidForFeeLine(
+  payments: FeePayment[],
+  feeStructureId: string,
+  termId: string,
+): number {
+  return payments
+    .filter((p) => p.feeStructure.id === feeStructureId && p.term.id === termId)
+    .reduce((s, p) => s + p.amountPaid, 0);
+}
+
+function FeesTab({ payments, studentId, classLevel, classNameLabel, onPaymentRecorded }: {
   payments: FeePayment[];
   studentId: string;
+  classLevel: string | null;
+  classNameLabel: string | null;
   onPaymentRecorded: () => void;
 }) {
   const { isAdmin } = useUser();
   const [paymentOpen, setPaymentOpen] = useState(false);
 
-  const totalDue = payments.reduce((s, f) => s + f.feeStructure.amount, 0);
+  const totalDue = useMemo(() => totalDueUniqueLines(payments), [payments]);
   const totalPaid = payments.reduce((s, f) => s + f.amountPaid, 0);
   const balance = Math.max(0, totalDue - totalPaid);
 
@@ -770,6 +1022,9 @@ function FeesTab({ payments, studentId, onPaymentRecorded }: {
       {paymentOpen && (
         <StudentPaymentModal
           studentId={studentId}
+          payments={payments}
+          classLevel={classLevel}
+          classNameLabel={classNameLabel}
           onClose={() => setPaymentOpen(false)}
           onSaved={() => { setPaymentOpen(false); onPaymentRecorded(); }}
         />
@@ -778,13 +1033,20 @@ function FeesTab({ payments, studentId, onPaymentRecorded }: {
   );
 }
 
-function StudentPaymentModal({ studentId, onClose, onSaved }: {
-  studentId: string; onClose: () => void; onSaved: () => void;
+function StudentPaymentModal({ studentId, payments, classLevel, classNameLabel, onClose, onSaved }: {
+  studentId: string;
+  payments: FeePayment[];
+  classLevel: string | null;
+  classNameLabel: string | null;
+  onClose: () => void;
+  onSaved: () => void;
 }) {
   const API = process.env.NEXT_PUBLIC_API_URL;
   const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
 
-  const [structures, setStructures] = useState<Array<{ id: string; name: string; amount: number; classLevel: string | null }>>([]);
+  type StructureRow = { id: string; name: string; amount: number; classLevel: string | null; category?: string };
+
+  const [structures, setStructures] = useState<StructureRow[]>([]);
   const [terms, setTerms] = useState<Array<{ id: string; name: string; year: number; isCurrent: boolean }>>([]);
   const [form, setForm] = useState({
     feeStructureId: '', termId: '', amountPaid: '',
@@ -796,22 +1058,97 @@ function StudentPaymentModal({ studentId, onClose, onSaved }: {
 
   useEffect(() => {
     const token = getToken();
-    Promise.all([
-      fetch(`${API}/fees/structures`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
-      fetch(`${API}/terms`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
-    ]).then(([sd, td]) => {
-      setStructures(sd.structures ?? []);
-      const termList = td.terms ?? [];
-      setTerms(termList);
-      const cur = termList.find((t: { isCurrent: boolean }) => t.isCurrent);
-      if (cur) setForm((f) => ({ ...f, termId: cur.id }));
-    }).catch(() => {});
-  }, []);
+    fetch(`${API}/terms`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((td) => {
+        const termList = td.terms ?? [];
+        setTerms(termList);
+        const cur = termList.find((t: { isCurrent: boolean }) => t.isCurrent) ?? termList[0];
+        if (cur) setForm((f) => ({ ...f, termId: cur.id }));
+      })
+      .catch(() => {});
+  }, [API]);
 
-  const selectedStructure = structures.find((s) => s.id === form.feeStructureId);
+  useEffect(() => {
+    if (!form.termId) return;
+    const termId = form.termId;
+    const token = getToken();
+    let cancelled = false;
+    fetch(`${API}/fees/structures?termId=${encodeURIComponent(termId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((sd) => {
+        if (cancelled) return;
+        const list: StructureRow[] = sd.structures ?? [];
+        setStructures(list);
+        const applicable = filterFeesForStudent(list, classLevel);
+        const picked = pickFeeStructureForClass(applicable, classLevel);
+        const due = picked?.amount ?? 0;
+        const paidSoFar = picked
+          ? sumPaidForFeeLine(payments, picked.id, termId)
+          : 0;
+        const rem = Math.max(0, due - paidSoFar);
+        setForm((f) => ({
+          ...f,
+          feeStructureId: picked?.id ?? '',
+          amountPaid: picked && rem > 0 ? String(rem) : '',
+        }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [API, form.termId, classLevel, payments]);
+
+  const applicableStructures = useMemo(
+    () => filterFeesForStudent(structures, classLevel),
+    [structures, classLevel],
+  );
+
+  const selectedStructure = applicableStructures.find((s) => s.id === form.feeStructureId)
+    ?? structures.find((s) => s.id === form.feeStructureId);
+  const levelHint = classLevel
+    ? (classLevelLabels[classLevel] ?? classNameLabel ?? classLevel)
+    : null;
+
+  const paidForSelection = form.feeStructureId && form.termId
+    ? sumPaidForFeeLine(payments, form.feeStructureId, form.termId)
+    : 0;
+  const dueForLine = selectedStructure?.amount ?? 0;
+  const remainingForLine = Math.max(0, dueForLine - paidForSelection);
+
+  const parseAmount = (raw: string) => {
+    const n = parseFloat(raw);
+    return Number.isFinite(n) ? n : NaN;
+  };
+
+  const amountError = (() => {
+    if (!form.amountPaid.trim()) return '';
+    const n = parseAmount(form.amountPaid);
+    if (!Number.isFinite(n) || n <= 0) return 'Enter a valid positive amount';
+    if (n > remainingForLine + 1e-6) {
+      return `Amount cannot exceed remaining GHS ${remainingForLine.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} for this fee and term`;
+    }
+    return '';
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
+    const amt = parseAmount(form.amountPaid);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setError('Enter a valid positive amount');
+      return;
+    }
+    if (amt > remainingForLine + 1e-6) {
+      setError(
+        `Amount exceeds remaining balance of GHS ${remainingForLine.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} for this fee line.`,
+      );
+      return;
+    }
+    if (!form.feeStructureId || !form.termId || remainingForLine <= 1e-6) {
+      setError(remainingForLine <= 1e-6 ? 'This fee line is already fully paid for the selected term.' : 'Select a fee and term');
+      return;
+    }
     setSaving(true); setError('');
     const token = getToken();
     const res = await fetch(`${API}/fees/payments`, {
@@ -821,7 +1158,7 @@ function StudentPaymentModal({ studentId, onClose, onSaved }: {
     });
     const data = await res.json();
     setSaving(false);
-    if (!res.ok) { setError(data.message); return; }
+    if (!res.ok) { setError(typeof data.message === 'string' ? data.message : 'Could not record payment'); return; }
     onSaved();
   };
 
@@ -830,18 +1167,45 @@ function StudentPaymentModal({ studentId, onClose, onSaved }: {
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert type="error" message={error} />}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Fee Structure *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Fee item *</label>
+          {levelHint && (
+            <p className="text-xs text-gray-500 mb-1.5">
+              Only fees for <strong>{levelHint}</strong> and school-wide items (feeding, etc.). Other class levels are hidden.
+            </p>
+          )}
+          {!classLevel && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5 mb-1.5">
+              This student has no class assigned — all fee items for this term are shown.
+            </p>
+          )}
+          {classLevel && applicableStructures.length === 0 && structures.length > 0 && (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5 mb-1.5">
+              No fee items match this class for the selected term. Add fees under <strong>Fees → Fee items</strong> for this level or as school-wide.
+            </p>
+          )}
           <select required
             className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
             value={form.feeStructureId}
             onChange={(e) => {
-              const s = structures.find((x) => x.id === e.target.value);
-              setForm({ ...form, feeStructureId: e.target.value, amountPaid: s ? String(s.amount) : '' });
+              const id = e.target.value;
+              const s = applicableStructures.find((x) => x.id === id);
+              const paid = form.termId ? sumPaidForFeeLine(payments, id, form.termId) : 0;
+              const rem = s ? Math.max(0, s.amount - paid) : 0;
+              setForm({
+                ...form,
+                feeStructureId: id,
+                amountPaid: s && rem > 0 ? String(rem) : '',
+              });
             }}
           >
-            <option value="">Select fee structure...</option>
-            {structures.map((s) => (
-              <option key={s.id} value={s.id}>{s.name} — GHS {s.amount.toLocaleString('en-GB')}</option>
+            <option value="">Select fee item...</option>
+            {applicableStructures.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+                {s.category && s.category !== 'TUITION' ? ` [${s.category}]` : ''}
+                {' — '}GHS {s.amount.toLocaleString('en-GB')}
+                {s.classLevel ? ` · ${classLevelLabels[s.classLevel] ?? s.classLevel}` : ' · School-wide'}
+              </option>
             ))}
           </select>
         </div>
@@ -858,15 +1222,38 @@ function StudentPaymentModal({ studentId, onClose, onSaved }: {
             ))}
           </select>
         </div>
+        {form.feeStructureId && form.termId && selectedStructure && (
+          <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
+            <div className="flex justify-between text-gray-600">
+              <span>Due for this fee line</span>
+              <span className="font-semibold tabular-nums">GHS {dueForLine.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>Already recorded</span>
+              <span className="font-semibold text-success-700 tabular-nums">GHS {paidForSelection.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex justify-between font-semibold text-gray-900 border-t border-gray-200 pt-2">
+              <span>Remaining</span>
+              <span className={remainingForLine <= 1e-6 ? 'text-success-700' : 'text-danger-600 tabular-nums'}>
+                GHS {remainingForLine.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Amount (GHS) *</label>
             <input type="number" min="0.01" step="0.01" required
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+              max={remainingForLine > 0 ? remainingForLine : undefined}
+              className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 ${amountError ? 'border-danger-400' : 'border-gray-200'}`}
               placeholder={selectedStructure ? String(selectedStructure.amount) : '0.00'}
               value={form.amountPaid}
               onChange={(e) => setForm({ ...form, amountPaid: e.target.value })}
             />
+            {amountError && <p className="text-xs text-danger-600 mt-1">{amountError}</p>}
+            {remainingForLine <= 1e-6 && form.feeStructureId && form.termId && (
+              <p className="text-xs text-success-700 mt-1">This fee line is fully paid for this term.</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
@@ -897,7 +1284,11 @@ function StudentPaymentModal({ studentId, onClose, onSaved }: {
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" type="button" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" type="submit" disabled={saving}>
+          <Button
+            variant="primary"
+            type="submit"
+            disabled={saving || !!amountError || remainingForLine <= 1e-6 || !form.feeStructureId || !form.termId}
+          >
             {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
             Record
           </Button>

@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { body, validationResult } = require('express-validator');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
+const { totalDueFromPayments } = require('../utils/feeAccounting');
 
 const router = Router();
 router.use(authenticate);
@@ -80,6 +81,8 @@ router.get('/', async (req, res) => {
     res.json({
       parents: parents.map((p) => ({
         id: p.id,
+        homeAddress: p.homeAddress,
+        occupation: p.occupation,
         user: {
           firstName: p.user.firstName,
           lastName: p.user.lastName,
@@ -177,7 +180,7 @@ router.get('/:id', async (req, res) => {
       const currentFees = currentTerm
         ? child.feePayments.filter((fp) => fp.termId === currentTerm.id)
         : [];
-      const totalDue = currentFees.reduce((s, fp) => s + fp.feeStructure.amount, 0);
+      const totalDue = totalDueFromPayments(currentFees);
       const totalPaid = currentFees.reduce((s, fp) => s + fp.amountPaid, 0);
 
       return {
@@ -186,6 +189,8 @@ router.get('/:id', async (req, res) => {
         lastName: child.lastName,
         studentId: child.studentId,
         class: child.class,
+        photo: child.photo,
+        healthInsuranceCard: child.healthInsuranceCard,
         attendanceRate,
         recentAbsences: child.attendances.filter((a) => a.status === 'ABSENT').length,
         fees: {
@@ -201,6 +206,8 @@ router.get('/:id', async (req, res) => {
 
     res.json({
       id: parent.id,
+      homeAddress: parent.homeAddress,
+      occupation: parent.occupation,
       user: {
         firstName: parent.user.firstName,
         lastName: parent.user.lastName,
@@ -234,19 +241,28 @@ router.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { firstName, lastName, email } = req.body;
+      const { firstName, lastName, email, homeAddress, occupation } = req.body;
 
       const parent = await prisma.parent.findUnique({ where: { id } });
       if (!parent) return res.status(404).json({ error: 'Parent not found' });
 
-      await prisma.user.update({
-        where: { id: parent.userId },
-        data: {
-          ...(firstName && { firstName }),
-          ...(lastName && { lastName }),
-          ...(email !== undefined && { email }),
-        },
-      });
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: parent.userId },
+          data: {
+            ...(firstName && { firstName }),
+            ...(lastName && { lastName }),
+            ...(email !== undefined && { email }),
+          },
+        }),
+        prisma.parent.update({
+          where: { id },
+          data: {
+            ...(homeAddress !== undefined && { homeAddress: homeAddress || null }),
+            ...(occupation !== undefined && { occupation: occupation || null }),
+          },
+        }),
+      ]);
 
       res.json({ message: 'Parent updated' });
     } catch (error) {

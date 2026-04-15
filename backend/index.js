@@ -10,11 +10,24 @@ const prisma = require('./src/config/db');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-/** Comma-separated browser origins allowed for CORS. Prefer CORS_ORIGINS when FRONTEND_URL is a single public URL (invite links). */
-const allowedCorsOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:3000')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
+/**
+ * CORS allowlist. If CORS_ORIGINS is set → use that list only (comma-separated).
+ * Otherwise → http://localhost:3000 + FRONTEND_URL so local Next dev can call a deployed API (e.g. Render)
+ * without missing Access-Control-Allow-Origin on preflight.
+ */
+function buildAllowedCorsOrigins() {
+  const explicit = process.env.CORS_ORIGINS?.trim();
+  if (explicit) {
+    return explicit.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  const localhost = 'http://localhost:3000';
+  const frontend = process.env.FRONTEND_URL?.trim();
+  const origins = new Set([localhost]);
+  if (frontend) origins.add(frontend);
+  return [...origins];
+}
+
+const allowedCorsOrigins = buildAllowedCorsOrigins();
 
 /** Any https://*.netlify.app (production + deploy previews + branch deploys). */
 function isNetlifyAppOrigin(origin) {
@@ -33,7 +46,8 @@ app.use(cors({
     if (!origin) return callback(null, true);
     if (allowedCorsOrigins.includes(origin)) return callback(null, true);
     if (isNetlifyAppOrigin(origin)) return callback(null, true);
-    callback(new Error(`CORS blocked origin: ${origin}`));
+    console.warn(`CORS rejected origin: ${origin}`);
+    callback(null, false);
   },
   credentials: true,
 }));
@@ -85,6 +99,7 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`CORS origins: ${allowedCorsOrigins.join(', ')}`);
     });
   } catch (error) {
     console.error('Startup failed:', error.message);

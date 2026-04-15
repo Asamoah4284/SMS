@@ -44,12 +44,15 @@ interface PortalData {
   };
   results: Array<{
     subject: string;
+    termId: string;
     term: string;
     totalScore: number | null;
     grade: string | null;
     remarks: string | null;
     position: number | null;
   }>;
+  /** Overall class rank per term (by average subject score). */
+  classPositionByTerm?: Record<string, { position: number; outOf: number }>;
   latestRemarks: {
     teacherRemarks: string | null;
     headmasterRemarks: string | null;
@@ -164,7 +167,7 @@ export default function PortalPage() {
 
   if (!data) return null;
 
-  const { student, attendance, fees, results, latestRemarks } = data;
+  const { student, attendance, fees, results, classPositionByTerm, latestRemarks } = data;
 
   // Group results by term
   const resultsByTerm = results.reduce<Record<string, typeof results>>((acc, r) => {
@@ -315,11 +318,28 @@ export default function PortalPage() {
         {termKeys.length === 0 ? (
           <p className="px-4 py-4 text-sm text-gray-500">No results available yet</p>
         ) : (
-          termKeys.map((term) => (
+          termKeys.map((term) => {
+            const firstRow = resultsByTerm[term][0];
+            const classPos =
+              firstRow?.termId && classPositionByTerm
+                ? classPositionByTerm[firstRow.termId]
+                : undefined;
+            return (
             <div key={term}>
-              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                {term}
-              </p>
+              <div className="px-4 pt-3 pb-1 flex flex-col gap-0.5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  {term}
+                </p>
+                {classPos && (
+                  <p className="text-xs text-gray-600">
+                    Class position:{' '}
+                    <span className="font-semibold text-gray-900">
+                      #{classPos.position}
+                    </span>{' '}
+                    <span className="text-gray-500">of {classPos.outOf}</span>
+                  </p>
+                )}
+              </div>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
@@ -347,7 +367,8 @@ export default function PortalPage() {
                 </tbody>
               </table>
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

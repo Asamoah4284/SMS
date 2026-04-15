@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
+const { totalDueFromPayments, AMOUNT_EPS } = require('../utils/feeAccounting');
 
 const router = Router();
 router.use(authenticate);
@@ -24,7 +25,7 @@ router.get('/structures', async (req, res) => {
     const structures = await prisma.feeStructure.findMany({
       where,
       include: { term: { select: { id: true, name: true, year: true } }, _count: { select: { feePayments: true } } },
-      orderBy: [{ classLevel: 'asc' }, { name: 'asc' }],
+      orderBy: [{ category: 'asc' }, { classLevel: 'asc' }, { name: 'asc' }],
     });
     res.json({ structures });
   } catch (err) {
@@ -34,15 +35,20 @@ router.get('/structures', async (req, res) => {
 });
 
 // ─── POST /fees/structures ────────────────────────────────────────────────────
+const FEE_CATEGORIES = ['TUITION', 'UNIFORM', 'OTHER'];
+
 router.post('/structures', authorize('ADMIN'), async (req, res) => {
   try {
-    const { name, amount, classLevel, termId } = req.body;
+    const { name, amount, classLevel, termId, category, notes } = req.body;
     if (!name || !amount) return res.status(400).json({ message: 'name and amount are required' });
+    const cat = FEE_CATEGORIES.includes(category) ? category : 'TUITION';
 
     const structure = await prisma.feeStructure.create({
       data: {
         name,
         amount: parseFloat(amount),
+        category: cat,
+        notes: typeof notes === 'string' && notes.trim() ? notes.trim() : null,
         classLevel: classLevel || null,
         termId: termId || null,
       },
@@ -57,15 +63,18 @@ router.post('/structures', authorize('ADMIN'), async (req, res) => {
 // ─── PUT /fees/structures/:id ─────────────────────────────────────────────────
 router.put('/structures/:id', authorize('ADMIN'), async (req, res) => {
   try {
-    const { name, amount, classLevel, termId } = req.body;
+    const { name, amount, classLevel, termId, category, notes } = req.body;
+    const data = {
+      ...(name !== undefined && { name }),
+      ...(amount !== undefined && { amount: parseFloat(amount) }),
+      ...(classLevel !== undefined && { classLevel: classLevel || null }),
+      ...(termId !== undefined && { termId: termId || null }),
+      ...(category !== undefined && FEE_CATEGORIES.includes(category) && { category }),
+      ...(notes !== undefined && { notes: typeof notes === 'string' && notes.trim() ? notes.trim() : null }),
+    };
     const structure = await prisma.feeStructure.update({
       where: { id: req.params.id },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(amount !== undefined && { amount: parseFloat(amount) }),
-        ...(classLevel !== undefined && { classLevel: classLevel || null }),
-        ...(termId !== undefined && { termId: termId || null }),
-      },
+      data,
     });
     res.json({ message: 'Fee structure updated', structure });
   } catch (err) {
@@ -106,14 +115,22 @@ router.get('/overview', authorize('ADMIN'), async (req, res) => {
       orderBy: { name: 'asc' },
     });
 
-    // Get fee structures for this term (by classLevel)
+    // Tuition only — drives per-class “main” fee on overview cards
     const structures = await prisma.feeStructure.findMany({
-      where: { termId },
+      where: { termId, category: 'TUITION' },
     });
     const structureByLevel = {};
     structures.forEach((s) => {
       if (s.classLevel) structureByLevel[s.classLevel] = s;
     });
+
+    const supplementaryRows = await prisma.feeStructure.findMany({
+      where: { termId, category: { in: ['UNIFORM', 'OTHER'] } },
+    });
+    const supplementarySumForLevel = (level) =>
+      supplementaryRows
+        .filter((f) => f.classLevel === null || f.classLevel === level)
+        .reduce((sum, f) => sum + f.amount, 0);
 
     // Get all payments for this term, grouped by student class
     const payments = await prisma.feePayment.findMany({
@@ -156,7 +173,9 @@ router.get('/overview', authorize('ADMIN'), async (req, res) => {
       if (!cid) return;
       const level = st.class?.level;
       const structure = level ? structureByLevel[level] : null;
-      const amountDue = structure?.amount ?? 0;
+      const tuitionAmt = structure?.amount ?? 0;
+      const supp = level ? supplementarySumForLevel(level) : 0;
+      const amountDue = tuitionAmt + supp;
       const totalPaid = studentTotalMap[st.id] ?? 0;
       const status = amountDue > 0 ? computeStatus(amountDue, totalPaid) : null;
 
@@ -173,7 +192,9 @@ router.get('/overview', authorize('ADMIN'), async (req, res) => {
       const stats = classStatusMap[cls.id] ?? { fullyPaid: 0, partial: 0, halfPaid: 0, unpaid: 0, noStructure: 0, totalCollected: 0 };
       const total = cls._count.students;
       const structure = structureByLevel[cls.level] ?? null;
-      const totalDue = structure ? structure.amount * total : null;
+      const perStudentExpected =
+        (structure?.amount ?? 0) + supplementarySumForLevel(cls.level);
+      const totalDue = total > 0 && perStudentExpected > 0 ? perStudentExpected * total : null;
       return {
         id: cls.id,
         name: cls.name,
@@ -217,10 +238,22 @@ router.get('/class/:classId', authorize('ADMIN'), async (req, res) => {
     });
     if (!cls) return res.status(404).json({ message: 'Class not found' });
 
-    // Fee structure for this class level + term
+    // Main tuition for this class level + term
     const structure = await prisma.feeStructure.findFirst({
-      where: { classLevel: cls.level, termId },
+      where: { classLevel: cls.level, termId, category: 'TUITION' },
     });
+
+    // Uniform + other charges that apply to this level (or school-wide: no class level)
+    const supplementaryFees = await prisma.feeStructure.findMany({
+      where: {
+        termId,
+        category: { in: ['UNIFORM', 'OTHER'] },
+        OR: [{ classLevel: null }, { classLevel: cls.level }],
+      },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    });
+
+    const supplementaryTotal = supplementaryFees.reduce((sum, f) => sum + f.amount, 0);
 
     // All active students in class
     const students = await prisma.student.findMany({
@@ -266,6 +299,8 @@ router.get('/class/:classId', authorize('ADMIN'), async (req, res) => {
         parentName,
         parentPhone,
         amountDue,
+        tuitionDue,
+        supplementaryTotal,
         totalPaid,
         balance,
         status,
@@ -283,8 +318,16 @@ router.get('/class/:classId', authorize('ADMIN'), async (req, res) => {
     res.json({
       class: { id: cls.id, name: cls.name, level: cls.level },
       feeStructure: structure
-        ? { id: structure.id, name: structure.name, amount: structure.amount }
+        ? { id: structure.id, name: structure.name, amount: structure.amount, category: 'TUITION' }
         : null,
+      supplementaryFees: supplementaryFees.map((f) => ({
+        id: f.id,
+        name: f.name,
+        amount: f.amount,
+        category: f.category,
+        notes: f.notes,
+      })),
+      totalExpectedPerStudent,
       students: result,
     });
   } catch (err) {
@@ -319,7 +362,7 @@ router.get('/student/:studentId', async (req, res) => {
     });
 
     const totalPaid = payments.reduce((s, p) => s + p.amountPaid, 0);
-    const totalDue = payments.reduce((s, p) => s + p.feeStructure.amount, 0);
+    const totalDue = totalDueFromPayments(payments);
 
     res.json({ payments, totalPaid, totalDue, balance: Math.max(0, totalDue - totalPaid) });
   } catch (err) {
@@ -333,40 +376,74 @@ router.get('/student/:studentId', async (req, res) => {
 router.post('/payments', authorize('ADMIN'), async (req, res) => {
   try {
     const { studentId, feeStructureId, termId, amountPaid, paymentMethod, receiptNumber, paidAt } = req.body;
-    if (!studentId || !feeStructureId || !termId || !amountPaid) {
+    if (!studentId || !feeStructureId || !termId || amountPaid === undefined || amountPaid === null || amountPaid === '') {
       return res.status(400).json({ message: 'studentId, feeStructureId, termId, and amountPaid are required' });
     }
 
-    // Get structure to compute status
+    const raw = typeof amountPaid === 'number' ? amountPaid : parseFloat(String(amountPaid));
+    if (!Number.isFinite(raw) || raw <= 0) {
+      return res.status(400).json({ message: 'amountPaid must be a positive number' });
+    }
+
     const structure = await prisma.feeStructure.findUnique({ where: { id: feeStructureId } });
     if (!structure) return res.status(404).json({ message: 'Fee structure not found' });
 
-    // Compute running total
-    const existing = await prisma.feePayment.aggregate({
-      where: { studentId, feeStructureId, termId },
-      _sum: { amountPaid: true },
-    });
-    const runningTotal = (existing._sum.amountPaid ?? 0) + parseFloat(amountPaid);
-    const status = computeStatus(structure.amount, runningTotal);
+    const due = structure.amount;
 
-    const payment = await prisma.feePayment.create({
-      data: {
-        studentId,
-        feeStructureId,
-        termId,
-        amountPaid: parseFloat(amountPaid),
-        paymentStatus: status,
-        paymentMethod: paymentMethod || null,
-        receiptNumber: receiptNumber || null,
-        paidAt: paidAt ? new Date(paidAt) : new Date(),
-      },
-      include: {
-        feeStructure: { select: { id: true, name: true, amount: true } },
-        term: { select: { id: true, name: true, year: true } },
-      },
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.feePayment.aggregate({
+        where: { studentId, feeStructureId, termId },
+        _sum: { amountPaid: true },
+      });
+      const already = existing._sum.amountPaid ?? 0;
+      const remaining = Math.max(0, due - already);
+
+      if (remaining <= AMOUNT_EPS) {
+        return { error: 'FULLY_PAID' };
+      }
+      if (raw > remaining + AMOUNT_EPS) {
+        return { error: 'OVERPAY', remaining };
+      }
+
+      const runningTotal = already + raw;
+      const status = computeStatus(due, runningTotal);
+
+      const payment = await tx.feePayment.create({
+        data: {
+          studentId,
+          feeStructureId,
+          termId,
+          amountPaid: raw,
+          paymentStatus: status,
+          paymentMethod: paymentMethod || null,
+          receiptNumber: receiptNumber || null,
+          paidAt: paidAt ? new Date(paidAt) : new Date(),
+        },
+        include: {
+          feeStructure: { select: { id: true, name: true, amount: true } },
+          term: { select: { id: true, name: true, year: true } },
+        },
+      });
+      return { payment };
     });
 
-    res.status(201).json({ message: 'Payment recorded', payment });
+    if ('error' in result && result.error === 'FULLY_PAID') {
+      return res.status(400).json({
+        message:
+          'This fee line is already fully paid for this term. Delete a payment record if it was entered by mistake.',
+      });
+    }
+    if ('error' in result && result.error === 'OVERPAY') {
+      const rem = typeof result.remaining === 'number' ? result.remaining : 0;
+      return res.status(400).json({
+        message: `Amount exceeds the remaining balance for this fee (GHS ${rem.toFixed(2)}).`,
+      });
+    }
+    if (!('payment' in result) || !result.payment) {
+      return res.status(500).json({ message: 'Failed to record payment' });
+    }
+
+    res.status(201).json({ message: 'Payment recorded', payment: result.payment });
   } catch (err) {
     console.error('POST /fees/payments', err);
     res.status(500).json({ message: 'Failed to record payment' });

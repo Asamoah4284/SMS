@@ -8,7 +8,15 @@ import { ChevronLeft, Banknote, Plus, Trash2, Loader2, Save, Search } from 'luci
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Term { id: string; name: string; year: number; isCurrent: boolean; }
-interface FeeStructure { id: string; name: string; amount: number; }
+interface FeeStructure { id: string; name: string; amount: number; category?: string }
+
+interface SupplementaryFee {
+  id: string;
+  name: string;
+  amount: number;
+  category: string;
+  notes: string | null;
+}
 
 interface StudentPayment {
   id: string;
@@ -17,6 +25,8 @@ interface StudentPayment {
   parentName: string | null;
   parentPhone: string | null;
   amountDue: number;
+  tuitionDue?: number;
+  supplementaryTotal?: number;
   totalPaid: number;
   balance: number;
   status: 'FULLY_PAID' | 'HALF_PAID' | 'PARTIAL' | 'UNPAID' | 'NO_STRUCTURE';
@@ -52,6 +62,8 @@ export default function ClassFeesDetail({ classId, initialTermId }: { classId: s
   const [selectedTermId, setSelectedTermId] = useState(initialTermId);
   const [students, setStudents] = useState<StudentPayment[]>([]);
   const [feeStructure, setFeeStructure] = useState<FeeStructure | null>(null);
+  const [supplementaryFees, setSupplementaryFees] = useState<SupplementaryFee[]>([]);
+  const [totalExpectedPerStudent, setTotalExpectedPerStudent] = useState<number | null>(null);
   const [className, setClassName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -87,6 +99,10 @@ export default function ClassFeesDetail({ classId, initialTermId }: { classId: s
       const data = await res.json();
       setStudents(data.students ?? []);
       setFeeStructure(data.feeStructure ?? null);
+      setSupplementaryFees(data.supplementaryFees ?? []);
+      setTotalExpectedPerStudent(
+        typeof data.totalExpectedPerStudent === 'number' ? data.totalExpectedPerStudent : null,
+      );
       setClassName(data.class?.name ?? '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
@@ -145,7 +161,19 @@ export default function ClassFeesDetail({ classId, initialTermId }: { classId: s
           <h1 className="text-2xl font-bold text-gray-900">{className}</h1>
           <p className="text-sm text-gray-500">
             {selectedTerm ? `${selectedTerm.name} ${selectedTerm.year}` : 'Select a term'}
-            {feeStructure && ` · ${feeStructure.name} · GHS ${feeStructure.amount.toLocaleString()}`}
+            {feeStructure && ` · Tuition: ${feeStructure.name} · GHS ${feeStructure.amount.toLocaleString()}`}
+            {supplementaryFees.length > 0 && (
+              <span>
+                {' '}
+                + {supplementaryFees.length} other item{supplementaryFees.length !== 1 ? 's' : ''}
+                {totalExpectedPerStudent != null && (
+                  <span className="font-semibold text-gray-700">
+                    {' '}
+                    · Expected per student: GHS {totalExpectedPerStudent.toLocaleString()}
+                  </span>
+                )}
+              </span>
+            )}
           </p>
         </div>
         <select
@@ -161,8 +189,23 @@ export default function ClassFeesDetail({ classId, initialTermId }: { classId: s
 
       {error && <Alert type="error" message={error} />}
 
-      {!feeStructure && !loading && (
-        <Alert type="warning" message="No fee structure set for this class level and term. Go to Fees → Fee Structures to create one." />
+      {!feeStructure && supplementaryFees.length === 0 && !loading && (
+        <Alert type="warning" message="No tuition fee set for this class level and term. Go to Fees → Fee Structures to add school fees (or other charges)." />
+      )}
+
+      {!loading && supplementaryFees.length > 0 && (
+        <div className="bg-amber-50/80 border border-amber-100 rounded-2xl px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold text-amber-900 mb-2">Also billed this term (uniform / other fees)</p>
+          <ul className="list-disc list-inside space-y-0.5 text-amber-900/90">
+            {supplementaryFees.map((f) => (
+              <li key={f.id}>
+                {f.name} — GHS {f.amount.toLocaleString()}
+                {f.notes ? ` (${f.notes})` : ''}
+                <span className="text-amber-700/80 text-xs ml-1">[{f.category}]</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* Summary */}
@@ -367,6 +410,18 @@ function RecordPaymentModal({ student, feeStructure, termId, onClose, onSaved }:
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
+    const amt = parseFloat(form.amountPaid);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setError('Enter a valid positive amount');
+      return;
+    }
+    if (amt > student.balance + 1e-6) {
+      setError(
+        `Amount cannot exceed remaining balance of GHS ${student.balance.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      );
+      return;
+    }
     setSaving(true); setError('');
     const token = getToken();
     const res = await fetch(`${API}/fees/payments`, {

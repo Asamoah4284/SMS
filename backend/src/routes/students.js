@@ -1,4 +1,6 @@
 const { Router } = require('express');
+const { totalDueFromPayments } = require('../utils/feeAccounting');
+const { computeClassPositionByTerm } = require('../utils/classRanking');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 
@@ -249,8 +251,8 @@ router.get('/:id', async (req, res) => {
         },
         feePayments: {
           include: {
-            feeStructure: { select: { name: true, amount: true } },
-            term: { select: { name: true, year: true } },
+            feeStructure: { select: { id: true, name: true, amount: true } },
+            term: { select: { id: true, name: true, year: true } },
           },
           orderBy: { createdAt: 'desc' },
         },
@@ -277,12 +279,21 @@ router.get('/:id', async (req, res) => {
 
     // Fee summary
     const feeTotalPaid = student.feePayments.reduce((s, p) => s + p.amountPaid, 0);
-    const feeTotalDue = student.feePayments.reduce((s, p) => s + p.feeStructure.amount, 0);
+    const feeTotalDue = totalDueFromPayments(student.feePayments);
+
+    const termIds = [...new Set(student.results.map((r) => r.termId))];
+    const classPositionByTerm = await computeClassPositionByTerm(
+      prisma,
+      student.id,
+      student.classId,
+      termIds,
+    );
 
     res.json({
       ...student,
       attendanceSummary: { ...attendanceSummary, total: totalDays, rate: attendanceRate },
       feeSummary: { totalPaid: feeTotalPaid, totalDue: feeTotalDue, balance: Math.max(0, feeTotalDue - feeTotalPaid) },
+      classPositionByTerm,
     });
   } catch (err) {
     console.error('GET /students/:id', err);
@@ -293,8 +304,18 @@ router.get('/:id', async (req, res) => {
 // ─── PUT /students/:id ───────────────────────────────────────────────────────
 router.put('/:id', authorize('ADMIN'), async (req, res) => {
   try {
-    const { firstName, middleName, lastName, dateOfBirth, gender, address, classId, isActive } =
-      req.body;
+    const {
+      firstName,
+      middleName,
+      lastName,
+      dateOfBirth,
+      gender,
+      address,
+      classId,
+      isActive,
+      photo,
+      healthInsuranceCard,
+    } = req.body;
 
     const existing = await prisma.student.findUnique({ where: { id: req.params.id } });
     if (!existing) return res.status(404).json({ message: 'Student not found' });
@@ -316,6 +337,8 @@ router.put('/:id', authorize('ADMIN'), async (req, res) => {
         ...(address !== undefined && { address }),
         ...(classId !== undefined && { classId: classId || null }),
         ...(isActive !== undefined && { isActive }),
+        ...(photo !== undefined && { photo: photo || null }),
+        ...(healthInsuranceCard !== undefined && { healthInsuranceCard: healthInsuranceCard || null }),
       },
       include: { class: { select: { id: true, name: true } } },
     });

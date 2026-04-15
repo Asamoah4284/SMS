@@ -1,6 +1,8 @@
 const { Router } = require('express');
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/db');
+const { totalDueFromPayments } = require('../utils/feeAccounting');
+const { computeClassPositionByTerm } = require('../utils/classRanking');
 
 const router = Router();
 
@@ -100,8 +102,16 @@ router.get('/child/:studentId', authenticateParent, async (req, res) => {
     const currentFees = currentTerm
       ? student.feePayments.filter((fp) => fp.termId === currentTerm.id)
       : [];
-    const totalDue = currentFees.reduce((s, fp) => s + fp.feeStructure.amount, 0);
+    const totalDue = totalDueFromPayments(currentFees);
     const totalPaid = currentFees.reduce((s, fp) => s + fp.amountPaid, 0);
+
+    const termIds = [...new Set(student.results.map((r) => r.termId))];
+    const classPositionByTerm = await computeClassPositionByTerm(
+      prisma,
+      student.id,
+      student.classId,
+      termIds,
+    );
 
     res.json({
       student: {
@@ -149,12 +159,14 @@ router.get('/child/:studentId', authenticateParent, async (req, res) => {
       },
       results: student.results.map((r) => ({
         subject: r.subject.name,
+        termId: r.termId,
         term: `${r.term.name} ${r.term.year}`,
         totalScore: r.totalScore,
         grade: r.grade,
         remarks: r.remarks,
         position: r.position,
       })),
+      classPositionByTerm,
       latestRemarks: student.termRemarks[0]
         ? {
             teacherRemarks: student.termRemarks[0].teacherRemarks,

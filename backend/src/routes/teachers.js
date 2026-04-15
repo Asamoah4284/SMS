@@ -86,6 +86,85 @@ router.get('/', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────
+// POST /teachers/bulk-import (Admin only) — must be registered before /:id
+// ─────────────────────────────────────────────────────────────────
+
+router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
+  try {
+    const { teachers: rows } = req.body;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: 'No teacher rows provided' });
+    }
+    if (rows.length > 100) {
+      return res.status(400).json({ error: 'Max 100 teachers per import' });
+    }
+
+    const adminId = req.user.id;
+    const results = { imported: 0, failed: [] };
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 1;
+
+      if (!row.firstName?.trim()) {
+        results.failed.push({ row: rowNum, error: 'First name is required' });
+        continue;
+      }
+      if (!row.lastName?.trim()) {
+        results.failed.push({ row: rowNum, error: 'Last name is required' });
+        continue;
+      }
+      if (!row.phone?.trim() || !isValidPhoneGH(row.phone.trim())) {
+        results.failed.push({ row: rowNum, name: `${row.firstName} ${row.lastName}`, error: 'Invalid or missing phone number' });
+        continue;
+      }
+
+      const phone = row.phone.trim();
+
+      try {
+        const existing = await prisma.user.findUnique({ where: { phone } });
+        if (existing) {
+          results.failed.push({ row: rowNum, name: `${row.firstName} ${row.lastName}`, error: 'Phone already registered' });
+          continue;
+        }
+
+        let staffId = generateStaffId(row.firstName.trim(), row.lastName.trim());
+        let attempt = 0;
+        while (await prisma.teacher.findUnique({ where: { staffId } }) ||
+               await prisma.teacherInvitation.findUnique({ where: { staffId } })) {
+          staffId = generateStaffId(row.firstName.trim(), row.lastName.trim());
+          if (++attempt > 10) { staffId = `${staffId}${Date.now() % 1000}`; break; }
+        }
+
+        const inviteCode = String(Math.floor(100000 + Math.random() * 900000));
+        const codeExpiry = new Date(Date.now() + 72 * 60 * 60 * 1000);
+
+        await prisma.teacherInvitation.create({
+          data: { staffId, phone, inviteCode, codeExpiry, createdBy: adminId },
+        });
+
+        const smsText = `[${process.env.SCHOOL_ABBREVIATION || 'EduTrack'}] Welcome ${row.firstName.trim()}! Staff ID: ${staffId} | Code: ${inviteCode} | ${process.env.FRONTEND_URL}/invite`;
+        await sendSMS(formatPhoneE164(phone), smsText).catch(() => null);
+
+        results.imported++;
+      } catch {
+        results.failed.push({ row: rowNum, name: `${row.firstName} ${row.lastName}`, error: 'Failed to process' });
+      }
+    }
+
+    res.json({
+      message: `Imported ${results.imported} teacher${results.imported !== 1 ? 's' : ''}`,
+      imported: results.imported,
+      failed: results.failed,
+    });
+  } catch (error) {
+    console.error('Bulk import error:', error);
+    res.status(500).json({ error: 'Bulk import failed' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────
 // GET /teachers/:id
 // Teacher detail: profile + class info + subjects + timetable + attendance + leaves
 // ─────────────────────────────────────────────────────────────────
@@ -326,84 +405,32 @@ router.put('/:id', authorize('ADMIN'), async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────
-// POST /teachers/bulk-import (Admin only)
-// Bulk invite teachers from CSV (parsed client-side, sent as JSON)
-// Body: { teachers: [{ firstName, lastName, phone, qualification? }] }
+// DELETE /teachers/:id (Admin only)
+// Removes teacher assignments, profile, and user account
 // ─────────────────────────────────────────────────────────────────
 
-router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
+router.delete('/:id', authorize('ADMIN'), async (req, res) => {
   try {
-    const { teachers: rows } = req.body;
+    const { id } = req.params;
 
-    if (!Array.isArray(rows) || rows.length === 0) {
-      return res.status(400).json({ error: 'No teacher rows provided' });
-    }
-    if (rows.length > 100) {
-      return res.status(400).json({ error: 'Max 100 teachers per import' });
-    }
+    const teacher = await prisma.teacher.findUnique({ where: { id } });
+    if (!teacher) return res.status(404).json({ error: 'Teacher not found' });
 
-    const adminId = req.user.id;
-    const results = { imported: 0, failed: [] };
+    const userId = teacher.userId;
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const rowNum = i + 1;
-
-      if (!row.firstName?.trim()) {
-        results.failed.push({ row: rowNum, error: 'First name is required' });
-        continue;
-      }
-      if (!row.lastName?.trim()) {
-        results.failed.push({ row: rowNum, error: 'Last name is required' });
-        continue;
-      }
-      if (!row.phone?.trim() || !isValidPhoneGH(row.phone.trim())) {
-        results.failed.push({ row: rowNum, name: `${row.firstName} ${row.lastName}`, error: 'Invalid or missing phone number' });
-        continue;
-      }
-
-      const phone = row.phone.trim();
-
-      try {
-        const existing = await prisma.user.findUnique({ where: { phone } });
-        if (existing) {
-          results.failed.push({ row: rowNum, name: `${row.firstName} ${row.lastName}`, error: 'Phone already registered' });
-          continue;
-        }
-
-        // Unique staff ID
-        let staffId = generateStaffId(row.firstName.trim(), row.lastName.trim());
-        let attempt = 0;
-        while (await prisma.teacher.findUnique({ where: { staffId } }) ||
-               await prisma.teacherInvitation.findUnique({ where: { staffId } })) {
-          staffId = generateStaffId(row.firstName.trim(), row.lastName.trim());
-          if (++attempt > 10) { staffId = `${staffId}${Date.now() % 1000}`; break; }
-        }
-
-        const inviteCode = String(Math.floor(100000 + Math.random() * 900000));
-        const codeExpiry = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72h for bulk
-
-        await prisma.teacherInvitation.create({
-          data: { staffId, phone, inviteCode, codeExpiry, createdBy: adminId },
-        });
-
-        const smsText = `[${process.env.SCHOOL_ABBREVIATION || 'EduTrack'}] Welcome ${row.firstName.trim()}! Staff ID: ${staffId} | Code: ${inviteCode} | ${process.env.FRONTEND_URL}/invite`;
-        await sendSMS(formatPhoneE164(phone), smsText).catch(() => null);
-
-        results.imported++;
-      } catch {
-        results.failed.push({ row: rowNum, name: `${row.firstName} ${row.lastName}`, error: 'Failed to process' });
-      }
-    }
-
-    res.json({
-      message: `Imported ${results.imported} teacher${results.imported !== 1 ? 's' : ''}`,
-      imported: results.imported,
-      failed: results.failed,
+    await prisma.$transaction(async (tx) => {
+      await tx.class.updateMany({ where: { classTeacherId: id }, data: { classTeacherId: null } });
+      await tx.subjectTeacher.deleteMany({ where: { teacherId: id } });
+      await tx.teacherAttendance.deleteMany({ where: { teacherId: id } });
+      await tx.permissionRequest.deleteMany({ where: { userId } });
+      await tx.teacher.delete({ where: { id } });
+      await tx.user.delete({ where: { id: userId } });
     });
+
+    res.json({ message: 'Teacher removed' });
   } catch (error) {
-    console.error('Bulk import error:', error);
-    res.status(500).json({ error: 'Bulk import failed' });
+    console.error('Delete teacher error:', error);
+    res.status(500).json({ error: 'Failed to delete teacher' });
   }
 });
 

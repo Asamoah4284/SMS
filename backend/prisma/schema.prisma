@@ -126,6 +126,9 @@ model Parent {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  homeAddress String?
+  occupation  String?
+
   children Student[]
 
   @@map("parents")
@@ -142,7 +145,8 @@ model Student {
   lastName    String
   dateOfBirth DateTime?
   gender      Gender
-  photo       String?
+  photo       String?   // Image of the child (URL or path)
+  healthInsuranceCard String? // Photo/scan of insurance card (URL or path)
   address     String?
   parentName  String?   // Quick contact (no portal account needed)
   parentPhone String?   // Quick contact phone
@@ -420,10 +424,18 @@ model TermRemarks {
 // FEE STRUCTURE
 // ─────────────────────────────────────────
 
+enum FeeCategory {
+  TUITION  // Main term school fee (one per class level per term for overview)
+  UNIFORM
+  OTHER    // Robotics, maintenance, graduation, etc.
+}
+
 model FeeStructure {
-  id         String     @id @default(cuid())
-  name       String     // "Basic 1-3 Fees"
-  amount     Float      // GHS
+  id         String      @id @default(cuid())
+  name       String      // "Basic 1-3 Fees" / "Robotics" / "Uniform"
+  amount     Float       // GHS
+  category   FeeCategory @default(TUITION)
+  notes      String?     // e.g. "KG1–JHS" — display only
   classLevel ClassLevel?
 
   termId String?

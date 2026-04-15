@@ -9,7 +9,7 @@ import {
 import {
   GraduationCap, Phone, Hash,
   CheckCircle2, Clock, Upload, Download,
-  AlertTriangle, BookOpen,
+  AlertTriangle, BookOpen, Trash2,
 } from 'lucide-react';
 
 interface Teacher {
@@ -84,12 +84,12 @@ export default function TeachersPage() {
         <>
           <div className="md:hidden space-y-3">
             {teachers.map((t) => (
-              <TeacherCard key={t.id} teacher={t} />
+              <TeacherCard key={t.id} teacher={t} onDeleted={fetchTeachers} />
             ))}
           </div>
 
           <div className="hidden md:block">
-            <TeachersTable teachers={teachers} />
+            <TeachersTable teachers={teachers} fetchTeachers={fetchTeachers} />
           </div>
         </>
       )}
@@ -104,34 +104,36 @@ export default function TeachersPage() {
 
 // ─── Teachers Table ───────────────────────────────────────────────────────────
 
-function TeachersTable({ teachers }: { teachers: Teacher[] }) {
+function TeachersTable({ teachers, fetchTeachers }: { teachers: Teacher[]; fetchTeachers: () => void }) {
   return (
     <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden px-5 py-5 sm:px-7 sm:py-6 md:px-8 md:py-6">
-      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-1 sm:px-2 py-2.5 border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto_auto] gap-4 px-1 sm:px-2 py-2.5 border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
         <span>Teacher</span>
         <span>Staff ID</span>
         <span className="hidden md:block">Phone</span>
         <span className="hidden lg:block">Class</span>
         <span className="hidden lg:block">Subjects</span>
         <span className="text-right">Status</span>
+        <span className="text-right w-10" aria-hidden />
       </div>
       <div className="divide-y divide-gray-100">
         {teachers.map((teacher) => (
-          <TeacherRow key={teacher.id} teacher={teacher} />
+          <TeacherRow key={teacher.id} teacher={teacher} onDeleted={fetchTeachers} />
         ))}
       </div>
     </div>
   );
 }
 
-function TeacherRow({ teacher }: { teacher: Teacher }) {
+function TeacherRow({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () => void }) {
   const fullName = `${teacher.user.firstName} ${teacher.user.lastName}`.trim();
   const initials = `${teacher.user.firstName[0] ?? ''}${teacher.user.lastName[0] ?? ''}`.toUpperCase();
 
   return (
+    <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto_auto] gap-4 items-center px-1 sm:px-2 py-3.5 hover:bg-gray-50/60 transition-colors">
     <Link
       href={`/teachers/${teacher.id}`}
-      className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-1 sm:px-2 py-3.5 hover:bg-gray-50/60 transition-colors"
+      className="contents"
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
@@ -183,75 +185,137 @@ function TeacherRow({ teacher }: { teacher: Teacher }) {
         )}
       </div>
     </Link>
+      <TeacherDeleteButton teacher={teacher} onDeleted={onDeleted} />
+    </div>
   );
 }
 
-function TeacherCard({ teacher }: { teacher: Teacher }) {
+function TeacherDeleteButton({
+  teacher,
+  onDeleted,
+}: {
+  teacher: Teacher;
+  onDeleted: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const remove = async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teachers/${teacher.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to delete');
+      setOpen(false);
+      onDeleted();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Delete failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        title="Remove teacher"
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true); }}
+        className="text-gray-400 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors p-2"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+      <Modal isOpen={open} onClose={() => !loading && setOpen(false)} title="Remove teacher?" size="sm">
+        <p className="text-sm text-gray-600 mb-2">
+          This will permanently remove <strong>{teacher.user.firstName} {teacher.user.lastName}</strong> ({teacher.staffId}) and their login.
+          Class teacher and subject assignments are cleared.
+        </p>
+        {err && <Alert type="error" message={err} className="mb-3" onDismiss={() => setErr('')} />}
+        <div className="flex gap-2 justify-end">
+          <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={loading}>Cancel</Button>
+          <Button type="button" variant="secondary" className="!bg-danger-600 !text-white hover:!bg-danger-700 border-0" onClick={remove} loading={loading}>
+            Delete
+          </Button>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+function TeacherCard({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () => void }) {
   const fullName = `${teacher.user.firstName} ${teacher.user.lastName}`.trim();
   const initials = `${teacher.user.firstName[0] ?? ''}${teacher.user.lastName[0] ?? ''}`.toUpperCase();
 
   return (
-    <Link
-      href={`/teachers/${teacher.id}`}
-      className="block bg-white border border-gray-200 rounded-2xl p-4"
-    >
-      <div className="flex items-start gap-3">
-        <div className="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-base font-bold text-gray-700 shrink-0">
-          {initials}
-        </div>
+    <div className="bg-white border border-gray-200 rounded-2xl p-4">
+      <Link href={`/teachers/${teacher.id}`} className="block">
+        <div className="flex items-start gap-3">
+          <div className="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-base font-bold text-gray-700 shrink-0">
+            {initials}
+          </div>
 
-        <div className="min-w-0 flex-1 flex flex-col">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-gray-900 truncate">{fullName || '—'}</p>
-              <div className="mt-1 space-y-0.5">
-                <p className="text-[11px] font-semibold text-gray-500 truncate">
-                  <span className="text-gray-400 uppercase tracking-wider">ID:</span>{' '}
-                  <span className="font-mono text-gray-600">{teacher.staffId}</span>
-                </p>
-                <p className="text-[11px] font-semibold text-gray-500 truncate">
-                  <span className="text-gray-400 uppercase tracking-wider">Phone:</span>{' '}
-                  <span className="text-gray-600">{teacher.user.phone}</span>
-                </p>
+          <div className="min-w-0 flex-1 flex flex-col">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-900 truncate">{fullName || '—'}</p>
+                <div className="mt-1 space-y-0.5">
+                  <p className="text-[11px] font-semibold text-gray-500 truncate">
+                    <span className="text-gray-400 uppercase tracking-wider">ID:</span>{' '}
+                    <span className="font-mono text-gray-600">{teacher.staffId}</span>
+                  </p>
+                  <p className="text-[11px] font-semibold text-gray-500 truncate">
+                    <span className="text-gray-400 uppercase tracking-wider">Phone:</span>{' '}
+                    <span className="text-gray-600">{teacher.user.phone}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-0.5">
+                {teacher.user.isActive ? (
+                  <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-1 text-[11px] font-semibold shrink-0">
+                    Active
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 px-2 py-1 text-[11px] font-semibold shrink-0">
+                    Pending
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="pt-0.5">
-              {teacher.user.isActive ? (
-                <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-1 text-[11px] font-semibold shrink-0">
-                  Active
-                </span>
-              ) : (
-                <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 px-2 py-1 text-[11px] font-semibold shrink-0">
-                  Pending
-                </span>
-              )}
+            <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-[11px]">
+              <div className="min-w-0">
+                <p className="text-gray-400 font-semibold uppercase tracking-wider">Class</p>
+                <p className="text-gray-700 font-semibold truncate">
+                  {teacher.classTeacherOf?.name ?? 'Not assigned'}
+                </p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-gray-400 font-semibold uppercase tracking-wider">Subjects</p>
+                <p className="text-gray-700 font-semibold">
+                  {teacher.subjectCount > 0 ? `${teacher.subjectCount}` : '—'}
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-[11px]">
-            <div className="min-w-0">
-              <p className="text-gray-400 font-semibold uppercase tracking-wider">Class</p>
-              <p className="text-gray-700 font-semibold truncate">
-                {teacher.classTeacherOf?.name ?? 'Not assigned'}
-              </p>
-            </div>
-            <div className="min-w-0">
-              <p className="text-gray-400 font-semibold uppercase tracking-wider">Subjects</p>
-              <p className="text-gray-700 font-semibold">
-                {teacher.subjectCount > 0 ? `${teacher.subjectCount}` : '—'}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center justify-end">
-            <span className="inline-flex items-center justify-center rounded-lg bg-gray-100 text-gray-700 px-3 py-2 text-xs font-semibold">
-              View
-            </span>
           </div>
         </div>
+      </Link>
+      <div className="mt-4 flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
+        <TeacherDeleteButton teacher={teacher} onDeleted={onDeleted} />
+        <Link
+          href={`/teachers/${teacher.id}`}
+          className="inline-flex items-center justify-center rounded-lg bg-gray-100 text-gray-700 px-3 py-2 text-xs font-semibold"
+        >
+          View
+        </Link>
       </div>
-    </Link>
+    </div>
   );
 }
 

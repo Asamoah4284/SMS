@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Alert, Badge, Button, Modal } from '@/components/ui';
+import { useUser } from '@/lib/UserContext';
 import {
   Phone, Mail, Calendar, Users, BookOpen, CheckCircle2,
   AlertTriangle, CreditCard, ChevronRight, UserPlus,
-  Search, X, TrendingDown,
+  Search, X, TrendingDown, MapPin, Briefcase, Pencil,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -17,6 +19,8 @@ interface Child {
   lastName: string;
   studentId: string;
   class: { id: string; name: string } | null;
+  photo: string | null;
+  healthInsuranceCard: string | null;
   attendanceRate: number | null;
   recentAbsences: number;
   fees: {
@@ -29,6 +33,8 @@ interface Child {
 
 interface ParentData {
   id: string;
+  homeAddress: string | null;
+  occupation: string | null;
   user: {
     firstName: string;
     lastName: string;
@@ -50,10 +56,12 @@ interface UnassignedStudent {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ParentDetail({ parentId }: { parentId: string }) {
+  const { isAdmin } = useUser();
   const [parent, setParent] = useState<ParentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [assignOpen, setAssignOpen] = useState(false);
+  const [editInfoOpen, setEditInfoOpen] = useState(false);
 
   const fetchParent = useCallback(async () => {
     setLoading(true);
@@ -157,6 +165,36 @@ export default function ParentDetail({ parentId }: { parentId: string }) {
         </div>
       </div>
 
+      {/* Parent info (home & work) */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <h2 className="font-bold text-gray-900">Parent information</h2>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setEditInfoOpen(true)}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:text-primary-700"
+            >
+              <Pencil className="w-4 h-4" /> Edit
+            </button>
+          )}
+        </div>
+        <dl className="grid sm:grid-cols-2 gap-4 text-sm">
+          <div>
+            <dt className="flex items-center gap-1.5 text-gray-500 font-medium mb-1">
+              <MapPin className="w-4 h-4" /> Home address
+            </dt>
+            <dd className="text-gray-900">{parent.homeAddress?.trim() || '—'}</dd>
+          </div>
+          <div>
+            <dt className="flex items-center gap-1.5 text-gray-500 font-medium mb-1">
+              <Briefcase className="w-4 h-4" /> Occupation
+            </dt>
+            <dd className="text-gray-900">{parent.occupation?.trim() || '—'}</dd>
+          </div>
+        </dl>
+      </div>
+
       {/* Summary stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm text-center">
@@ -216,7 +254,88 @@ export default function ParentDetail({ parentId }: { parentId: string }) {
           onCancel={() => setAssignOpen(false)}
         />
       </Modal>
+
+      {isAdmin && (
+        <Modal isOpen={editInfoOpen} onClose={() => setEditInfoOpen(false)} title="Edit parent information" size="md">
+          <EditParentInfoForm
+            parentId={parentId}
+            initial={{
+              homeAddress: parent.homeAddress ?? '',
+              occupation: parent.occupation ?? '',
+            }}
+            onSaved={() => { setEditInfoOpen(false); fetchParent(); }}
+            onCancel={() => setEditInfoOpen(false)}
+          />
+        </Modal>
+      )}
     </div>
+  );
+}
+
+function EditParentInfoForm({
+  parentId,
+  initial,
+  onSaved,
+  onCancel,
+}: {
+  parentId: string;
+  initial: { homeAddress: string; occupation: string };
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [homeAddress, setHomeAddress] = useState(initial.homeAddress);
+  const [occupation, setOccupation] = useState(initial.occupation);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setErr('');
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/parents/${parentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ homeAddress, occupation }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      onSaved();
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      {err && <Alert type="error" message={err} onDismiss={() => setErr('')} />}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Home address</label>
+        <textarea
+          value={homeAddress}
+          onChange={(e) => setHomeAddress(e.target.value)}
+          rows={3}
+          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          placeholder="Street, city, region…"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Occupation</label>
+        <input
+          value={occupation}
+          onChange={(e) => setOccupation(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          placeholder="e.g. Teacher, Trader…"
+        />
+      </div>
+      <div className="flex gap-2 justify-end pt-2">
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>Cancel</Button>
+        <Button type="submit" loading={saving}>Save</Button>
+      </div>
+    </form>
   );
 }
 
@@ -239,8 +358,16 @@ function ChildCard({ child, onUnassign }: { child: Child; onUnassign: () => void
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4 px-4 sm:px-6 py-4 hover:bg-gray-50/50 transition-colors">
-      <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
-        {`${child.firstName[0]}${child.lastName[0]}`.toUpperCase()}
+      <div className="flex-shrink-0">
+        {child.photo ? (
+          <div className="relative w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200">
+            <Image src={child.photo} alt="" fill className="object-cover" sizes="40px" unoptimized={/^https?:\/\//i.test(child.photo)} />
+          </div>
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-sm">
+            {`${child.firstName[0]}${child.lastName[0]}`.toUpperCase()}
+          </div>
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -271,6 +398,16 @@ function ChildCard({ child, onUnassign }: { child: Child; onUnassign: () => void
           <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${feeStatusCls[child.fees.status]}`}>
             <CreditCard className="w-3 h-3" />{feeLabel[child.fees.status]}
           </span>
+          {child.healthInsuranceCard && (
+            <a
+              href={child.healthInsuranceCard}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-primary-600 hover:underline"
+            >
+              Health insurance card
+            </a>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
