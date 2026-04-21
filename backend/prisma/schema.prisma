@@ -23,6 +23,7 @@ model Term {
   teacherAttendances TeacherAttendance[]
   results            Result[]
   feePayments        FeePayment[]
+  paystackIntents    PaystackIntent[]
   feeStructures      FeeStructure[]
   assessments        Assessment[]
   termRemarks        TermRemarks[]
@@ -138,6 +139,27 @@ model Parent {
 // STUDENT
 // ─────────────────────────────────────────
 
+model PaystackIntent {
+  id             String   @id @default(cuid())
+  reference      String   @unique
+  amountGhs      Float
+  amountPesewas  Int      // Paystack amount (minor units)
+  status           String   @default("PENDING") // PENDING | SUCCESS | FAILED
+  callbackUrl    String?
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  termId         String
+  term           Term     @relation(fields: [termId], references: [id], onDelete: Cascade)
+  paystackAccessCode String?
+  /** Empty = settle across all fee lines in order; otherwise only these fee structure IDs (Prisma has no optional lists). */
+  targetFeeStructureIds String[] @default([])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([studentId, termId])
+  @@map("paystack_intents")
+}
+
 model Student {
   id          String    @id @default(cuid())
   studentId   String    @unique // School-issued ID e.g. STM-2025-001
@@ -162,6 +184,7 @@ model Student {
   attendances      Attendance[]
   results          Result[]
   feePayments      FeePayment[]
+  paystackIntents  PaystackIntent[]
   assessmentScores AssessmentScore[]
   termRemarks      TermRemarks[]
 

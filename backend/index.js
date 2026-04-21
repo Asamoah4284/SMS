@@ -1,9 +1,19 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+const paystackSk = process.env.PAYSTACK_SECRET_KEY;
+if (paystackSk && String(paystackSk).trim()) {
+  const mode = String(paystackSk).startsWith('sk_live') ? 'live' : 'test';
+  console.log(`Paystack: enabled (${mode} key loaded from .env)`);
+} else {
+  console.warn('Paystack: PAYSTACK_SECRET_KEY missing — parent app “Pay with Paystack” will return 503 until set. Restart server after editing .env.');
+}
+
 const express = require('express');
 const cors = require('cors');
 
 const routes = require('./src/routes');
+const { paystackWebhookHandler } = require('./src/routes/paystackWebhook');
 const { errorHandler } = require('./src/middleware/errorHandler');
 const prisma = require('./src/config/db');
 
@@ -51,6 +61,11 @@ app.use(cors({
   },
   credentials: true,
 }));
+// Paystack webhook must verify HMAC on the raw body (do not parse JSON globally first)
+app.post('/api/v1/webhooks/paystack', express.raw({ type: 'application/json' }), (req, res, next) => {
+  Promise.resolve(paystackWebhookHandler(req, res)).catch(next);
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

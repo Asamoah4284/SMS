@@ -280,13 +280,15 @@ router.get('/class/:classId', authorize('ADMIN'), async (req, res) => {
       paymentMap[p.studentId].push(p);
     });
 
-    const amountDue = structure?.amount ?? 0;
+    const tuitionAmt = structure?.amount ?? 0;
+    const totalExpectedPerStudent = tuitionAmt + supplementaryTotal;
 
     const result = students.map((st) => {
       const studentPayments = paymentMap[st.id] ?? [];
       const totalPaid = studentPayments.reduce((s, p) => s + p.amountPaid, 0);
-      const balance = Math.max(0, amountDue - totalPaid);
-      const status = amountDue > 0 ? computeStatus(amountDue, totalPaid) : 'NO_STRUCTURE';
+      const balance = Math.max(0, totalExpectedPerStudent - totalPaid);
+      const status =
+        totalExpectedPerStudent > 0 ? computeStatus(totalExpectedPerStudent, totalPaid) : 'NO_STRUCTURE';
       const parentName = st.parent
         ? `${st.parent.user.firstName} ${st.parent.user.lastName}`
         : st.parentName;
@@ -298,8 +300,8 @@ router.get('/class/:classId', authorize('ADMIN'), async (req, res) => {
         name: `${st.firstName} ${st.lastName}`,
         parentName,
         parentPhone,
-        amountDue,
-        tuitionDue,
+        amountDue: totalExpectedPerStudent,
+        tuitionDue: tuitionAmt,
         supplementaryTotal,
         totalPaid,
         balance,
