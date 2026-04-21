@@ -398,7 +398,7 @@ function StudentsTab({ students, onAddStudent }: { students: Student[]; onAddStu
   const studentAgeYears = (dob: string | null) => {
     if (!dob) return null;
     const y = Math.floor(
-      (Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000),
+      (new Date().getTime() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000),
     );
     return Number.isFinite(y) ? y : null;
   };

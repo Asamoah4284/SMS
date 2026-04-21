@@ -205,7 +205,7 @@ function SubjectTeacherDashboard({ firstName, subjectsByClass }: {
           Welcome Back, {firstName}.
         </h2>
         <p className="text-sm text-gray-500 mt-1 font-medium">
-          You're teaching {subjectsByClass.length} class{subjectsByClass.length !== 1 ? 'es' : ''} this term.
+          You&apos;re teaching {subjectsByClass.length} class{subjectsByClass.length !== 1 ? 'es' : ''} this term.
         </p>
       </div>
 
@@ -267,7 +267,7 @@ function NoClassCard() {
       </div>
       <h3 className="font-bold text-gray-800 mb-1">No class assigned yet</h3>
       <p className="text-sm text-gray-500">
-        You haven't been assigned as a class teacher. Contact an administrator to get started.
+        You haven&apos;t been assigned as a class teacher. Contact an administrator to get started.
       </p>
     </div>
   );

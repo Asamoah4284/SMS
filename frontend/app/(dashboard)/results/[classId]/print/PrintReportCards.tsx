@@ -52,7 +52,7 @@ export default function PrintReportCards({ classId, termId }: { classId: string;
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!termId) { setError('No term specified'); return; }
+    if (!termId) { Promise.resolve().then(() => setError('No term specified')); return; }
     const token = getToken();
     fetch(`${API}/results/reportcard/class/${classId}/term/${termId}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -196,14 +196,14 @@ function ReportCard({ card, className, classTeacher, term }: {
       {/* Remarks & signatures */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', fontSize: '12px', borderTop: '1px solid #ccc', paddingTop: '12px' }}>
         <div>
-          <strong>Class Teacher's Remarks:</strong>
+          <strong>Class Teacher&apos;s Remarks:</strong>
           <p style={{ fontStyle: 'italic', color: '#444', minHeight: '32px', margin: '4px 0 12px' }}>
             {card.teacherRemarks ?? ''}
           </p>
           <div style={{ borderTop: '1px solid #999', width: '120px', paddingTop: '2px', fontSize: '10px', color: '#888' }}>Signature</div>
         </div>
         <div>
-          <strong>Headmaster's Remarks:</strong>
+          <strong>Headmaster&apos;s Remarks:</strong>
           <p style={{ fontStyle: 'italic', color: '#444', minHeight: '32px', margin: '4px 0 12px' }}>
             {card.headmasterRemarks ?? ''}
           </p>

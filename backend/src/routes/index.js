@@ -16,6 +16,9 @@ const permissionRoutes = require('./permissions');
 const reportRoutes = require('./reports');
 const termRoutes = require('./terms');
 const portalRoutes = require('./portal');
+const notificationRoutes = require('./notifications');
+const libraryRoutes = require('./library');
+const certificateRoutes = require('./certificates');
 
 const router = Router();
 
@@ -35,5 +38,8 @@ router.use('/permissions', permissionRoutes);
 router.use('/reports', reportRoutes);
 router.use('/terms', termRoutes);
 router.use('/portal', portalRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/library', libraryRoutes);
+router.use('/certificates', certificateRoutes);
 
 module.exports = router;

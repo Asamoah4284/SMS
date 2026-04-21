@@ -397,7 +397,7 @@ function AssessmentsTab({ bySubject, loading, isPublished, studentCount, userRol
         <div className="text-center py-16 text-gray-400">
           <BookOpen size={40} className="mx-auto mb-3 opacity-40" />
           <p className="font-medium">No assessments yet</p>
-          {canAdd && <p className="text-sm mt-1">Click "Add Assessment" to create your first test or exam.</p>}
+          {canAdd && <p className="text-sm mt-1">Click &quot;Add Assessment&quot; to create your first test or exam.</p>}
         </div>
       ) : (
         Object.values(bySubject).map(({ subject, items }) => {
@@ -414,7 +414,7 @@ function AssessmentsTab({ bySubject, loading, isPublished, studentCount, userRol
                 </h3>
                 {isLocked && (
                   <span className="flex items-center gap-1 text-xs text-gray-400 font-medium">
-                    <Lock size={12} /> Another teacher's subject
+                    <Lock size={12} /> Another teacher&apos;s subject
                   </span>
                 )}
               </div>
@@ -495,7 +495,7 @@ function GenerateTab({ bySubject, components, setComponents, isPublished, onGene
       {isPublished && <Alert type="warning" message="Results are published. Unpublish first to regenerate." />}
 
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-sm text-blue-800">
-        <strong>How it works:</strong> Select which assessments contribute to each subject's final score.
+        <strong>How it works:</strong> Select which assessments contribute to each subject&apos;s final score.
         Assign weights (%) — they must sum to <strong>100</strong> per subject.
         Each score is scaled proportionally then totalled out of 100.
       </div>
@@ -912,7 +912,7 @@ function RemarksModal({ student, termId, userRole, onClose, onSaved }: {
         {error && <Alert type="error" message={error} />}
         {(userRole === 'TEACHER' || userRole === 'ADMIN') && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Class Teacher's Remarks</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Class Teacher&apos;s Remarks</label>
             <textarea rows={3}
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
               placeholder="e.g. A brilliant student who shows great potential..."
@@ -923,7 +923,7 @@ function RemarksModal({ student, termId, userRole, onClose, onSaved }: {
         {userRole === 'ADMIN' && (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Headmaster's Remarks</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Headmaster&apos;s Remarks</label>
               <textarea rows={3}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
                 placeholder="e.g. Keep it up! We expect more from you..."

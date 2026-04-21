@@ -39,8 +39,12 @@ router.get('/', async (req, res) => {
       where,
       include: {
         user: {
-          select: { firstName: true, lastName: true, phone: true },
-          include: { teacherProfile: { select: { id: true, staffId: true } } },
+          select: {
+            firstName: true,
+            lastName: true,
+            phone: true,
+            teacherProfile: { select: { id: true, staffId: true } },
+          },
         },
       },
       orderBy: { createdAt: 'desc' },

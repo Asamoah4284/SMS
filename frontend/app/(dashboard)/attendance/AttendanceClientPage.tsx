@@ -91,7 +91,7 @@ function getUser(): { role: UserRole; firstName: string; lastName: string } | nu
 export default function AttendanceClientPage() {
   const [user, setUser] = useState<{ role: UserRole; firstName: string; lastName: string } | null>(null);
 
-  useEffect(() => { setUser(getUser()); }, []);
+  useEffect(() => { Promise.resolve().then(() => setUser(getUser())); }, []);
 
   if (!user) return <div className="p-8 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>;
 

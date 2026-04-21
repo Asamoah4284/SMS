@@ -53,6 +53,9 @@ model User {
   teacherProfile     Teacher?
   parentProfile      Parent?
   permissionRequests PermissionRequest[]
+  announcements      Announcement[]
+  notifications      Notification[]
+  digitalMaterials   DigitalMaterial[]
 
   @@map("users")
 }
@@ -213,6 +216,7 @@ model Class {
   subjectTeachers SubjectTeacher[]
   timetables      Timetable[]
   assessments     Assessment[]
+  digitalMaterials DigitalMaterial[]
 
   @@unique([level, section])
   @@map("classes")
@@ -247,6 +251,7 @@ model Subject {
   results         Result[]
   timetables      Timetable[]
   assessments     Assessment[]
+  digitalMaterials DigitalMaterial[]
 
   @@map("subjects")
 }
@@ -542,21 +547,60 @@ enum RequestStatus {
 // ─────────────────────────────────────────
 
 model Announcement {
-  id        String               @id @default(cuid())
-  title     String
-  body      String
-  audience  AnnouncementAudience @default(ALL)
-  classId   String?              // populated when audience = SPECIFIC_CLASS
-  createdAt DateTime             @default(now())
+  id             String         @id @default(cuid())
+  title          String
+  content        String
+  targetAudience TargetAudience
+  authorId       String
+  author         User           @relation(fields: [authorId], references: [id])
+  createdAt      DateTime       @default(now())
 
   @@map("announcements")
 }
 
-enum AnnouncementAudience {
+enum TargetAudience {
   ALL
   TEACHERS
   PARENTS
-  SPECIFIC_CLASS
+  STUDENTS
+}
+
+// ─────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  type      String
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────
+// DIGITAL MATERIALS
+// ─────────────────────────────────────────
+
+model DigitalMaterial {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  fileUrl     String
+  fileType    String
+  uploaderId  String
+  uploader    User     @relation(fields: [uploaderId], references: [id])
+  classId     String?
+  class       Class?   @relation(fields: [classId], references: [id])
+  subjectId   String?
+  subject     Subject? @relation(fields: [subjectId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@map("digital_materials")
 }
 
 // ─────────────────────────────────────────

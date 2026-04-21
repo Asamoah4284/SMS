@@ -547,14 +547,16 @@ function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
 
   useEffect(() => {
     if (!isOpen) return;
-    setForm({
-      name: structure?.name ?? '',
-      amount: structure?.amount?.toString() ?? '',
-      category: (structure?.category ?? 'TUITION') as FeeCategory,
-      notes: structure?.notes ?? '',
-      classLevel: structure?.classLevel ?? '',
+    Promise.resolve().then(() => {
+      setForm({
+        name: structure?.name ?? '',
+        amount: structure?.amount?.toString() ?? '',
+        category: (structure?.category ?? 'TUITION') as FeeCategory,
+        notes: structure?.notes ?? '',
+        classLevel: structure?.classLevel ?? '',
+      });
+      setError('');
     });
-    setError('');
   }, [isOpen, structure]);
 
   const handleSubmit = async (e: React.FormEvent) => {
