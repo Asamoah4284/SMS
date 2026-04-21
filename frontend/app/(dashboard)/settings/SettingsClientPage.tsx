@@ -83,7 +83,7 @@ export default function SettingsClientPage() {
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-gray-100 pb-px">
         {tabs.map(tab => {
-          if (tab.adminOnly) {
+          if ('adminOnly' in tab && tab.adminOnly) {
             return (
               <AdminOnly key={tab.id}>
                 <button

@@ -28,7 +28,7 @@ export default function AnnouncementsClient() {
   const [newContent, setNewContent] = useState('');
   const [newAudience, setNewAudience] = useState<'ALL' | 'TEACHERS' | 'STUDENTS' | 'PARENTS'>('ALL');
 
-  const canCreate = user?.role === 'SUPER_ADMIN' || user?.role === 'SCHOOL_ADMIN' || user?.role === 'TEACHER';
+  const canCreate = user?.role === 'ADMIN' || user?.role === 'TEACHER';
 
   useEffect(() => {
     fetchAnnouncements();
@@ -126,7 +126,7 @@ export default function AnnouncementsClient() {
               <select 
                 className="w-full border rounded p-2"
                 value={newAudience}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewAudience(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewAudience(e.target.value as 'ALL' | 'TEACHERS' | 'STUDENTS' | 'PARENTS')}
               >
                 <option value="ALL">All</option>
                 <option value="TEACHERS">Teachers</option>
@@ -135,7 +135,7 @@ export default function AnnouncementsClient() {
               </select>
             </div>
             <div className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+              <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
               <Button type="submit">Submit</Button>
             </div>
           </form>
