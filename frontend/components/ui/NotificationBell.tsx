@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Bell } from 'lucide-react';
-import api from '@/lib/api';
+import { api } from '@/lib/api';
 
 export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -11,11 +11,11 @@ export function NotificationBell() {
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const res = await api.get('/notifications');
-        // Assume API returns { data: [...] } and unread are counted, or { unreadCount: N }
-        // Let's assume an array of notifications with an `isRead` property
-        const notifications = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-        const unread = notifications.filter((n: { isRead: boolean }) => !n.isRead).length;
+        const res = await api.get<{ data: { isRead: boolean }[] } | { isRead: boolean }[]>('/notifications');
+        const notifications: { isRead: boolean }[] = Array.isArray(res)
+          ? res
+          : (res as { data: { isRead: boolean }[] }).data ?? [];
+        const unread = notifications.filter((n) => !n.isRead).length;
         setUnreadCount(unread);
       } catch (error) {
         console.error('Failed to fetch notifications', error);
@@ -30,7 +30,7 @@ export function NotificationBell() {
     if (unreadCount === 0) return;
     try {
       // Assuming a blanket endpoint to mark all as read or handling it on click
-      await api.post('/notifications/mark-all-read');
+      await api.post('/notifications/mark-all-read', {});
       setUnreadCount(0);
     } catch (error) {
       console.error('Failed to mark notifications as read', error);
