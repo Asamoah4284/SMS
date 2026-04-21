@@ -549,9 +549,9 @@ enum RequestStatus {
 model Announcement {
   id             String         @id @default(cuid())
   title          String
-  content        String
-  targetAudience TargetAudience
-  authorId       String
+  content        String         
+  targetAudience TargetAudience 
+  authorId       String         
   author         User           @relation(fields: [authorId], references: [id])
   createdAt      DateTime       @default(now())
 
