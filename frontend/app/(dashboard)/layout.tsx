@@ -28,7 +28,6 @@ function DashboardHeader({ onMenuClick }: { onMenuClick: () => void }) {
           <Menu className="w-5 h-5" />
         </button>
       </div>
-
       <div className="flex items-center gap-6">
         <NotificationBell />
         <div className="h-8 w-px bg-gray-200 hidden sm:block" />
