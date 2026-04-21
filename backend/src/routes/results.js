@@ -424,15 +424,36 @@ router.post('/generate', async (req, res) => {
     for (const [sid, data] of Object.entries(bySubject)) {
       const studentScores = students.map((st) => {
         let total = 0;
+        let classScoreTotal = 0;
+        let examScoreTotal = 0;
+        
         for (const comp of data.components) {
           const rawScore = scoresByAssessment[comp.assessmentId][st.id] ?? null;
           const effective = rawScore === null ? 0 : rawScore; // ABS = 0
           const scaled = (effective / comp.assessment.totalMark) * parseFloat(comp.weight);
           total += scaled;
+
+          if (comp.assessment.type === 'TEST') {
+            classScoreTotal += scaled;
+          } else if (comp.assessment.type === 'EXAM') {
+            examScoreTotal += scaled;
+          }
         }
         total = Math.round(total * 100) / 100; // round to 2dp
+        const classScore = Math.round(classScoreTotal * 100) / 100;
+        const examScore = Math.round(examScoreTotal * 100) / 100;
+
         const { grade, remark } = gesGrade(total);
-        return { studentId: st.id, subjectId: sid, totalScore: total, grade, remark, _score: total };
+        return { 
+          studentId: st.id, 
+          subjectId: sid, 
+          totalScore: total, 
+          classScore, 
+          examScore, 
+          grade, 
+          remark, 
+          _score: total 
+        };
       });
 
       // Assign positions for this subject
@@ -442,6 +463,8 @@ router.post('/generate', async (req, res) => {
           studentId: item.studentId,
           subjectId: item.subjectId,
           totalScore: item.totalScore,
+          classScore: item.classScore,
+          examScore: item.examScore,
           grade: item.grade,
           remarks: item.remark,
           position: item._position,
@@ -490,6 +513,8 @@ router.post('/generate', async (req, res) => {
           subjectId: r.subjectId,
           termId,
           totalScore: r.totalScore,
+          classScore: r.classScore,
+          examScore: r.examScore,
           grade: r.grade,
           position: r.position,
           remarks: r.remarks,
@@ -497,6 +522,8 @@ router.post('/generate', async (req, res) => {
         },
         update: {
           totalScore: r.totalScore,
+          classScore: r.classScore,
+          examScore: r.examScore,
           grade: r.grade,
           position: r.position,
           remarks: r.remarks,

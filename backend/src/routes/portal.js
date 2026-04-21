@@ -164,6 +164,8 @@ router.get('/child/:studentId', authenticateParent, async (req, res) => {
         subject: r.subject.name,
         termId: r.termId,
         term: `${r.term.name} ${r.term.year}`,
+        classScore: r.classScore,
+        examScore: r.examScore,
         totalScore: r.totalScore,
         grade: r.grade,
         remarks: r.remarks,
