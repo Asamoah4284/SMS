@@ -20,9 +20,11 @@ function authenticateParent(req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (decoded.role !== 'PARENT') return res.status(403).json({ error: 'Access denied' });
-    req.parentPhone = decoded.phone;
+    
+    // Ensure we have a consistent format for the phone in the request
+    req.parentPhone = normalisePhone(decoded.phone) || decoded.phone;
     next();
-  } catch {
+  } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
@@ -30,7 +32,8 @@ function authenticateParent(req, res, next) {
 function parentPhoneVariants(parentPhone) {
   const localPhone = normalisePhone(parentPhone) || parentPhone;
   const e164Phone = '+233' + localPhone.slice(1);
-  return [...new Set([localPhone, e164Phone, parentPhone])];
+  const rawDigits = parentPhone.replace(/\D/g, '');
+  return [...new Set([localPhone, e164Phone, parentPhone, rawDigits])];
 }
 
 module.exports = { authenticateParent, normalisePhone, parentPhoneVariants };
