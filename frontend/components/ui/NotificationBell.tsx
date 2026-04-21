@@ -34,7 +34,7 @@ export function NotificationBell() {
       setUnreadCount(0);
     } catch (error) {
       console.error('Failed to mark notifications as read', error);
-      // Optimistically clear it anyway
+      // Optimistically clear it anyways
       setUnreadCount(0);
     }
   };
