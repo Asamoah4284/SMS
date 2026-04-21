@@ -78,6 +78,14 @@ SMS/
 4. Set up the database and run migrations
 5. Deploy
 
+If you are deploying the backend on Render, keep Prisma generation tied to install and run migrations as a separate deploy step:
+
+- Install Command: `npm install`
+- Build Command: `npx prisma migrate deploy`
+- Start Command: `npm start`
+
+The backend already runs `prisma generate` during install via `backend/package.json`, so you do not need to add it again to the Render build command unless your deploy setup skips install hooks.
+
 ---
 
 ## Getting Started (Development)
