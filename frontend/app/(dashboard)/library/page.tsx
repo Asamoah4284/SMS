@@ -30,7 +30,7 @@ export default function LibraryPage() {
   const [newDesc, setNewDesc] = useState('');
   const [newFileUrl, setNewFileUrl] = useState('');
 
-  const canUpload = user?.role === 'SUPER_ADMIN' || user?.role === 'SCHOOL_ADMIN' || user?.role === 'TEACHER';
+  const canUpload = user?.role === 'ADMIN' || user?.role === 'TEACHER';
 
   useEffect(() => {
     fetchLibrary();
@@ -142,7 +142,7 @@ export default function LibraryPage() {
               required 
             />
             <div className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+              <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
               <Button type="submit">Upload</Button>
             </div>
           </form>
