@@ -1276,7 +1276,16 @@ async function seedAnnouncements() {
   for (const a of ANNOUNCEMENTS_DATA) {
     const existing = await prisma.announcement.findFirst({ where: { title: a.title } });
     if (existing) continue;
-    await prisma.announcement.create({ data: a });
+
+    // Destructure body out and pass everything else as 'content'
+    const { body, ...rest } = a;
+
+    await prisma.announcement.create({ 
+      data: {
+        ...rest,
+        content: body // Maps your data's 'body' to Prisma's required 'content' field
+      } 
+    });
     created++;
   }
   console.log(`  ✓ ${created} announcements created`);
