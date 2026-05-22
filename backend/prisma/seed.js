@@ -1273,24 +1273,39 @@ async function seedFeePayments(allStudents, classes, feeStructures, terms) {
 async function seedAnnouncements() {
   console.log('\n📢 Seeding announcements...');
   let created = 0;
+
+  // 1. Find the admin user we created earlier to use as the author
+  const adminUser = await prisma.user.findFirst({
+    where: { email: 'e.asante@eaglesnest.edu.gh' } // Using the email from ADMIN_DATA
+  });
+
+  if (!adminUser) {
+    console.log('  ✗ Could not find admin user to assign as author of announcements.');
+    return;
+  }
+
   for (const a of ANNOUNCEMENTS_DATA) {
     const existing = await prisma.announcement.findFirst({ where: { title: a.title } });
     if (existing) continue;
 
-    // Destructure both mismatched fields out
     const { body, audience, ...rest } = a;
 
     await prisma.announcement.create({ 
       data: {
         ...rest,
-        content: body,          // Maps 'body' to your schema's 'content'
-        targetAudience: audience // Maps 'audience' to your schema's required 'targetAudience'
+        content: body,
+        targetAudience: audience,
+        // 2. Connect the required author relation using the admin's ID
+        author: {
+          connect: { id: adminUser.id }
+        }
       } 
     });
     created++;
   }
   console.log(`  ✓ ${created} announcements created`);
 }
+
 async function seedTerm2Assessments(allStudents, classes, subjects, term2, adminTeacher) {
   console.log('\n📋 Seeding Term 2 in-progress assessments (JHS classes)...');
   const classesForAssessments = ['JHS 1','JHS 2','JHS 3'];
