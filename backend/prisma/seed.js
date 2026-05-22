@@ -1277,20 +1277,20 @@ async function seedAnnouncements() {
     const existing = await prisma.announcement.findFirst({ where: { title: a.title } });
     if (existing) continue;
 
-    // Destructure body out and pass everything else as 'content'
-    const { body, ...rest } = a;
+    // Destructure both mismatched fields out
+    const { body, audience, ...rest } = a;
 
     await prisma.announcement.create({ 
       data: {
         ...rest,
-        content: body // Maps your data's 'body' to Prisma's required 'content' field
+        content: body,          // Maps 'body' to your schema's 'content'
+        targetAudience: audience // Maps 'audience' to your schema's required 'targetAudience'
       } 
     });
     created++;
   }
   console.log(`  ✓ ${created} announcements created`);
 }
-
 async function seedTerm2Assessments(allStudents, classes, subjects, term2, adminTeacher) {
   console.log('\n📋 Seeding Term 2 in-progress assessments (JHS classes)...');
   const classesForAssessments = ['JHS 1','JHS 2','JHS 3'];
