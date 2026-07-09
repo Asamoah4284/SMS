@@ -2,6 +2,10 @@ const { Router } = require('express');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 const { recalculateAttemptScore } = require('../services/examGrading');
+const {
+  ensureAssessmentForOnlineExam,
+  syncAllAttemptsForOnlineExam,
+} = require('../services/onlineExamAssessmentSync');
 
 const router = Router();
 router.use(authenticate);
@@ -76,6 +80,7 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
       classId,
       subjectId,
       termId,
+      assessmentType,
     } = req.body;
 
     if (!title || !durationMinutes || !classId || !subjectId || !termId) {
@@ -83,6 +88,8 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
         message: 'title, durationMinutes, classId, subjectId, termId are required',
       });
     }
+
+    const type = assessmentType === 'TEST' ? 'TEST' : 'EXAM';
 
     const exam = await prisma.onlineExam.create({
       data: {
@@ -92,6 +99,7 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
         durationMinutes: parseInt(durationMinutes, 10),
         startAt: startAt ? new Date(startAt) : null,
         endAt: endAt ? new Date(endAt) : null,
+        assessmentType: type,
         classId,
         subjectId,
         termId,
@@ -130,6 +138,7 @@ router.put('/:id', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
       classId,
       subjectId,
       termId,
+      assessmentType,
     } = req.body;
 
     const data = {};
@@ -143,11 +152,26 @@ router.put('/:id', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
     if (classId != null) data.classId = classId;
     if (subjectId != null) data.subjectId = subjectId;
     if (termId != null) data.termId = termId;
+    if (assessmentType != null) data.assessmentType = assessmentType === 'TEST' ? 'TEST' : 'EXAM';
 
     const exam = await prisma.onlineExam.update({
       where: { id: req.params.id },
       data,
     });
+
+    if (assessmentType != null) {
+      const linked = await prisma.assessment.findUnique({ where: { onlineExamId: exam.id } });
+      if (linked) {
+        const scoreCount = await prisma.assessmentScore.count({ where: { assessmentId: linked.id } });
+        if (scoreCount === 0) {
+          await prisma.assessment.update({
+            where: { id: linked.id },
+            data: { type: exam.assessmentType },
+          });
+        }
+      }
+    }
+
     res.json(exam);
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ message: 'Exam not found' });
@@ -172,6 +196,9 @@ router.post('/:id/questions', authorize('ADMIN', 'TEACHER'), async (req, res, ne
     const { type, text, marks, order, modelAnswer, options } = req.body;
     if (!type || !text || marks == null) {
       return res.status(400).json({ message: 'type, text, marks are required' });
+    }
+    if (type === 'FILL_IN_BLANK' && !modelAnswer?.trim()) {
+      return res.status(400).json({ message: 'modelAnswer is required for fill-in-the-blank questions' });
     }
 
     const exam = await prisma.onlineExam.findUnique({
@@ -243,6 +270,9 @@ router.put('/:examId/questions/:questionId', authorize('ADMIN', 'TEACHER'), asyn
     }
 
     const { type, text, marks, order, modelAnswer, options } = req.body;
+    if (type === 'FILL_IN_BLANK' && modelAnswer !== undefined && !String(modelAnswer).trim()) {
+      return res.status(400).json({ message: 'modelAnswer is required for fill-in-the-blank questions' });
+    }
 
     const question = await prisma.$transaction(async (tx) => {
       const data = {};
@@ -329,6 +359,10 @@ router.post('/:id/publish', authorize('ADMIN', 'TEACHER'), async (req, res, next
       where: { id: req.params.id },
       data: { status: 'PUBLISHED' },
     });
+
+    await ensureAssessmentForOnlineExam(updated.id);
+    await syncAllAttemptsForOnlineExam(updated.id);
+
     res.json(updated);
   } catch (err) {
     next(err);

@@ -1,4 +1,21 @@
 const prisma = require('../config/db');
+const { syncAttemptToAssessment } = require('./onlineExamAssessmentSync');
+
+function normalizeFillAnswer(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** Accept model answers separated by | , or ; */
+function fillInBlankMatches(studentAnswer, modelAnswer) {
+  if (!modelAnswer) return false;
+  const normalized = normalizeFillAnswer(studentAnswer);
+  if (!normalized) return false;
+  const acceptable = modelAnswer
+    .split(/[|,;]/)
+    .map(normalizeFillAnswer)
+    .filter(Boolean);
+  return acceptable.includes(normalized);
+}
 
 /**
  * Grade objective answers for an attempt. Theory questions stay null until manually graded.
@@ -22,6 +39,18 @@ async function autoGradeAttempt(attemptId) {
 
     if (question.type === 'THEORY') {
       hasTheoryPending = true;
+      continue;
+    }
+
+    if (question.type === 'FILL_IN_BLANK') {
+      const marks = fillInBlankMatches(answer.textAnswer, question.modelAnswer)
+        ? question.marks
+        : 0;
+      await prisma.examAnswer.update({
+        where: { id: answer.id },
+        data: { marksAwarded: marks },
+      });
+      totalScore += marks;
       continue;
     }
 
@@ -71,6 +100,10 @@ async function autoGradeAttempt(attemptId) {
     },
   });
 
+  if (status !== 'IN_PROGRESS') {
+    await syncAttemptToAssessment(attemptId);
+  }
+
   return { totalScore, status };
 }
 
@@ -109,6 +142,10 @@ async function recalculateAttemptScore(attemptId) {
     where: { id: attemptId },
     data: { score: totalScore, status },
   });
+
+  if (status !== 'IN_PROGRESS') {
+    await syncAttemptToAssessment(attemptId);
+  }
 
   return { totalScore, status };
 }
