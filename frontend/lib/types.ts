@@ -17,7 +17,8 @@ export type ClassLevel =
   | 'CRECHE'
   | 'NURSERY_1' | 'NURSERY_2'
   | 'KG_1' | 'KG_2'
-  | 'YEAR_1' | 'YEAR_2' | 'YEAR_3' | 'YEAR_4' | 'YEAR_5' | 'YEAR_6' | 'YEAR_7' | 'YEAR_8'
+  | 'YEAR_1' | 'YEAR_2' | 'YEAR_3' | 'YEAR_4'
+  | 'YEAR_5' | 'YEAR_6' | 'YEAR_7' | 'YEAR_8'
   | 'BASIC_1' | 'BASIC_2' | 'BASIC_3'
   | 'BASIC_4' | 'BASIC_5' | 'BASIC_6'
   | 'JHS_1' | 'JHS_2' | 'JHS_3';

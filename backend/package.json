@@ -13,6 +13,7 @@
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
     "db:import": "node src/scripts/import-seed-data.js",
+    "students:renumber-ids": "node src/scripts/renumber-student-ids.js",
     "seed:admin": "node src/scripts/seed-admin.js",
     "seed:classes": "node src/scripts/seed-classes.js",
     "seed:subjects": "node src/scripts/seed-subjects.js",

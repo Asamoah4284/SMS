@@ -5,7 +5,7 @@ const { computeClassPositionByTerm } = require('../utils/classRanking');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 const { ensureStudentPortal, DEFAULT_STUDENT_PIN } = require('../utils/studentPortal');
-const { generateStudentId } = require('../utils/studentId');
+const { generateStudentId, renumberClassStudentIds } = require('../utils/studentId');
 
 const router = Router();
 router.use(authenticate);
@@ -126,23 +126,26 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
     }
 
     if (!classId) {
-      return res.status(400).json({ message: 'Class is required (used to generate student ID, e.g. DASE-7-001).' });
+      return res.status(400).json({ message: 'Class is required (used to generate student ID, e.g. DASE-Y1-001).' });
     }
 
     // Validate classId if provided
     const cls = await prisma.class.findUnique({ where: { id: classId } });
     if (!cls) return res.status(400).json({ message: 'Class not found' });
 
-    const studentId = await generateStudentId(prisma, classId);
-    const normPhone = normalisePhone(guardianPhone);
-
-    // Build the full name (include middle if provided)
     const fullFirst = middleName ? `${firstName} ${middleName}` : firstName;
+
+    const studentId = await generateStudentId(prisma, classId, {
+      firstName: fullFirst,
+      lastName,
+    });
 
     // Parent linking logic
     let parentId = null;
     let storedParentName = null;
     let storedParentPhone = null;
+
+    const normPhone = normalisePhone(guardianPhone);
 
     if (guardianPhone) {
       // Check if there's an existing User(PARENT) with this phone
@@ -187,25 +190,35 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
     });
 
     const portal = await ensureStudentPortal(prisma, student);
+    await renumberClassStudentIds(prisma, classId);
+    const refreshed = await prisma.student.findUnique({
+      where: { id: student.id },
+      include: {
+        class: { select: { id: true, name: true } },
+        parent: {
+          include: { user: { select: { firstName: true, lastName: true, phone: true } } },
+        },
+      },
+    });
 
     res.status(201).json({
       message: 'Student created successfully',
       student: {
-        id: student.id,
-        studentId: student.studentId,
-        firstName: student.firstName,
-        lastName: student.lastName,
-        gender: student.gender,
-        class: student.class,
+        id: refreshed.id,
+        studentId: refreshed.studentId,
+        firstName: refreshed.firstName,
+        lastName: refreshed.lastName,
+        gender: refreshed.gender,
+        class: refreshed.class,
         parentLinked: !!parentId,
-        parentName: student.parent
-          ? `${student.parent.user.firstName} ${student.parent.user.lastName}`
-          : student.parentName,
-        parentPhone: student.parent ? student.parent.user.phone : student.parentPhone,
+        parentName: refreshed.parent
+          ? `${refreshed.parent.user.firstName} ${refreshed.parent.user.lastName}`
+          : refreshed.parentName,
+        parentPhone: refreshed.parent ? refreshed.parent.user.phone : refreshed.parentPhone,
       },
       portal: {
         enabled: portal.portalEnabled,
-        studentId: portal.studentId,
+        studentId: refreshed.studentId,
         defaultPin: portal.defaultPin ?? null,
         loginPath: '/student/login',
       },
@@ -361,6 +374,7 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
     }
 
     const results = { imported: 0, failed: [] };
+    const touchedClassIds = new Set();
 
     for (let i = 0; i < students.length; i++) {
       const row = students[i];
@@ -381,7 +395,10 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
           continue;
         }
 
-        const studentId = await generateStudentId(prisma, row.classId);
+        const fullFirst = row.middleName
+          ? `${row.firstName} ${row.middleName}`
+          : row.firstName;
+
         const normPhone = normalisePhone(row.guardianPhone);
 
         let parentId = null;
@@ -403,9 +420,10 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
           }
         }
 
-        const fullFirst = row.middleName
-          ? `${row.firstName} ${row.middleName}`
-          : row.firstName;
+        const studentId = await generateStudentId(prisma, row.classId, {
+          firstName: fullFirst,
+          lastName: row.lastName,
+        });
 
         const student = await prisma.student.create({
           data: {
@@ -422,10 +440,15 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
           },
         });
         await ensureStudentPortal(prisma, student);
+        touchedClassIds.add(row.classId);
         results.imported++;
       } catch (rowErr) {
         results.failed.push({ row: rowNum, reason: rowErr.message });
       }
+    }
+
+    for (const classId of touchedClassIds) {
+      await renumberClassStudentIds(prisma, classId);
     }
 
     res.json(results);
