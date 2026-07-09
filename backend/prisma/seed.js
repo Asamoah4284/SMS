@@ -32,9 +32,12 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const { ensureStudentPortal } = require('../src/utils/studentPortal');
-const { generateStudentId, renumberClassStudentIds } = require('../src/utils/studentId');
+const { classLevelToCode, formatStudentId } = require('../src/utils/studentId');
 
 const prisma = new PrismaClient();
+
+/** Demo seed student IDs use ENIS-* so they never collide with DASE school imports. */
+const SEED_ID_PREFIX = 'ENIS';
 
 // ════════════════════════════════════════════════════════════════
 // CREDENTIALS  (change before production!)
@@ -832,42 +835,123 @@ async function seedStudents(classes) {
     const cls = classes[className];
     if (!cls) { console.warn(`  ⚠ Class "${className}" not found`); continue; }
 
+    // Sort seed roster alphabetically so IDs are stable across re-runs
+    const roster = [...studentList].sort((a, b) => {
+      const ka = `${a.lastName}\0${a.firstName}`.toLowerCase();
+      const kb = `${b.lastName}\0${b.firstName}`.toLowerCase();
+      return ka.localeCompare(kb);
+    });
+
     const created = [];
-    for (const s of studentList) {
+    for (let i = 0; i < roster.length; i++) {
+      const s = roster[i];
+
+      // Idempotent: same name already in this class → reuse (do not renumber DASE imports)
       const existing = await prisma.student.findFirst({
-        where: { firstName: s.firstName, lastName: s.lastName, classId: cls.id },
+        where: {
+          classId: cls.id,
+          firstName: { equals: s.firstName, mode: 'insensitive' },
+          lastName: { equals: s.lastName, mode: 'insensitive' },
+        },
       });
       if (existing) {
         created.push({ ...existing, _globalIdx: globalIdx++ });
         continue;
       }
 
-      const studentId = await generateStudentId(prisma, cls.id, {
-        firstName: s.firstName,
-        lastName: s.lastName,
-      });
+      const studentId = await nextSeedStudentId(prisma, cls, i + 1);
 
-      const student = await prisma.student.create({
-        data: {
-          studentId,
-          firstName:   s.firstName,
-          lastName:    s.lastName,
-          dateOfBirth: new Date(s.dob),
-          gender:      s.gender,
-          address:     s.address,
-          parentName:  s.parentName,
-          parentPhone: s.parentPhone,
-          classId:     cls.id,
-          isActive:    true,
-        },
-      });
+      let student;
+      try {
+        student = await prisma.student.create({
+          data: {
+            studentId,
+            firstName:   s.firstName,
+            lastName:    s.lastName,
+            dateOfBirth: new Date(s.dob),
+            gender:      s.gender,
+            address:     s.address,
+            parentName:  s.parentName,
+            parentPhone: s.parentPhone,
+            classId:     cls.id,
+            isActive:    true,
+          },
+        });
+      } catch (err) {
+        if (err?.code === 'P2002' && err?.meta?.target?.includes?.('studentId')) {
+          // ID taken — bump to next free ENIS id and retry once
+          const retryId = await nextSeedStudentId(prisma, cls, i + 1, true);
+          student = await prisma.student.create({
+            data: {
+              studentId:   retryId,
+              firstName:   s.firstName,
+              lastName:    s.lastName,
+              dateOfBirth: new Date(s.dob),
+              gender:      s.gender,
+              address:     s.address,
+              parentName:  s.parentName,
+              parentPhone: s.parentPhone,
+              classId:     cls.id,
+              isActive:    true,
+            },
+          });
+        } else if (err?.code === 'P2002') {
+          const again = await prisma.student.findFirst({
+            where: {
+              classId: cls.id,
+              firstName: { equals: s.firstName, mode: 'insensitive' },
+              lastName: { equals: s.lastName, mode: 'insensitive' },
+            },
+          });
+          if (again) {
+            created.push({ ...again, _globalIdx: globalIdx++ });
+            continue;
+          }
+          throw err;
+        } else {
+          throw err;
+        }
+      }
       created.push({ ...student, _globalIdx: globalIdx++ });
     }
-    await renumberClassStudentIds(prisma, cls.id);
+
     allStudents[className] = created;
     console.log(`  ✓ ${className}: ${created.length} students`);
   }
   return allStudents;
+}
+
+/**
+ * Allocate ENIS-{classCode}-{nnn} without touching / renumbering existing DASE students.
+ */
+async function nextSeedStudentId(prismaClient, cls, preferredSeq, forceNextFree = false) {
+  const classCode = classLevelToCode(cls.level, cls.name);
+  const head = `${SEED_ID_PREFIX}-${classCode}-`;
+
+  if (!forceNextFree) {
+    const candidate = formatStudentId(SEED_ID_PREFIX, classCode, preferredSeq);
+    const taken = await prismaClient.student.findUnique({ where: { studentId: candidate } });
+    if (!taken) return candidate;
+  }
+
+  const last = await prismaClient.student.findFirst({
+    where: { studentId: { startsWith: head } },
+    orderBy: { studentId: 'desc' },
+  });
+  let seq = preferredSeq;
+  if (last) {
+    const part = last.studentId.split('-').pop();
+    const n = parseInt(part, 10);
+    if (!Number.isNaN(n)) seq = Math.max(seq, n + 1);
+  }
+
+  // Walk forward until free (handles gaps / races)
+  for (let attempt = 0; attempt < 500; attempt++) {
+    const id = formatStudentId(SEED_ID_PREFIX, classCode, seq + attempt);
+    const taken = await prismaClient.student.findUnique({ where: { studentId: id } });
+    if (!taken) return id;
+  }
+  throw new Error(`Could not allocate free student ID under ${head}`);
 }
 
 async function seedStudentPortals(allStudents) {
@@ -887,7 +971,7 @@ async function seedStudentPortals(allStudents) {
   }
 
   console.log(`  ✓ ${created} portal accounts created, ${already} already existed`);
-  console.log(`  ✓ Login: Student ID (e.g. STM-2026-001) + PIN ${STUDENT_PW} at /student/login`);
+  console.log(`  ✓ Login: Student ID (e.g. ENIS-B3-001) + PIN ${STUDENT_PW} at /student/login`);
 }
 
 async function seedParents(allStudents, classes, passwordHash) {
@@ -1405,7 +1489,7 @@ async function main() {
   console.log(`   Admin:   0244100001 / ${ADMIN_PW}`);
   console.log(`   Teacher: 0244100002 / ${TEACHER_PW}  (any teacher phone)`);
   console.log(`   Parent:  0201001035 / ${PARENT_PW}   (any parent phone)`);
-  console.log(`   Student: DASE-7-001 / ${STUDENT_PW}  (Class 3 example — IDs are per class)`);
+  console.log(`   Student: ENIS-B3-001 / ${STUDENT_PW}  (Class 3 example — IDs are per class)`);
   console.log('            Portal: http://localhost:3000/student/login');
   console.log('');
 }

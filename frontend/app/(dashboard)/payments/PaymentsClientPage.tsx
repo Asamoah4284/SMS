@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AdminOnly, Alert, Badge, Button, PageHeader } from '@/components/ui';
 import {
-  Banknote,
   Loader2,
   RefreshCw,
   Wallet,
@@ -47,13 +46,10 @@ interface Transaction {
 
 interface Summary {
   availableBalanceGhs: number;
-  commissionRates: { feesPercent: number; booksPercent: number };
   totals: {
     feePayments: number;
     bookPayments: number;
     schoolCollectedGhs: number;
-    platformFeesGhs: number;
-    grossCollectedGhs: number;
   };
   pendingPayoutsGhs: number;
   pendingPayoutCount: number;
@@ -161,7 +157,7 @@ export default function PaymentsClientPage() {
       <div className="space-y-6">
         <PageHeader
           title="Payments"
-          subtitle="Online fee and library payments collected via Paystack. Amounts shown are what the school receives (before platform service fees paid by parents)."
+          subtitle="Online fee and library payments collected via Payment Provider."
           actions={
             <Button variant="secondary" size="sm" onClick={() => void loadData()} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -179,7 +175,7 @@ export default function PaymentsClientPage() {
           </div>
         ) : summary ? (
           <>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-teal-100 bg-teal-50/60 p-5">
                 <div className="flex items-center gap-2 text-teal-800 mb-2">
                   <Wallet className="h-5 w-5" />
@@ -199,17 +195,6 @@ export default function PaymentsClientPage() {
                   {summary.totals.feePayments} fee · {summary.totals.bookPayments} library payments
                 </p>
               </div>
-
-              <div className="rounded-2xl border border-gray-200 bg-white p-5">
-                <div className="flex items-center gap-2 text-gray-700 mb-2">
-                  <Banknote className="h-5 w-5" />
-                  <span className="text-sm font-semibold">Service fees (parents)</span>
-                </div>
-                <p className="text-2xl font-bold text-gray-900">{formatGhs(summary.totals.platformFeesGhs)}</p>
-                <p className="text-xs text-gray-500 mt-2">
-                  Fees {summary.commissionRates.feesPercent}% · Library {summary.commissionRates.booksPercent}%
-                </p>
-              </div>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
@@ -219,8 +204,7 @@ export default function PaymentsClientPage() {
                   <h2 className="text-lg font-bold text-gray-900">Request payout</h2>
                 </div>
                 <p className="text-sm text-gray-600 mb-4">
-                  The requested amount is deducted from your available balance immediately. Our team is notified by SMS
-                  and will process the transfer to your school account manually (Paystack, Moolre, or bank).
+                  The requested amount is deducted from your available balance immediately. The payment is processed and transferred to school account as soon as possible.
                   {!summary.payoutAlertsConfigured && (
                     <span className="text-amber-700">
                       {' '}
@@ -289,7 +273,7 @@ export default function PaymentsClientPage() {
             <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100">
                 <h2 className="text-lg font-bold text-gray-900">All payments</h2>
-                <p className="text-sm text-gray-500">Successful online payments — school amount only</p>
+                <p className="text-sm text-gray-500">Successful online payments</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
