@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Button, Input, Alert } from '@/components/ui';
 import { Lock, AlertCircle } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+import { getApiBase, parseApiError } from '@/lib/apiBase';
+
+const API = getApiBase();
 
 interface ChangePasswordFormProps {
   /** When true, user must change password before using the app (no cancel). */
@@ -62,7 +64,7 @@ export default function ChangePasswordForm({ required = false }: ChangePasswordF
         body: JSON.stringify({ currentPassword, newPassword: password }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.message || 'Failed to change password');
+      if (!res.ok) throw new Error(parseApiError(data, 'Failed to change password'));
 
       localStorage.removeItem('mustChangePassword');
       router.push('/overview');

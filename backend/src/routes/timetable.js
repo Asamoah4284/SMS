@@ -488,6 +488,7 @@ router.get('/child/:studentId', authorize('PARENT'), async (req, res) => {
 			const phoneVariants = [localPhone, e164Phone, req.user.phone].filter(Boolean);
 
 			hasAccess = phoneVariants.includes(student.parentPhone) ||
+				phoneVariants.includes(student.parent2Phone) ||
 				(student.parent?.user?.phone && phoneVariants.includes(student.parent.user.phone));
 		}
 

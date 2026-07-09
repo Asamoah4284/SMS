@@ -19,6 +19,8 @@ type AddForm = {
   guardianName: string;
   guardianPhone: string;
   guardianAddress: string;
+  guardian2Name: string;
+  guardian2Phone: string;
 };
 
 const EMPTY_FORM: AddForm = {
@@ -32,6 +34,8 @@ const EMPTY_FORM: AddForm = {
   guardianName: "",
   guardianPhone: "",
   guardianAddress: "",
+  guardian2Name: "",
+  guardian2Phone: "",
 };
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1";
@@ -160,6 +164,8 @@ export default function AddStudentPageClient() {
           guardianName: form.guardianName.trim() || undefined,
           guardianPhone: form.guardianPhone.trim() || undefined,
           guardianAddress: form.guardianAddress.trim() || undefined,
+          guardian2Name: form.guardian2Name.trim() || undefined,
+          guardian2Phone: form.guardian2Phone.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -325,25 +331,42 @@ export default function AddStudentPageClient() {
 
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Users className="w-3.5 h-3.5" /> Guardian / Parent
+              <Users className="w-3.5 h-3.5" /> Guardians
             </p>
             <p className="text-xs text-gray-500 mb-3 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-              If the guardian&apos;s phone matches an existing parent account, the
-              student will be linked automatically.
+              Each guardian phone can log into the parent portal. Add a second guardian when you have both parents&apos; details.
             </p>
+            <p className="text-xs font-semibold text-gray-600 mb-2">Guardian 1</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <Input
-                label="Guardian Name"
+                label="Name"
                 placeholder="e.g. Ama Mensah"
                 value={form.guardianName}
                 onChange={set("guardianName")}
               />
               <Input
-                label="Guardian Phone"
+                label="Phone"
                 placeholder="e.g. 0241234567"
                 type="tel"
                 value={form.guardianPhone}
                 onChange={set("guardianPhone")}
+                icon={<Phone className="w-4 h-4" />}
+              />
+            </div>
+            <p className="text-xs font-semibold text-gray-600 mb-2">Guardian 2 (optional)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <Input
+                label="Name"
+                placeholder="e.g. Kofi Mensah"
+                value={form.guardian2Name}
+                onChange={set("guardian2Name")}
+              />
+              <Input
+                label="Phone"
+                placeholder="e.g. 0551234567"
+                type="tel"
+                value={form.guardian2Phone}
+                onChange={set("guardian2Phone")}
                 icon={<Phone className="w-4 h-4" />}
               />
             </div>

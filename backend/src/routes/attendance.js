@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 const { sendSMS, templates } = require('../services/sms');
+const { studentGuardianPhones } = require('../middleware/parentPortalAuth');
 
 const router = Router();
 router.use(authenticate);
@@ -142,7 +143,7 @@ router.post('/students/mark', async (req, res) => {
     // Validate all studentIds belong to this class
     const cls = await prisma.class.findUnique({
       where: { id: classId },
-      select: { name: true, students: { where: { isActive: true }, select: { id: true, firstName: true, lastName: true, parentName: true, parentPhone: true, parent: { include: { user: { select: { firstName: true, lastName: true, phone: true } } } } } } },
+      select: { name: true, students: { where: { isActive: true }, select: { id: true, firstName: true, lastName: true, parentName: true, parentPhone: true, parent2Name: true, parent2Phone: true, parent: { include: { user: { select: { firstName: true, lastName: true, phone: true } } } } } } },
     });
     if (!cls) return res.status(404).json({ message: 'Class not found' });
 
@@ -167,19 +168,24 @@ router.post('/students/mark', async (req, res) => {
         for (const r of absentRecords) {
           const student = studentMap[r.studentId];
           if (!student) continue;
-          const parentPhone = student.parent?.user.phone ?? student.parentPhone;
-          const parentName = student.parent
+          const studentName = `${student.firstName} ${student.lastName}`;
+          const phones = studentGuardianPhones(student);
+          const primaryName = student.parent
             ? `${student.parent.user.firstName} ${student.parent.user.lastName}`
             : (student.parentName ?? 'Parent/Guardian');
-          const studentName = `${student.firstName} ${student.lastName}`;
-          if (parentPhone) {
+
+          for (const phone of phones) {
+            const guardianName =
+              phone === student.parent2Phone
+                ? (student.parent2Name ?? 'Parent/Guardian')
+                : primaryName;
             try {
               await sendSMS(
-                parentPhone,
-                templates.studentAbsent(parentName, studentName, cls.name, friendlyDate)
+                phone,
+                templates.studentAbsent(guardianName, studentName, cls.name, friendlyDate)
               );
             } catch (smsErr) {
-              console.error(`SMS failed for ${studentName}:`, smsErr.message);
+              console.error(`SMS failed for ${studentName} (${phone}):`, smsErr.message);
             }
           }
         }
@@ -190,7 +196,7 @@ router.post('/students/mark', async (req, res) => {
       message: 'Attendance marked successfully',
       marked: records.length,
       absent: absentRecords.length,
-      smsSent: absentRecords.filter((r) => studentMap[r.studentId]?.parent?.user.phone || studentMap[r.studentId]?.parentPhone).length,
+      smsSent: absentRecords.filter((r) => studentGuardianPhones(studentMap[r.studentId] || {}).length > 0).length,
     });
   } catch (err) {
     console.error('POST /attendance/students/mark', err);

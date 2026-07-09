@@ -200,6 +200,8 @@ model Student {
   address     String?
   parentName  String?   // Quick contact (no portal account needed)
   parentPhone String?   // Quick contact phone
+  parent2Name String?   // Second guardian (e.g. father / mother)
+  parent2Phone String?  // Second guardian phone — also grants parent portal access
   isActive    Boolean   @default(true)
   enrolledAt  DateTime  @default(now())
 

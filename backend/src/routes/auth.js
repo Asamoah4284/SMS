@@ -675,9 +675,15 @@ router.post(
       const e164Phone = '+233' + localPhone.slice(1);
       const phoneVariants = [...new Set([localPhone, e164Phone, digits])];
 
-      // Find students by parentPhone (quick-contact, no portal account)
+      // Find students by guardian phone (quick-contact, no portal account)
       const byParentPhone = await prisma.student.findMany({
-        where: { isActive: true, parentPhone: { in: phoneVariants } },
+        where: {
+          isActive: true,
+          OR: [
+            { parentPhone: { in: phoneVariants } },
+            { parent2Phone: { in: phoneVariants } },
+          ],
+        },
         select: {
           id: true,
           studentId: true,
@@ -882,6 +888,7 @@ router.get('/me', authenticate, async (req, res) => {
       select: {
         id: true,
         phone: true,
+        email: true,
         firstName: true,
         lastName: true,
         role: true,
@@ -920,6 +927,67 @@ router.get('/me', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch profile' });
   }
 });
+
+// ─────────────────────────────────────────────────────────────────
+// PUT /auth/me — update own profile (name, email)
+// ─────────────────────────────────────────────────────────────────
+
+router.put(
+  '/me',
+  authenticate,
+  [
+    body('firstName').optional().trim().notEmpty().withMessage('First name cannot be empty'),
+    body('lastName').optional().trim().notEmpty().withMessage('Last name cannot be empty'),
+    body('email').optional({ values: 'null' }).isEmail().withMessage('Invalid email address'),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { firstName, lastName, email } = req.body;
+      const data = {};
+
+      if (firstName !== undefined) data.firstName = firstName.trim();
+      if (lastName !== undefined) data.lastName = lastName.trim();
+      if (email !== undefined) data.email = email ? String(email).trim() : null;
+
+      const user = await prisma.user.update({
+        where: { id: req.user.id },
+        data,
+        select: {
+          id: true,
+          phone: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          mustChangePassword: true,
+          teacherProfile: {
+            select: {
+              id: true,
+              staffId: true,
+              classTeacherOf: {
+                select: { id: true, name: true, level: true },
+              },
+              subjectTeachers: {
+                select: {
+                  classId: true,
+                  class: { select: { id: true, name: true } },
+                  subjectId: true,
+                  subject: { select: { id: true, name: true } },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      res.json({ message: 'Profile updated', user });
+    } catch (err) {
+      console.error('PUT /auth/me', err);
+      res.status(500).json({ message: 'Failed to update profile' });
+    }
+  }
+);
 
 // ─────────────────────────────────────────────────────────────────
 // POST /auth/change-password — staff/admin change own password

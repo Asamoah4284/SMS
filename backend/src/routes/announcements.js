@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 const { sendAnnouncementPush } = require('../services/pushNotifications');
+const { notifyAnnouncement } = require('../services/inAppNotifications');
 
 const router = Router();
 
@@ -80,10 +81,21 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
       pushResult = await sendAnnouncementPush({ title, content, targetAudience });
     }
 
+    let inAppCount = 0;
+    if (['ALL', 'TEACHERS'].includes(targetAudience)) {
+      inAppCount = await notifyAnnouncement({
+        title,
+        content,
+        targetAudience,
+        authorId: req.user.id,
+      });
+    }
+
     res.status(201).json({
       ...announcement,
       authorName: authorName(announcement.author),
       push: pushResult,
+      inApp: { sent: inAppCount },
     });
   } catch (err) {
     next(err);

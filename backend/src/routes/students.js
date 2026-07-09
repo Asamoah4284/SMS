@@ -1,4 +1,7 @@
 const { Router } = require('express');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { totalDueFromPayments } = require('../utils/feeAccounting');
 const { computeClassPositionByTerm } = require('../utils/classRanking');
@@ -6,9 +9,38 @@ const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 const { ensureStudentPortal, DEFAULT_STUDENT_PIN } = require('../utils/studentPortal');
 const { generateStudentId, renumberClassStudentIds } = require('../utils/studentId');
+const {
+  primaryGuardianDisplay,
+  secondaryGuardianDisplay,
+  resolvePrimaryGuardian,
+  resolveSecondaryGuardian,
+} = require('../utils/studentGuardian');
 
 const router = Router();
 router.use(authenticate);
+
+const uploadDir = path.join(__dirname, '../../uploads');
+const studentDocUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+      const kind = file.fieldname === 'healthInsuranceCard' ? 'insurance' : 'photo';
+      cb(null, `student-${req.params.id}-${kind}-${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: (parseInt(process.env.MAX_FILE_SIZE_MB, 10) || 5) * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok =
+      (file.mimetype && file.mimetype.startsWith('image/')) ||
+      file.mimetype === 'application/pdf';
+    if (ok) cb(null, true);
+    else cb(new Error('Only images (JPEG, PNG, WebP, GIF) or PDF are allowed'));
+  },
+});
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -57,19 +89,23 @@ router.get('/', async (req, res) => {
       }),
     ]);
 
-    const data = students.map((s) => ({
-      id: s.id,
-      studentId: s.studentId,
-      firstName: s.firstName,
-      lastName: s.lastName,
-      gender: s.gender,
-      isActive: s.isActive,
-      class: s.class,
-      parentName: s.parent
-        ? `${s.parent.user.firstName} ${s.parent.user.lastName}`
-        : s.parentName || null,
-      parentPhone: s.parent ? s.parent.user.phone : s.parentPhone || null,
-    }));
+    const data = students.map((s) => {
+      const primary = primaryGuardianDisplay(s);
+      const secondary = secondaryGuardianDisplay(s);
+      return {
+        id: s.id,
+        studentId: s.studentId,
+        firstName: s.firstName,
+        lastName: s.lastName,
+        gender: s.gender,
+        isActive: s.isActive,
+        class: s.class,
+        parentName: primary.name,
+        parentPhone: primary.phone,
+        parent2Name: secondary.name,
+        parent2Phone: secondary.phone,
+      };
+    });
 
     res.json({ data, meta: { total, page, limit, pages: Math.ceil(total / limit) } });
   } catch (err) {
@@ -93,6 +129,8 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
       guardianName,
       guardianPhone,
       guardianAddress,
+      guardian2Name,
+      guardian2Phone,
     } = req.body;
 
     // Class teachers can only add students to their own class.
@@ -140,33 +178,14 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
       lastName,
     });
 
-    // Parent linking logic
-    let parentId = null;
-    let storedParentName = null;
-    let storedParentPhone = null;
-
-    const normPhone = normalisePhone(guardianPhone);
-
-    if (guardianPhone) {
-      // Check if there's an existing User(PARENT) with this phone
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          phone: { in: [guardianPhone, normPhone].filter(Boolean) },
-          role: 'PARENT',
-        },
-        include: { parentProfile: true },
-      });
-
-      if (existingUser?.parentProfile) {
-        parentId = existingUser.parentProfile.id;
-      } else {
-        // No portal account — store denormalised quick-contact
-        storedParentName = guardianName || null;
-        storedParentPhone = normPhone || guardianPhone;
-      }
-    } else if (guardianName) {
-      storedParentName = guardianName;
-    }
+    const primary = await resolvePrimaryGuardian(prisma, {
+      name: guardianName,
+      phone: guardianPhone,
+    });
+    const secondary = resolveSecondaryGuardian({
+      name: guardian2Name,
+      phone: guardian2Phone,
+    });
 
     const student = await prisma.student.create({
       data: {
@@ -177,9 +196,11 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
         gender,
         address: address || null,
         classId: classId || null,
-        parentId,
-        parentName: storedParentName,
-        parentPhone: storedParentPhone,
+        parentId: primary.parentId,
+        parentName: primary.parentName,
+        parentPhone: primary.parentPhone,
+        parent2Name: secondary.parent2Name,
+        parent2Phone: secondary.parent2Phone,
       },
       include: {
         class: { select: { id: true, name: true } },
@@ -210,11 +231,13 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
         lastName: refreshed.lastName,
         gender: refreshed.gender,
         class: refreshed.class,
-        parentLinked: !!parentId,
+        parentLinked: !!primary.parentId,
         parentName: refreshed.parent
           ? `${refreshed.parent.user.firstName} ${refreshed.parent.user.lastName}`
           : refreshed.parentName,
         parentPhone: refreshed.parent ? refreshed.parent.user.phone : refreshed.parentPhone,
+        parent2Name: refreshed.parent2Name,
+        parent2Phone: refreshed.parent2Phone,
       },
       portal: {
         enabled: portal.portalEnabled,
@@ -316,6 +339,47 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// ─── POST /students/:id/upload — child photo & insurance card (multipart) ───
+router.post('/:id/upload', authorize('ADMIN'), (req, res) => {
+  studentDocUpload.fields([
+    { name: 'photo', maxCount: 1 },
+    { name: 'healthInsuranceCard', maxCount: 1 },
+  ])(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ message: err.message || 'Upload failed' });
+    }
+    try {
+      const existing = await prisma.student.findUnique({ where: { id: req.params.id } });
+      if (!existing) return res.status(404).json({ message: 'Student not found' });
+
+      const files = req.files || {};
+      const data = {};
+      const base = `${req.protocol}://${req.get('host')}/uploads`;
+
+      if (files.photo?.[0]) {
+        data.photo = `${base}/${files.photo[0].filename}`;
+      }
+      if (files.healthInsuranceCard?.[0]) {
+        data.healthInsuranceCard = `${base}/${files.healthInsuranceCard[0].filename}`;
+      }
+
+      if (Object.keys(data).length === 0) {
+        return res.status(400).json({ message: 'No files provided (fields: photo, healthInsuranceCard)' });
+      }
+
+      const student = await prisma.student.update({
+        where: { id: req.params.id },
+        data,
+      });
+
+      res.json({ message: 'Files uploaded', ...data, student });
+    } catch (uploadErr) {
+      console.error('POST /students/:id/upload', uploadErr);
+      res.status(500).json({ message: 'Failed to save uploaded files' });
+    }
+  });
+});
+
 // ─── PUT /students/:id ───────────────────────────────────────────────────────
 router.put('/:id', authorize('ADMIN'), async (req, res) => {
   try {
@@ -330,6 +394,10 @@ router.put('/:id', authorize('ADMIN'), async (req, res) => {
       isActive,
       photo,
       healthInsuranceCard,
+      parentName,
+      parentPhone,
+      parent2Name,
+      parent2Phone,
     } = req.body;
 
     const existing = await prisma.student.findUnique({ where: { id: req.params.id } });
@@ -342,6 +410,11 @@ router.put('/:id', authorize('ADMIN'), async (req, res) => {
           : firstName
         : undefined;
 
+    const normParentPhone =
+      parentPhone !== undefined ? normalisePhone(parentPhone) || parentPhone || null : undefined;
+    const normParent2Phone =
+      parent2Phone !== undefined ? normalisePhone(parent2Phone) || parent2Phone || null : undefined;
+
     const updated = await prisma.student.update({
       where: { id: req.params.id },
       data: {
@@ -349,16 +422,35 @@ router.put('/:id', authorize('ADMIN'), async (req, res) => {
         ...(lastName !== undefined && { lastName }),
         ...(dateOfBirth !== undefined && { dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null }),
         ...(gender !== undefined && { gender }),
-        ...(address !== undefined && { address }),
+        ...(address !== undefined && { address: address || null }),
         ...(classId !== undefined && { classId: classId || null }),
         ...(isActive !== undefined && { isActive }),
         ...(photo !== undefined && { photo: photo || null }),
         ...(healthInsuranceCard !== undefined && { healthInsuranceCard: healthInsuranceCard || null }),
+        ...(parentName !== undefined && !existing.parentId && { parentName: parentName || null }),
+        ...(normParentPhone !== undefined && !existing.parentId && { parentPhone: normParentPhone }),
+        ...(parent2Name !== undefined && { parent2Name: parent2Name || null }),
+        ...(normParent2Phone !== undefined && { parent2Phone: normParent2Phone }),
       },
       include: { class: { select: { id: true, name: true } } },
     });
 
-    res.json({ message: 'Student updated', student: updated });
+    if (classId !== undefined && classId !== existing.classId) {
+      if (existing.classId) await renumberClassStudentIds(prisma, existing.classId);
+      if (classId) await renumberClassStudentIds(prisma, classId);
+    } else if (
+      (fullFirst !== undefined || lastName !== undefined) &&
+      updated.classId
+    ) {
+      await renumberClassStudentIds(prisma, updated.classId);
+    }
+
+    const refreshed = await prisma.student.findUnique({
+      where: { id: req.params.id },
+      include: { class: { select: { id: true, name: true } } },
+    });
+
+    res.json({ message: 'Student updated', student: refreshed });
   } catch (err) {
     console.error('PUT /students/:id', err);
     res.status(500).json({ message: 'Failed to update student' });
@@ -399,26 +491,14 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
           ? `${row.firstName} ${row.middleName}`
           : row.firstName;
 
-        const normPhone = normalisePhone(row.guardianPhone);
-
-        let parentId = null;
-        let storedParentName = row.guardianName || null;
-        let storedParentPhone = normPhone || row.guardianPhone || null;
-
-        if (row.guardianPhone) {
-          const existingUser = await prisma.user.findFirst({
-            where: {
-              phone: { in: [row.guardianPhone, normPhone].filter(Boolean) },
-              role: 'PARENT',
-            },
-            include: { parentProfile: true },
-          });
-          if (existingUser?.parentProfile) {
-            parentId = existingUser.parentProfile.id;
-            storedParentName = null;
-            storedParentPhone = null;
-          }
-        }
+        const primary = await resolvePrimaryGuardian(prisma, {
+          name: row.guardianName,
+          phone: row.guardianPhone,
+        });
+        const secondary = resolveSecondaryGuardian({
+          name: row.guardian2Name,
+          phone: row.guardian2Phone,
+        });
 
         const studentId = await generateStudentId(prisma, row.classId, {
           firstName: fullFirst,
@@ -434,9 +514,11 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
             gender: String(row.gender).toUpperCase(),
             address: row.address || null,
             classId: row.classId || null,
-            parentId,
-            parentName: storedParentName,
-            parentPhone: storedParentPhone,
+            parentId: primary.parentId,
+            parentName: primary.parentName,
+            parentPhone: primary.parentPhone,
+            parent2Name: secondary.parent2Name,
+            parent2Phone: secondary.parent2Phone,
           },
         });
         await ensureStudentPortal(prisma, student);

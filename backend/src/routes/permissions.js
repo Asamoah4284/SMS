@@ -2,6 +2,10 @@ const { Router } = require('express');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 const { sendSMS, templates } = require('../services/sms');
+const {
+  notifyLeaveRequestSubmitted,
+  notifyLeaveRequestProcessed,
+} = require('../services/inAppNotifications');
 
 const router = Router();
 router.use(authenticate);
@@ -85,6 +89,19 @@ router.post('/', async (req, res) => {
         status: 'PENDING',
         userId: req.user.id,
       },
+      include: {
+        user: { select: { firstName: true, lastName: true } },
+      },
+    });
+
+    const teacherName = `${request.user.firstName} ${request.user.lastName}`.trim();
+    setImmediate(() => {
+      notifyLeaveRequestSubmitted({
+        teacherName,
+        type,
+        startDate: start,
+        endDate: end,
+      }).catch((err) => console.error('Leave request notification error:', err));
     });
 
     res.status(201).json({ message: 'Leave request submitted', request });
@@ -161,6 +178,14 @@ router.put('/:id', authorize('ADMIN'), async (req, res) => {
       : templates.permissionRejected(teacherName, adminNote || 'No reason provided');
 
     setImmediate(() => sendSMS(request.user.phone, message).catch(() => {}));
+
+    setImmediate(() => {
+      notifyLeaveRequestProcessed({
+        userId: request.userId,
+        status,
+        adminNote,
+      }).catch((err) => console.error('Leave update notification error:', err));
+    });
 
     res.json({ message: `Leave request ${status.toLowerCase()}`, request: updated });
   } catch (err) {

@@ -21,6 +21,7 @@ export interface TeacherProfile {
 export interface AppUser {
   id: string;
   phone: string;
+  email?: string | null;
   firstName: string;
   lastName: string;
   role: 'ADMIN' | 'TEACHER' | 'PARENT';
@@ -103,6 +104,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('user', JSON.stringify({
           id: fullUser.id,
           phone: fullUser.phone,
+          email: fullUser.email,
           firstName: fullUser.firstName,
           lastName: fullUser.lastName,
           role: fullUser.role,

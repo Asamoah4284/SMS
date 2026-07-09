@@ -103,7 +103,8 @@ export default function AnnouncementsClient() {
 
       {canCreate && (
         <p className="text-sm text-gray-600">
-          Posts to <strong>Parents</strong> or <strong>All</strong> send a push notification to the parent app (Android via FCM, iOS via APNs).
+          Posts to <strong>Parents</strong> or <strong>All</strong> send a push notification to the parent app.
+          Posts to <strong>Teachers</strong> or <strong>All</strong> also alert staff in the dashboard bell.
         </p>
       )}
       

@@ -81,6 +81,8 @@ interface StudentData {
   enrolledAt: string;
   parentName: string | null;
   parentPhone: string | null;
+  parent2Name: string | null;
+  parent2Phone: string | null;
   class: {
     id: string;
     name: string;
@@ -102,10 +104,12 @@ type Tab = 'overview' | 'attendance' | 'results' | 'fees';
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function StudentDetail({ studentId }: { studentId: string }) {
+  const { isAdmin } = useUser();
   const [student, setStudent] = useState<StudentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [editModal, setEditModal] = useState(false);
 
   const fetchStudent = useCallback(async () => {
     setLoading(true);
@@ -180,6 +184,8 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
     ? `${student.parent.user.firstName} ${student.parent.user.lastName}`
     : student.parentName;
   const parentPhone = student.parent?.user.phone ?? student.parentPhone;
+  const parent2Name = student.parent2Name;
+  const parent2Phone = student.parent2Phone;
   const parentLinked = !!student.parent;
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
@@ -191,37 +197,62 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-[1200px] mx-auto animate-fade-in space-y-5">
-      {/* Back */}
-      <Link href="/students" className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium">
-        ← Back to Students
-      </Link>
+      {/* Back + admin actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href="/students" className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium">
+          ← Back to Students
+        </Link>
+        {isAdmin && (
+          <Button variant="primary" size="sm" onClick={() => setEditModal(true)}>
+            <Pencil className="w-4 h-4" /> Edit student
+          </Button>
+        )}
+      </div>
 
       {/* Profile Header */}
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-sm">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
           <div className="flex gap-4 min-w-0 flex-1">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-lg sm:text-xl shrink-0">
-              {initials}
+            <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-lg sm:text-xl shrink-0">
+              {student.photo ? (
+                <Image
+                  src={student.photo}
+                  alt=""
+                  fill
+                  className="object-cover"
+                  sizes="64px"
+                  unoptimized
+                />
+              ) : (
+                initials
+              )}
             </div>
             <div className="min-w-0 flex-1 space-y-3">
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words [overflow-wrap:anywhere] leading-snug">
-                  {fullName}
-                </h1>
-                <div className="flex flex-wrap items-center gap-2 mt-2">
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
-                      student.isActive
-                        ? 'bg-success-50 text-success-700 border-success-100'
-                        : 'bg-gray-50 text-gray-700 border-gray-200'
-                    }`}
-                  >
-                    {student.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border bg-gray-50 text-gray-700 border-gray-200">
-                    {student.gender === 'MALE' ? 'Male' : 'Female'}
-                  </span>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words [overflow-wrap:anywhere] leading-snug">
+                    {fullName}
+                  </h1>
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                        student.isActive
+                          ? 'bg-success-50 text-success-700 border-success-100'
+                          : 'bg-gray-50 text-gray-700 border-gray-200'
+                      }`}
+                    >
+                      {student.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border bg-gray-50 text-gray-700 border-gray-200">
+                      {student.gender === 'MALE' ? 'Male' : 'Female'}
+                    </span>
+                  </div>
                 </div>
+                {isAdmin && (
+                  <Button variant="primary" size="sm" onClick={() => setEditModal(true)} className="shrink-0">
+                    <Pencil className="w-4 h-4" /> Edit
+                  </Button>
+                )}
               </div>
               <div className="flex items-start gap-1.5 text-sm text-gray-500 font-mono">
                 <Hash className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -352,9 +383,13 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
           student={student}
           parentName={parentName}
           parentPhone={parentPhone}
+          parent2Name={parent2Name}
+          parent2Phone={parent2Phone}
           parentLinked={parentLinked}
           age={age}
           onRefresh={fetchStudent}
+          onEdit={() => setEditModal(true)}
+          isAdmin={isAdmin}
         />
       )}
       {activeTab === 'attendance' && <AttendanceTab attendances={student.attendances} summary={student.attendanceSummary} />}
@@ -370,36 +405,122 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
           onPaymentRecorded={fetchStudent}
         />
       )}
+
+      {isAdmin && (
+        <Modal isOpen={editModal} onClose={() => setEditModal(false)} title="Edit student" size="lg">
+          <StudentEditForm
+            student={student}
+            parentLinked={parentLinked}
+            onSaved={() => { setEditModal(false); fetchStudent(); }}
+            onCancel={() => setEditModal(false)}
+          />
+        </Modal>
+      )}
     </div>
   );
 }
 
-function StudentDocumentsForm({
-  studentId,
-  initial,
+const API = process.env.NEXT_PUBLIC_API_URL;
+
+async function uploadStudentDocuments(
+  studentId: string,
+  files: { photo?: File | null; healthInsuranceCard?: File | null }
+) {
+  const token = localStorage.getItem('accessToken');
+  const body = new FormData();
+  if (files.photo) body.append('photo', files.photo);
+  if (files.healthInsuranceCard) body.append('healthInsuranceCard', files.healthInsuranceCard);
+  if (!files.photo && !files.healthInsuranceCard) return;
+
+  const res = await fetch(`${API}/students/${studentId}/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'File upload failed');
+}
+
+function StudentEditForm({
+  student,
+  parentLinked,
   onSaved,
   onCancel,
 }: {
-  studentId: string;
-  initial: { photo: string; healthInsuranceCard: string };
+  student: StudentData;
+  parentLinked: boolean;
   onSaved: () => void;
   onCancel: () => void;
 }) {
-  const [photo, setPhoto] = useState(initial.photo);
-  const [healthInsuranceCard, setHealthInsuranceCard] = useState(initial.healthInsuranceCard);
+  const [firstName, setFirstName] = useState(student.firstName);
+  const [lastName, setLastName] = useState(student.lastName);
+  const [gender, setGender] = useState(student.gender);
+  const [dateOfBirth, setDateOfBirth] = useState(
+    student.dateOfBirth ? student.dateOfBirth.slice(0, 10) : ''
+  );
+  const [address, setAddress] = useState(student.address ?? '');
+  const [classId, setClassId] = useState(student.class?.id ?? '');
+  const [parentName, setParentName] = useState(student.parentName ?? '');
+  const [parentPhone, setParentPhone] = useState(student.parentPhone ?? '');
+  const [parent2Name, setParent2Name] = useState(student.parent2Name ?? '');
+  const [parent2Phone, setParent2Phone] = useState(student.parent2Phone ?? '');
+  const [isActive, setIsActive] = useState(student.isActive);
+  const [classes, setClasses] = useState<Array<{ id: string; name: string }>>([]);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [insuranceFile, setInsuranceFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(student.photo);
+  const [insurancePreview, setInsurancePreview] = useState<string | null>(student.healthInsuranceCard);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    fetch(`${API}/classes?limit=100`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setClasses(d.data ?? d.classes ?? []))
+      .catch(() => {});
+  }, []);
+
+  const onPhotoPick = (file: File | null) => {
+    setPhotoFile(file);
+    if (file) setPhotoPreview(URL.createObjectURL(file));
+    else setPhotoPreview(student.photo);
+  };
+
+  const onInsurancePick = (file: File | null) => {
+    setInsuranceFile(file);
+    if (file) setInsurancePreview(URL.createObjectURL(file));
+    else setInsurancePreview(student.healthInsuranceCard);
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setErr('');
     try {
+      if (photoFile || insuranceFile) {
+        await uploadStudentDocuments(student.id, {
+          photo: photoFile,
+          healthInsuranceCard: insuranceFile,
+        });
+      }
+
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/students/${studentId}`, {
+      const res = await fetch(`${API}/students/${student.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ photo, healthInsuranceCard }),
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          gender,
+          dateOfBirth: dateOfBirth || null,
+          address,
+          classId: classId || null,
+          isActive,
+          ...(!parentLinked ? { parentName, parentPhone } : {}),
+          parent2Name: parent2Name || null,
+          parent2Phone: parent2Phone || null,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || 'Save failed');
@@ -412,32 +533,183 @@ function StudentDocumentsForm({
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <p className="text-sm text-gray-500">
-        Paste a hosted image URL (e.g. from your school storage or CDN). Same for the insurance card image/PDF link.
-      </p>
+    <form onSubmit={submit} className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
       {err && <Alert type="error" message={err} onDismiss={() => setErr('')} />}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Image of the child (URL)</label>
-        <input
-          value={photo}
-          onChange={(e) => setPhoto(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
-          placeholder="https://…"
-        />
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
+          <input
+            required
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+          <input
+            required
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+          <select
+            value={gender}
+            onChange={(e) => setGender(e.target.value as 'MALE' | 'FEMALE')}
+            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="MALE">Male</option>
+            <option value="FEMALE">Female</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Date of birth</label>
+          <input
+            type="date"
+            value={dateOfBirth}
+            onChange={(e) => setDateOfBirth(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+          <select
+            value={classId}
+            onChange={(e) => setClassId(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="">— No class —</option>
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">Changing class updates register numbers (student ID) for that class.</p>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+          <input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
       </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Health insurance card (URL)</label>
-        <input
-          value={healthInsuranceCard}
-          onChange={(e) => setHealthInsuranceCard(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
-          placeholder="https://…"
-        />
+
+      {parentLinked && (
+        <div className="border-t border-gray-100 pt-4 text-sm text-gray-600">
+          <p className="font-semibold text-gray-900 mb-1">Guardian 1 (portal account)</p>
+          <p>{student.parent?.user.firstName} {student.parent?.user.lastName} · {student.parent?.user.phone}</p>
+          <p className="text-xs text-gray-500 mt-1">Linked parent account — edit from Parents page.</p>
+        </div>
+      )}
+
+      {!parentLinked && (
+        <div className="grid sm:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
+          <div className="sm:col-span-2">
+            <p className="text-sm font-semibold text-gray-900">Guardian 1 (primary)</p>
+            <p className="text-xs text-gray-500 mb-2">Phone is used for parent portal login.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <input
+              value={parentName}
+              onChange={(e) => setParentName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <input
+              value={parentPhone}
+              onChange={(e) => setParentPhone(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+              placeholder="0241234567"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="grid sm:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
+        <div className="sm:col-span-2">
+          <p className="text-sm font-semibold text-gray-900">Guardian 2 (optional)</p>
+          <p className="text-xs text-gray-500 mb-2">e.g. other parent — also gets parent portal access via their phone.</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+          <input
+            value={parent2Name}
+            onChange={(e) => setParent2Name(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+          <input
+            value={parent2Phone}
+            onChange={(e) => setParent2Phone(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+            placeholder="0241234567"
+          />
+        </div>
       </div>
-      <div className="flex gap-2 justify-end pt-2">
+
+      <div className="border-t border-gray-100 pt-4 space-y-4">
+        <p className="text-sm font-semibold text-gray-900">Photo & documents</p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Image of the child</label>
+            {photoPreview && (
+              <div className="relative w-28 h-28 rounded-xl overflow-hidden border border-gray-200 mb-2 bg-gray-50">
+                <Image src={photoPreview} alt="" fill className="object-cover" sizes="112px" unoptimized />
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => onPhotoPick(e.target.files?.[0] ?? null)}
+              className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary-50 file:text-primary-700 file:font-semibold"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Health insurance card</label>
+            {insurancePreview && (
+              <div className="mb-2">
+                {insurancePreview.toLowerCase().includes('.pdf') || insuranceFile?.type === 'application/pdf' ? (
+                  <p className="text-sm text-gray-600">{insuranceFile?.name ?? 'PDF on file'}</p>
+                ) : (
+                  <div className="relative w-28 h-28 rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
+                    <Image src={insurancePreview} alt="" fill className="object-cover" sizes="112px" unoptimized />
+                  </div>
+                )}
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => onInsurancePick(e.target.files?.[0] ?? null)}
+              className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary-50 file:text-primary-700 file:font-semibold"
+            />
+          </div>
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 text-sm text-gray-700">
+        <input
+          type="checkbox"
+          checked={isActive}
+          onChange={(e) => setIsActive(e.target.checked)}
+          className="rounded border-gray-300"
+        />
+        Student is active
+      </label>
+
+      <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>Cancel</Button>
-        <Button type="submit" loading={saving}>Save</Button>
+        <Button type="submit" loading={saving}>Save changes</Button>
       </div>
     </form>
   );
@@ -469,26 +741,42 @@ function StatCard({
 
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 
+function SectionEditButton({ onClick, label = 'Edit' }: { onClick: () => void; label?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:text-primary-700"
+    >
+      <Pencil className="w-4 h-4" /> {label}
+    </button>
+  );
+}
+
 function OverviewTab({
-  student, parentName, parentPhone, parentLinked, age, onRefresh,
+  student, parentName, parentPhone, parent2Name, parent2Phone, parentLinked, age, onRefresh, onEdit, isAdmin,
 }: {
   student: StudentData;
   parentName: string | null | undefined;
   parentPhone: string | null | undefined;
+  parent2Name: string | null | undefined;
+  parent2Phone: string | null | undefined;
   parentLinked: boolean;
   age: number | null;
   onRefresh: () => void;
+  onEdit: () => void;
+  isAdmin: boolean;
 }) {
-  const { isAdmin } = useUser();
-  const [docModal, setDocModal] = useState(false);
-
   return (
     <div className="grid md:grid-cols-2 gap-5">
       {/* Personal Info */}
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
-        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <GraduationCap className="w-4 h-4 text-gray-400" /> Personal Details
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <GraduationCap className="w-4 h-4 text-gray-400" /> Personal Details
+          </h3>
+          {isAdmin && <SectionEditButton onClick={onEdit} />}
+        </div>
         <dl className="space-y-3">
           {student.dateOfBirth && (
             <InfoRow icon={<Calendar className="w-4 h-4" />} label="Date of Birth"
@@ -522,35 +810,60 @@ function OverviewTab({
 
       {/* Guardian / Parent */}
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gap-2">
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-            <Users className="w-4 h-4 text-gray-400" /> Guardian / Parent
+            <Users className="w-4 h-4 text-gray-400" /> Guardians
           </h3>
-          {parentLinked && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-success-50 border border-success-100 text-success-700 text-xs font-semibold rounded-full">
-              <CheckCircle2 className="w-3 h-3" /> Portal account linked
-            </span>
-          )}
-        </div>
-        {parentName || parentPhone ? (
-          <dl className="space-y-3">
-            {parentName && (
-              <InfoRow icon={<Users className="w-4 h-4" />} label="Name">
-                {parentLinked && student.parent ? (
-                  <Link href={`/parents/${student.parent.id}`} className="font-semibold text-gray-900 hover:underline flex items-center gap-1">
-                    {parentName} <ExternalLink className="w-3 h-3" />
-                  </Link>
-                ) : (
-                  <span className="font-semibold text-gray-900">{parentName}</span>
-                )}
-              </InfoRow>
+          <div className="flex items-center gap-2 shrink-0">
+            {(parentLinked || parentPhone || parent2Phone) && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-success-50 border border-success-100 text-success-700 text-xs font-semibold rounded-full">
+                <CheckCircle2 className="w-3 h-3" /> Parent portal
+              </span>
             )}
-            {parentPhone && (
-              <InfoRow icon={<Phone className="w-4 h-4" />} label="Phone">
-                <a href={`tel:${parentPhone}`} className="font-semibold text-gray-900 hover:underline">
-                  {parentPhone}
-                </a>
-              </InfoRow>
+            {isAdmin && <SectionEditButton onClick={onEdit} label={parentName || parent2Name ? 'Edit' : 'Add'} />}
+          </div>
+        </div>
+        {parentName || parentPhone || parent2Name || parent2Phone ? (
+          <dl className="space-y-5">
+            {(parentName || parentPhone) && (
+              <div className="space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Guardian 1</p>
+                {parentName && (
+                  <InfoRow icon={<Users className="w-4 h-4" />} label="Name">
+                    {parentLinked && student.parent ? (
+                      <Link href={`/parents/${student.parent.id}`} className="font-semibold text-gray-900 hover:underline flex items-center gap-1">
+                        {parentName} <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    ) : (
+                      <span className="font-semibold text-gray-900">{parentName}</span>
+                    )}
+                  </InfoRow>
+                )}
+                {parentPhone && (
+                  <InfoRow icon={<Phone className="w-4 h-4" />} label="Phone">
+                    <a href={`tel:${parentPhone}`} className="font-semibold text-gray-900 hover:underline">
+                      {parentPhone}
+                    </a>
+                  </InfoRow>
+                )}
+              </div>
+            )}
+            {(parent2Name || parent2Phone) && (
+              <div className="space-y-3 border-t border-gray-100 pt-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Guardian 2</p>
+                {parent2Name && (
+                  <InfoRow icon={<Users className="w-4 h-4" />} label="Name">
+                    <span className="font-semibold text-gray-900">{parent2Name}</span>
+                  </InfoRow>
+                )}
+                {parent2Phone && (
+                  <InfoRow icon={<Phone className="w-4 h-4" />} label="Phone">
+                    <a href={`tel:${parent2Phone}`} className="font-semibold text-gray-900 hover:underline">
+                      {parent2Phone}
+                    </a>
+                  </InfoRow>
+                )}
+              </div>
             )}
             {parentLinked && student.parent && (student.parent.homeAddress || student.parent.occupation) && (
               <>
@@ -581,9 +894,14 @@ function OverviewTab({
             )}
           </dl>
         ) : (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Users className="w-8 h-8 text-gray-200 mb-2" />
+          <div className="flex flex-col items-center justify-center py-8 text-center gap-3">
+            <Users className="w-8 h-8 text-gray-200" />
             <p className="text-sm text-gray-400">No guardian info recorded</p>
+            {isAdmin && (
+              <Button variant="secondary" size="sm" onClick={onEdit}>
+                <Plus className="w-4 h-4" /> Add guardian details
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -594,15 +912,7 @@ function OverviewTab({
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-gray-400" /> Child photo & documents
           </h3>
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setDocModal(true)}
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:text-primary-700"
-            >
-              <Pencil className="w-4 h-4" /> Edit
-            </button>
-          )}
+          {isAdmin && <SectionEditButton onClick={onEdit} label="Edit photos" />}
         </div>
         <div className="flex flex-col sm:flex-row gap-8">
           <div>
@@ -619,7 +929,7 @@ function OverviewTab({
                 />
               </div>
             ) : (
-              <p className="text-sm text-gray-400">No image URL set</p>
+              <p className="text-sm text-gray-400">No image uploaded</p>
             )}
           </div>
           <div>
@@ -627,31 +937,38 @@ function OverviewTab({
               <FileImage className="w-3.5 h-3.5" /> Health insurance card
             </p>
             {student.healthInsuranceCard ? (
-              <a
-                href={student.healthInsuranceCard}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-semibold text-primary-600 hover:underline break-all"
-              >
-                Open link
-              </a>
+              student.healthInsuranceCard.toLowerCase().includes('.pdf') ? (
+                <a
+                  href={student.healthInsuranceCard}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-semibold text-primary-600 hover:underline"
+                >
+                  View PDF
+                </a>
+              ) : (
+                <a
+                  href={student.healthInsuranceCard}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block relative w-36 h-36 rounded-xl overflow-hidden border border-gray-200 bg-gray-50"
+                >
+                  <Image
+                    src={student.healthInsuranceCard}
+                    alt="Insurance card"
+                    fill
+                    className="object-cover"
+                    sizes="144px"
+                    unoptimized
+                  />
+                </a>
+              )
             ) : (
-              <p className="text-sm text-gray-400">No scan or URL set</p>
+              <p className="text-sm text-gray-400">No scan uploaded</p>
             )}
           </div>
         </div>
       </div>
-
-      {isAdmin && (
-        <Modal isOpen={docModal} onClose={() => setDocModal(false)} title="Edit child photo & documents" size="md">
-          <StudentDocumentsForm
-            studentId={student.id}
-            initial={{ photo: student.photo ?? '', healthInsuranceCard: student.healthInsuranceCard ?? '' }}
-            onSaved={() => { setDocModal(false); onRefresh(); }}
-            onCancel={() => setDocModal(false)}
-          />
-        </Modal>
-      )}
 
       {/* Quick Attendance Summary */}
       {student.attendanceSummary.total > 0 && (

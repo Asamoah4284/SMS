@@ -59,7 +59,7 @@ export function ProfileDropdown({ displayName, roleLabel, initials }: ProfileDro
           </div>
           <div className="p-1">
             <Link 
-              href="/profile" 
+              href="/settings?tab=account" 
               className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors"
               onClick={() => setIsOpen(false)}
             >
@@ -67,7 +67,7 @@ export function ProfileDropdown({ displayName, roleLabel, initials }: ProfileDro
               View Profile
             </Link>
             <Link 
-              href="/preferences" 
+              href="/settings?tab=preferences" 
               className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors"
               onClick={() => setIsOpen(false)}
             >
