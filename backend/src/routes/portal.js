@@ -688,4 +688,42 @@ router.get('/announcements', authenticateParent, async (req, res) => {
   }
 });
 
+// POST /portal/push/register — store Expo push token for parent device
+router.post('/push/register', authenticateParent, async (req, res) => {
+  try {
+    const { token, platform } = req.body;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Push token is required' });
+    }
+
+    const parentPhone = req.parentPhone;
+    const plat = platform === 'ios' || platform === 'android' ? platform : 'unknown';
+
+    await prisma.pushToken.upsert({
+      where: { token },
+      create: { token, platform: plat, parentPhone },
+      update: { platform: plat, parentPhone, updatedAt: new Date() },
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('POST /portal/push/register error:', error);
+    res.status(500).json({ error: 'Failed to register push token' });
+  }
+});
+
+// DELETE /portal/push/unregister
+router.post('/push/unregister', authenticateParent, async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (token) {
+      await prisma.pushToken.deleteMany({ where: { token } });
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('POST /portal/push/unregister error:', error);
+    res.status(500).json({ error: 'Failed to unregister push token' });
+  }
+});
+
 module.exports = router;

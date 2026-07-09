@@ -14,7 +14,15 @@ interface Announcement {
   content: string;
   targetAudience: 'ALL' | 'TEACHERS' | 'STUDENTS' | 'PARENTS';
   createdAt: string;
+  authorName?: string;
+  push?: { sent?: number };
 }
+
+function getToken() {
+  return typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
+}
+
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 export default function AnnouncementsClient() {
   const { user } = useUser();
@@ -22,13 +30,14 @@ export default function AnnouncementsClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
-  const [newAudience, setNewAudience] = useState<'ALL' | 'TEACHERS' | 'STUDENTS' | 'PARENTS'>('ALL');
+  const [newAudience, setNewAudience] = useState<'ALL' | 'TEACHERS' | 'STUDENTS' | 'PARENTS'>('PARENTS');
+  const [submitting, setSubmitting] = useState(false);
 
   const canCreate = user?.role === 'ADMIN' || user?.role === 'TEACHER';
+  const isTeacher = user?.role === 'TEACHER';
 
   useEffect(() => {
     fetchAnnouncements();
@@ -37,14 +46,13 @@ export default function AnnouncementsClient() {
   const fetchAnnouncements = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1'}/announcements`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
+      setError('');
+      const res = await fetch(`${API}/announcements`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) throw new Error('Failed to fetch announcements');
       const data = await res.json();
-      setAnnouncements(data.data || []);
+      setAnnouncements(Array.isArray(data) ? data : []);
     } catch (err: unknown) {
       setError((err as Error).message);
     } finally {
@@ -55,26 +63,34 @@ export default function AnnouncementsClient() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1'}/announcements`, {
+      setSubmitting(true);
+      const res = await fetch(`${API}/announcements`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          Authorization: `Bearer ${getToken()}`,
         },
         body: JSON.stringify({
           title: newTitle,
           content: newContent,
-          targetAudience: newAudience
-        })
+          targetAudience: newAudience,
+        }),
       });
-      if (!res.ok) throw new Error('Failed to create announcement');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to create announcement');
       setIsModalOpen(false);
       fetchAnnouncements();
       setNewTitle('');
       setNewContent('');
-      setNewAudience('ALL');
+      setNewAudience(isTeacher ? 'PARENTS' : 'ALL');
+      const sent = data.push?.sent;
+      if (typeof sent === 'number' && sent > 0) {
+        alert(`Announcement published. Push sent to ${sent} device(s).`);
+      }
     } catch (err: unknown) {
       alert((err as Error).message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -84,6 +100,12 @@ export default function AnnouncementsClient() {
         title="Announcements" 
         actions={canCreate ? <Button onClick={() => setIsModalOpen(true)}>Create Announcement</Button> : undefined}
       />
+
+      {canCreate && (
+        <p className="text-sm text-gray-600">
+          Posts to <strong>Parents</strong> or <strong>All</strong> send a push notification to the parent app (Android via FCM, iOS via APNs).
+        </p>
+      )}
       
       {error && <Alert type="error" message={error} />}
       
@@ -94,8 +116,13 @@ export default function AnnouncementsClient() {
           {announcements.map((ann) => (
             <div key={ann.id} className="p-4 bg-white rounded shadow">
               <h3 className="text-lg font-semibold">{ann.title}</h3>
-              <p className="text-sm text-gray-500 mb-2">To: {ann.targetAudience} - {new Date(ann.createdAt).toLocaleDateString()}</p>
-              <p>{ann.content}</p>
+              <p className="text-sm text-gray-500 mb-2">
+                To: {ann.targetAudience}
+                {ann.authorName ? ` · ${ann.authorName}` : ''}
+                {' · '}
+                {new Date(ann.createdAt).toLocaleDateString()}
+              </p>
+              <p className="whitespace-pre-wrap">{ann.content}</p>
             </div>
           ))}
           {announcements.length === 0 && <p>No announcements found.</p>}
@@ -129,14 +156,14 @@ export default function AnnouncementsClient() {
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewAudience(e.target.value as 'ALL' | 'TEACHERS' | 'STUDENTS' | 'PARENTS')}
               >
                 <option value="ALL">All</option>
-                <option value="TEACHERS">Teachers</option>
+                {!isTeacher && <option value="TEACHERS">Teachers</option>}
                 <option value="STUDENTS">Students</option>
-                <option value="PARENTS">Parents</option>
+                <option value="PARENTS">Parents (push notification)</option>
               </select>
             </div>
             <div className="flex justify-end space-x-2">
               <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-              <Button type="submit">Submit</Button>
+              <Button type="submit" disabled={submitting}>{submitting ? 'Publishing…' : 'Publish'}</Button>
             </div>
           </form>
         </Modal>

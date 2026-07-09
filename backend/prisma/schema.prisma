@@ -587,6 +587,19 @@ model Announcement {
   @@map("announcements")
 }
 
+/// Expo push tokens for parent app (FCM on Android, APNs on iOS via Expo/EAS)
+model PushToken {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  platform    String   // ios | android | web
+  parentPhone String   // normalized 0XXXXXXXXX
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([parentPhone])
+  @@map("push_tokens")
+}
+
 enum TargetAudience {
   ALL
   TEACHERS
