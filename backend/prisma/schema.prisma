@@ -417,6 +417,9 @@ model Assessment {
   components TermResultComponent[]
   createdAt  DateTime @default(now())
 
+  onlineExamId String?     @unique
+  onlineExam   OnlineExam? @relation(fields: [onlineExamId], references: [id], onDelete: SetNull)
+
   @@map("assessments")
 }
 
@@ -771,6 +774,7 @@ enum ExamQuestionType {
   MCQ_SINGLE
   MCQ_MULTIPLE
   TRUE_FALSE
+  FILL_IN_BLANK
   THEORY
 }
 
@@ -797,6 +801,7 @@ model OnlineExam {
   totalMarks      Float            @default(0)
   status          OnlineExamStatus @default(DRAFT)
   resultsReleased Boolean          @default(false)
+  assessmentType  AssessmentType   @default(EXAM)
   classId         String
   class           Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
   subjectId       String
@@ -809,6 +814,7 @@ model OnlineExam {
 
   questions ExamQuestion[]
   attempts  ExamAttempt[]
+  assessment Assessment?
 
   @@map("online_exams")
 }

@@ -22,6 +22,7 @@ interface Assessment {
   date: string | null;
   totalMark: number;
   subject: Subject;
+  onlineExamId?: string | null;
   _count: { scores: number };
 }
 
@@ -397,7 +398,9 @@ function AssessmentsTab({ bySubject, loading, isPublished, studentCount, userRol
         <div className="text-center py-16 text-gray-400">
           <BookOpen size={40} className="mx-auto mb-3 opacity-40" />
           <p className="font-medium">No assessments yet</p>
-          {canAdd && <p className="text-sm mt-1">Click &quot;Add Assessment&quot; to create your first test or exam.</p>}
+          <p className="text-sm mt-1 max-w-md mx-auto">
+            Published online exams appear here automatically. You can also add paper tests manually.
+          </p>
         </div>
       ) : (
         Object.values(bySubject).map(({ subject, items }) => {
@@ -419,34 +422,43 @@ function AssessmentsTab({ bySubject, loading, isPublished, studentCount, userRol
                 )}
               </div>
               <div className="divide-y divide-gray-50">
-                {items.map((a) => (
+                {items.map((a) => {
+                  const isOnline = Boolean(a.onlineExamId);
+                  return (
                   <div key={a.id} className="flex items-center justify-between px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${a.type === 'EXAM' ? 'bg-primary-500' : 'bg-warning-400'}`} />
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">{a.name}</p>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${a.type === 'EXAM' ? 'bg-primary-500' : 'bg-warning-400'}`} />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-gray-900 text-sm">{a.name}</p>
+                          {isOnline && <Badge variant="info">Online exam</Badge>}
+                        </div>
                         <p className="text-xs text-gray-500">
                           {a.type} · Over {a.totalMark}
                           {a.date && ` · ${new Date(a.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
                           {' · '}{a._count.scores}/{studentCount} scores entered
+                          {isOnline && ' · Synced from student portal'}
                         </p>
                       </div>
                     </div>
                     {canEditSubject && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <Button variant="ghost" size="sm" onClick={() => onEnterScores(a)}>
-                          {a._count.scores > 0 ? 'Edit Scores' : 'Enter Scores'}
+                          {isOnline ? 'View Scores' : a._count.scores > 0 ? 'View Scores' : 'Enter Scores'}
                         </Button>
-                        <button
-                          onClick={() => onDelete(a.id)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-danger-600 hover:bg-danger-50 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {!isOnline && (
+                          <button
+                            onClick={() => onDelete(a.id)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-danger-600 hover:bg-danger-50 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );
@@ -798,6 +810,7 @@ function AddAssessmentModal({ classId, termId, subjects, editableSubjectIds, onC
 function ScoreEntryModal({ assessment, onClose, onSaved }: {
   assessment: Assessment; onClose: () => void; onSaved: () => void;
 }) {
+  const isOnline = Boolean(assessment.onlineExamId);
   const [students, setStudents] = useState<ScoreEntry[]>([]);
   const [scores, setScores] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -819,6 +832,7 @@ function ScoreEntryModal({ assessment, onClose, onSaved }: {
   }, [assessment.id]);
 
   const handleSave = async () => {
+    if (isOnline) return;
     setSaving(true); setError('');
     const payload = students.map((s) => ({
       studentId: s.id,
@@ -836,42 +850,84 @@ function ScoreEntryModal({ assessment, onClose, onSaved }: {
     onSaved();
   };
 
+  const enteredCount = students.filter((s) => s.score !== null).length;
+
   return (
-    <Modal isOpen={true} title={`Scores — ${assessment.name}`} onClose={onClose}>
+    <Modal
+      isOpen={true}
+      title={isOnline ? `Synced scores — ${assessment.name}` : `Scores — ${assessment.name}`}
+      onClose={onClose}
+    >
       <div className="space-y-3">
         {error && <Alert type="error" message={error} />}
-        <p className="text-sm text-gray-500">
-          {assessment.subject.name} · Out of {assessment.totalMark} ·{' '}
-          Leave blank = <span className="font-semibold text-orange-600">ABS</span> (treated as 0)
-        </p>
+        {isOnline ? (
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-primary-50 border border-primary-100">
+            <Lock size={14} className="text-primary-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-primary-800 leading-relaxed">
+              Scores are recorded automatically when students complete the online exam. They cannot be edited here.
+              {enteredCount < students.length && (
+                <span className="block mt-1 text-primary-700/80">
+                  Students who have not taken the exam yet appear as ABS.
+                </span>
+              )}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">
+            {assessment.subject.name} · Out of {assessment.totalMark} ·{' '}
+            Leave blank = <span className="font-semibold text-orange-600">ABS</span> (treated as 0)
+          </p>
+        )}
         {loading ? (
           <div className="space-y-2">{[...Array(6)].map((_, i) => <div key={i} className="h-10 bg-gray-100 rounded-lg animate-pulse" />)}</div>
         ) : (
           <div className="max-h-[400px] overflow-y-auto space-y-1 pr-1">
-            {students.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 py-1.5">
-                <span className="text-sm text-gray-800 flex-1 truncate">{s.name}</span>
-                <div className="flex items-center gap-1 shrink-0">
-                  <input type="number" min="0" max={assessment.totalMark} step="0.5"
-                    className={`w-24 border rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-primary-400 ${
-                      (scores[s.id] === '' || scores[s.id] === undefined) ? 'border-orange-300 bg-orange-50' : 'border-gray-200'
-                    }`}
-                    placeholder="ABS"
-                    value={scores[s.id] ?? ''}
-                    onChange={(e) => setScores({ ...scores, [s.id]: e.target.value })}
-                  />
-                  <span className="text-xs text-gray-400">/{assessment.totalMark}</span>
+            {students.map((s) => {
+              const raw = scores[s.id] ?? '';
+              const isAbsent = raw === '' || raw === undefined;
+              return (
+                <div key={s.id} className="flex items-center gap-3 py-1.5">
+                  <span className="text-sm text-gray-800 flex-1 truncate">{s.name}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {isOnline ? (
+                      <span
+                        className={`inline-flex items-center justify-end min-w-[4.5rem] px-2.5 py-1 rounded-lg text-sm font-semibold tabular-nums ${
+                          isAbsent
+                            ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                            : 'bg-gray-50 text-gray-900 border border-gray-200'
+                        }`}
+                      >
+                        {isAbsent ? 'ABS' : raw}
+                      </span>
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        max={assessment.totalMark}
+                        step="0.5"
+                        className={`w-24 border rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-primary-400 ${
+                          isAbsent ? 'border-orange-300 bg-orange-50' : 'border-gray-200'
+                        }`}
+                        placeholder="ABS"
+                        value={raw}
+                        onChange={(e) => setScores({ ...scores, [s.id]: e.target.value })}
+                      />
+                    )}
+                    <span className="text-xs text-gray-400">/{assessment.totalMark}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={handleSave} disabled={saving || loading}>
-            {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
-            Save Scores
-          </Button>
+          <Button variant="ghost" onClick={onClose}>{isOnline ? 'Close' : 'Cancel'}</Button>
+          {!isOnline && (
+            <Button variant="primary" onClick={handleSave} disabled={saving || loading}>
+              {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
+              Save Scores
+            </Button>
+          )}
         </div>
       </div>
     </Modal>

@@ -22,6 +22,7 @@ import {
   CheckSquare,
   ToggleLeft,
   FileText,
+  TextCursorInput,
   Sparkles,
 } from 'lucide-react';
 
@@ -49,6 +50,7 @@ interface ExamDetail {
   status: string;
   totalMarks: number;
   resultsReleased: boolean;
+  assessmentType: 'TEST' | 'EXAM';
   class: { id: string; name: string };
   subject: { id: string; name: string };
   term: { id: string; name: string; year: number };
@@ -165,6 +167,7 @@ function questionTypeLabel(type: string) {
     MCQ_SINGLE: 'Single choice',
     MCQ_MULTIPLE: 'Multiple choice',
     TRUE_FALSE: 'True / False',
+    FILL_IN_BLANK: 'Fill in the blank',
     THEORY: 'Theory',
   };
   return map[type] ?? type;
@@ -173,6 +176,7 @@ function questionTypeLabel(type: string) {
 function questionTypeIcon(type: string) {
   if (type === 'MCQ_MULTIPLE') return CheckSquare;
   if (type === 'TRUE_FALSE') return ToggleLeft;
+  if (type === 'FILL_IN_BLANK') return TextCursorInput;
   if (type === 'THEORY') return FileText;
   return Circle;
 }
@@ -209,7 +213,7 @@ function questionToForm(q: ExamQuestion) {
       ],
     };
   }
-  if (q.type === 'THEORY') {
+  if (q.type === 'THEORY' || q.type === 'FILL_IN_BLANK') {
     return {
       type: q.type,
       text: q.text,
@@ -242,9 +246,10 @@ function buildQuestionBody(qForm: {
     type: qForm.type,
     text: qForm.text,
     marks: parseFloat(qForm.marks),
-    modelAnswer: qForm.type === 'THEORY' ? qForm.modelAnswer : null,
+    modelAnswer:
+      qForm.type === 'THEORY' || qForm.type === 'FILL_IN_BLANK' ? qForm.modelAnswer : null,
   };
-  if (qForm.type !== 'THEORY') {
+  if (qForm.type !== 'THEORY' && qForm.type !== 'FILL_IN_BLANK') {
     if (qForm.type === 'TRUE_FALSE') {
       body.options = [
         { text: 'True', isCorrect: qForm.options[0]?.isCorrect ?? true },
@@ -290,6 +295,7 @@ export default function OnlineExamDetailPage() {
     classId: '',
     subjectId: '',
     termId: '',
+    assessmentType: 'EXAM' as 'TEST' | 'EXAM',
   });
 
   const [qForm, setQForm] = useState({
@@ -369,6 +375,7 @@ export default function OnlineExamDetailPage() {
       classId: exam.class.id,
       subjectId: exam.subject.id,
       termId: exam.term.id,
+      assessmentType: exam.assessmentType ?? 'EXAM',
     });
     setExamModalOpen(true);
   };
@@ -392,6 +399,7 @@ export default function OnlineExamDetailPage() {
           classId: examForm.classId,
           subjectId: examForm.subjectId,
           termId: examForm.termId,
+          assessmentType: examForm.assessmentType,
         }),
       });
       if (!res.ok) {
@@ -422,7 +430,7 @@ export default function OnlineExamDetailPage() {
       ...prev,
       type,
       options: optionsForQuestionType(type),
-      modelAnswer: type === 'THEORY' ? prev.modelAnswer : '',
+      modelAnswer: type === 'THEORY' || type === 'FILL_IN_BLANK' ? prev.modelAnswer : '',
     }));
   };
 
@@ -447,6 +455,10 @@ export default function OnlineExamDetailPage() {
   const saveQuestion = async () => {
     if (!qForm.text.trim()) {
       alert('Please enter the question text.');
+      return;
+    }
+    if (qForm.type === 'FILL_IN_BLANK' && !qForm.modelAnswer.trim()) {
+      alert('Please enter the correct answer for this fill-in-the-blank question.');
       return;
     }
     setAddingQuestion(true);
@@ -610,6 +622,16 @@ export default function OnlineExamDetailPage() {
             <span className="inline-flex items-center gap-1 tabular-nums">
               <Clock className="w-3.5 h-3.5 text-gray-400" />
               {exam.durationMinutes} min
+            </span>
+            <span className="text-gray-300 hidden sm:inline">·</span>
+            <span
+              className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium border ${
+                exam.assessmentType === 'TEST'
+                  ? 'bg-amber-50 text-amber-800 border-amber-100'
+                  : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+              }`}
+            >
+              {exam.assessmentType === 'TEST' ? 'Class test' : 'Exam'}
             </span>
             <span className="text-gray-300 hidden sm:inline">·</span>
             <span className="tabular-nums font-medium text-primary-700">{exam.totalMarks} marks</span>
@@ -782,9 +804,12 @@ export default function OnlineExamDetailPage() {
                         </ul>
                       )}
 
-                      {q.modelAnswer && (
+                      {q.modelAnswer && (q.type === 'THEORY' || q.type === 'FILL_IN_BLANK') && (
                         <p className="text-xs text-gray-500 mt-2.5 pt-2 border-t border-gray-50">
-                          <span className="font-medium text-gray-600">Model answer:</span> {q.modelAnswer}
+                          <span className="font-medium text-gray-600">
+                            {q.type === 'FILL_IN_BLANK' ? 'Correct answer:' : 'Model answer:'}
+                          </span>{' '}
+                          {q.modelAnswer}
                         </p>
                       )}
                     </div>
@@ -918,13 +943,22 @@ export default function OnlineExamDetailPage() {
                   <option value="MCQ_SINGLE">Multiple choice (single answer)</option>
                   <option value="MCQ_MULTIPLE">Multiple choice (multiple answers)</option>
                   <option value="TRUE_FALSE">True / False</option>
+                  <option value="FILL_IN_BLANK">Fill in the blank (auto-marked)</option>
                   <option value="THEORY">Theory (manual marking)</option>
                 </select>
                 <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </FormField>
 
-            <FormField label="Question text" required>
+            <FormField
+              label="Question text"
+              required
+              hint={
+                qForm.type === 'FILL_IN_BLANK'
+                  ? 'Use underscores for the blank, e.g. A noun is a _______ of a person.'
+                  : undefined
+              }
+            >
               <textarea
                 className={`${fieldInput} min-h-[72px] resize-y`}
                 value={qForm.text}
@@ -952,6 +986,19 @@ export default function OnlineExamDetailPage() {
                   value={qForm.modelAnswer}
                   onChange={(e) => setQForm({ ...qForm, modelAnswer: e.target.value })}
                   rows={2}
+                />
+              </FormField>
+            ) : qForm.type === 'FILL_IN_BLANK' ? (
+              <FormField
+                label="Correct answer"
+                required
+                hint="Auto-marked. Separate multiple acceptable answers with | (e.g. name|names)."
+              >
+                <input
+                  className={fieldInput}
+                  value={qForm.modelAnswer}
+                  onChange={(e) => setQForm({ ...qForm, modelAnswer: e.target.value })}
+                  placeholder="e.g. name"
                 />
               </FormField>
             ) : qForm.type === 'TRUE_FALSE' ? (
@@ -1186,6 +1233,21 @@ export default function OnlineExamDetailPage() {
                 value={examForm.durationMinutes}
                 onChange={(e) => setExamForm({ ...examForm, durationMinutes: e.target.value })}
               />
+            </FormField>
+            <FormField label="Assessment type" required>
+              <div className="relative">
+                <select
+                  className={selectClass}
+                  value={examForm.assessmentType}
+                  onChange={(e) =>
+                    setExamForm({ ...examForm, assessmentType: e.target.value as 'TEST' | 'EXAM' })
+                  }
+                >
+                  <option value="TEST">Class test</option>
+                  <option value="EXAM">Exam</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
             </FormField>
             <div className="sm:col-span-2">
               <FormField label="Description">

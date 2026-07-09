@@ -25,6 +25,7 @@ interface OnlineExam {
   durationMinutes: number;
   status: string;
   totalMarks: number;
+  assessmentType: 'TEST' | 'EXAM';
   class: { id: string; name: string };
   subject: { id: string; name: string };
   term: { id: string; name: string; year: number };
@@ -131,6 +132,10 @@ function statusAccent(status: string) {
   return 'from-amber-600 via-primary-900 to-slate-900';
 }
 
+function assessmentTypeLabel(type: string) {
+  return type === 'TEST' ? 'Class test' : 'Exam';
+}
+
 export default function OnlineExamsClientPage() {
   const [exams, setExams] = useState<OnlineExam[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
@@ -153,6 +158,7 @@ export default function OnlineExamsClientPage() {
     classId: '',
     subjectId: '',
     termId: '',
+    assessmentType: 'EXAM' as 'TEST' | 'EXAM',
   });
 
   const fetchExams = useCallback(async () => {
@@ -223,6 +229,7 @@ export default function OnlineExamsClientPage() {
       classId: classFilter || '',
       subjectId: '',
       termId: cur?.id ?? terms[0]?.id ?? '',
+      assessmentType: 'EXAM',
     });
   };
 
@@ -431,6 +438,15 @@ export default function OnlineExamsClientPage() {
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-primary-50 text-primary-700 text-[10px] font-medium border border-primary-100">
                     {exam.subject.name}
                   </span>
+                  <span
+                    className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium border ${
+                      exam.assessmentType === 'TEST'
+                        ? 'bg-amber-50 text-amber-800 border-amber-100'
+                        : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                    }`}
+                  >
+                    {assessmentTypeLabel(exam.assessmentType ?? 'EXAM')}
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-gray-50 text-center">
@@ -567,6 +583,23 @@ export default function OnlineExamsClientPage() {
                 onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })}
                 required
               />
+            </FormField>
+
+            <FormField label="Assessment type" required hint="Class tests sync as tests; exams sync as end-of-term exams.">
+              <div className="relative">
+                <select
+                  className={`${selectClass} w-full`}
+                  value={form.assessmentType}
+                  onChange={(e) =>
+                    setForm({ ...form, assessmentType: e.target.value as 'TEST' | 'EXAM' })
+                  }
+                  required
+                >
+                  <option value="TEST">Class test</option>
+                  <option value="EXAM">Exam</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
             </FormField>
 
             <div className="sm:col-span-2">

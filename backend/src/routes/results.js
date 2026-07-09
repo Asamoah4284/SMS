@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
+const { ensureOnlineExamsSyncedForClass } = require('../services/onlineExamAssessmentSync');
 
 const router = Router();
 router.use(authenticate);
@@ -70,6 +71,8 @@ router.get('/assessments', async (req, res) => {
       });
       if (!teacher) return res.status(403).json({ message: 'You can only view your own class' });
     }
+
+    await ensureOnlineExamsSyncedForClass(classId, termId);
 
     const assessments = await prisma.assessment.findMany({
       where: { classId, termId },
@@ -192,6 +195,12 @@ router.delete('/assessments/:id', async (req, res) => {
       });
     }
 
+    if (existing.onlineExamId) {
+      return res.status(400).json({
+        message: 'This assessment is linked to an online exam and cannot be deleted.',
+      });
+    }
+
     await prisma.assessment.delete({ where: { id: req.params.id } });
     res.json({ message: 'Assessment deleted' });
   } catch (err) {
@@ -263,6 +272,12 @@ router.post('/assessments/:id/scores', async (req, res) => {
 
     const assessment = await prisma.assessment.findUnique({ where: { id: req.params.id } });
     if (!assessment) return res.status(404).json({ message: 'Assessment not found' });
+
+    if (assessment.onlineExamId) {
+      return res.status(400).json({
+        message: 'Scores for online exams are synced automatically and cannot be edited manually.',
+      });
+    }
 
     // Teachers: only their class
     if (req.user.role === 'TEACHER') {

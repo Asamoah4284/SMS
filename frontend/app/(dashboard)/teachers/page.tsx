@@ -293,7 +293,7 @@ function TeacherRow({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () =>
           {teacher.qualification ? (
             <p className="text-xs text-gray-500 truncate mt-0.5">{teacher.qualification}</p>
           ) : (
-            <p className="text-xs text-gray-400 italic mt-0.5">No qualification listed</p>
+            <p className="text-xs text-gray-400 mt-0.5">No qualification listed</p>
           )}
         </div>
       </Link>
@@ -316,7 +316,7 @@ function TeacherRow({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () =>
             {className}
           </span>
         ) : (
-          <span className="text-xs text-gray-400 italic">Not assigned</span>
+          <span className="text-xs text-gray-400">Not assigned</span>
         )}
       </Link>
 
@@ -327,7 +327,7 @@ function TeacherRow({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () =>
             {teacher.subjectCount}
           </span>
         ) : (
-          <span className="text-xs text-gray-400 italic">None</span>
+          <span className="text-xs text-gray-400">None</span>
         )}
       </Link>
 
