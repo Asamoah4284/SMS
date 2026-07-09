@@ -11,7 +11,7 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
 const { readCsv, parseBool } = require('../utils/csv');
-const { generateStudentId, getPrefix } = require('../utils/studentId');
+const { generateStudentId, getPrefix, renumberClassStudentIds, formatStudentId, classLevelToCode, sortNameKey } = require('../utils/studentId');
 const { ensureStudentPortal, DEFAULT_STUDENT_PIN } = require('../utils/studentPortal');
 
 const prisma = new PrismaClient();
@@ -24,6 +24,25 @@ function normalisePhone(raw) {
   return digits.length === 10 ? digits : raw.trim();
 }
 
+function parseGender(raw) {
+  const g = String(raw || '').trim().toUpperCase();
+  if (g === 'MALE' || g === 'FEMALE') return g;
+  const fallback = String(process.env.DEFAULT_STUDENT_GENDER || 'FEMALE').toUpperCase();
+  return fallback === 'MALE' ? 'MALE' : 'FEMALE';
+}
+
+function parseOptionalDate(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function defaultParentName(row) {
+  const name = String(row.parent_name || '').trim();
+  return name || 'Guardian (update in dashboard)';
+}
+
 async function importSchool() {
   const rows = readCsv(path.join(DATA_DIR, 'school.csv'));
   if (!rows?.length) {
@@ -31,7 +50,7 @@ async function importSchool() {
     return { idPrefix: getPrefix() };
   }
   const row = rows[0];
-  const idPrefix = (row.id_prefix || ID_PREFIX).toUpperCase();
+  const idPrefix = (row.id_prefix || getPrefix()).toUpperCase();
   process.env.SCHOOL_ID_PREFIX = idPrefix;
   console.log(`  ✓ School: ${row.school_name || 'Unnamed'} (ID prefix: ${idPrefix})`);
   return { idPrefix, row };
@@ -77,10 +96,14 @@ async function importClasses() {
   const classes = {};
   for (const row of rows) {
     const classNumber = parseInt(row.class_number, 10);
+    const level = String(row.level || '').trim().toUpperCase();
+    if (!level) {
+      throw new Error(`classes.csv: missing level for "${row.class_name}"`);
+    }
     const data = {
       name: row.class_name,
       classNumber,
-      level: row.level,
+      level,
       section: row.section || null,
     };
     const existing = await prisma.class.findFirst({
@@ -197,47 +220,78 @@ async function importStudents(classes) {
   const rows = readCsv(path.join(DATA_DIR, 'students.csv')) || [];
   let created = 0;
   let skipped = 0;
+  const prefix = getPrefix();
 
+  const byClass = {};
   for (const row of rows) {
-    const cls = classes[row.class_name];
+    const key = row.class_name;
+    if (!byClass[key]) byClass[key] = [];
+    byClass[key].push(row);
+  }
+
+  for (const [className, classRows] of Object.entries(byClass)) {
+    const cls = classes[className];
     if (!cls) {
-      console.warn(`  ⚠ Student ${row.first_name} ${row.last_name}: class "${row.class_name}" not found`);
+      for (const row of classRows) {
+        console.warn(`  ⚠ Student ${row.first_name} ${row.last_name}: class "${className}" not found`);
+      }
       continue;
     }
 
-    const existing = await prisma.student.findFirst({
-      where: {
-        firstName: row.first_name,
-        lastName: row.last_name,
-        classId: cls.id,
-      },
-    });
-    if (existing) {
-      await ensureStudentPortal(prisma, existing, { mustChangePin: false });
-      skipped++;
-      continue;
+    const sorted = [...classRows].sort((a, b) =>
+      sortNameKey({ firstName: a.first_name, lastName: a.last_name }).localeCompare(
+        sortNameKey({ firstName: b.first_name, lastName: b.last_name })
+      )
+    );
+
+    const classCode = classLevelToCode(cls.level, cls.name);
+
+    for (let i = 0; i < sorted.length; i++) {
+      const row = sorted[i];
+      const registerSeq = i + 1;
+      const studentId = formatStudentId(prefix, classCode, registerSeq);
+
+      const existing = await prisma.student.findFirst({
+        where: {
+          firstName: row.first_name,
+          lastName: row.last_name,
+          classId: cls.id,
+        },
+      });
+      if (existing) {
+        await ensureStudentPortal(prisma, existing, { mustChangePin: false });
+        skipped++;
+        continue;
+      }
+
+      const normPhone = normalisePhone(row.parent_phone);
+      const gender = parseGender(row.gender);
+      const parentName = defaultParentName(row);
+      const address = String(row.address || '').trim() || null;
+
+      const student = await prisma.student.create({
+        data: {
+          studentId,
+          firstName: row.first_name,
+          lastName: row.last_name,
+          gender,
+          dateOfBirth: parseOptionalDate(row.date_of_birth),
+          address,
+          classId: cls.id,
+          parentName,
+          parentPhone: normPhone,
+        },
+      });
+
+      await ensureStudentPortal(prisma, student, { mustChangePin: false });
+      created++;
+      console.log(`  ✓ Student: ${studentId} — ${row.first_name} ${row.last_name}`);
     }
 
-    const studentId = await generateStudentId(prisma, cls.id);
-    const normPhone = normalisePhone(row.parent_phone);
-
-    const student = await prisma.student.create({
-      data: {
-        studentId,
-        firstName: row.first_name,
-        lastName: row.last_name,
-        gender: String(row.gender).toUpperCase(),
-        dateOfBirth: row.date_of_birth ? new Date(row.date_of_birth) : null,
-        address: row.address || null,
-        classId: cls.id,
-        parentName: row.parent_name || null,
-        parentPhone: normPhone,
-      },
-    });
-
-    await ensureStudentPortal(prisma, student, { mustChangePin: false });
-    created++;
-    console.log(`  ✓ Student: ${studentId} — ${row.first_name} ${row.last_name}`);
+    const { updated } = await renumberClassStudentIds(prisma, cls.id, prefix);
+    if (updated > 0) {
+      console.log(`  ↻ ${className}: aligned ${updated} register number(s) by name`);
+    }
   }
 
   return { created, skipped };
@@ -264,7 +318,7 @@ async function main() {
   console.log('── Login ──');
   console.log(`  Admin:   phone from admin.csv / ${adminPw}`);
   console.log('           (you will be asked to change password on first login)');
-  console.log(`  Student: Student ID from import (e.g. ${school.idPrefix}-7-001) / PIN ${DEFAULT_STUDENT_PIN}`);
+  console.log(`  Student: Student ID from import (e.g. ${school.idPrefix}-Y1-001) / PIN ${DEFAULT_STUDENT_PIN}`);
   console.log('           Portal: http://localhost:3000/student/login');
   console.log('');
 }

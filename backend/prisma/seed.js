@@ -32,7 +32,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const { ensureStudentPortal } = require('../src/utils/studentPortal');
-const { generateStudentId } = require('../src/utils/studentId');
+const { generateStudentId, renumberClassStudentIds } = require('../src/utils/studentId');
 
 const prisma = new PrismaClient();
 
@@ -842,7 +842,10 @@ async function seedStudents(classes) {
         continue;
       }
 
-      const studentId = await generateStudentId(prisma, cls.id);
+      const studentId = await generateStudentId(prisma, cls.id, {
+        firstName: s.firstName,
+        lastName: s.lastName,
+      });
 
       const student = await prisma.student.create({
         data: {
@@ -860,6 +863,7 @@ async function seedStudents(classes) {
       });
       created.push({ ...student, _globalIdx: globalIdx++ });
     }
+    await renumberClassStudentIds(prisma, cls.id);
     allStudents[className] = created;
     console.log(`  ✓ ${className}: ${created.length} students`);
   }
