@@ -1,4 +1,4 @@
-const { normalisePhone } = require('../middleware/parentPortalAuth');
+const { ensureParentAccount, normalizeGuardianPhone, isPlaceholderGuardianName } = require('../services/parentAccount');
 
 /**
  * Resolve primary guardian display fields from a student row (with optional parent include).
@@ -29,32 +29,22 @@ function secondaryGuardianDisplay(student) {
 }
 
 /**
- * Link guardian 1 to an existing parent portal account when phone matches.
+ * Link or create primary guardian parent account when phone is valid.
  */
 async function resolvePrimaryGuardian(prisma, { name, phone }) {
   if (!phone && !name) {
     return { parentId: null, parentName: null, parentPhone: null };
   }
 
-  const normPhone = phone ? normalisePhone(phone) || phone : null;
-
-  if (phone) {
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        phone: { in: [phone, normPhone].filter(Boolean) },
-        role: 'PARENT',
-      },
-      include: { parentProfile: true },
-    });
-
-    if (existingUser?.parentProfile) {
-      return { parentId: existingUser.parentProfile.id, parentName: null, parentPhone: null };
-    }
+  const account = await ensureParentAccount(prisma, { name, phone });
+  if (account && !account.error) {
+    return { parentId: account.parent.id, parentName: null, parentPhone: null };
   }
 
+  const normPhone = phone ? normalizeGuardianPhone(phone) : null;
   return {
     parentId: null,
-    parentName: name || null,
+    parentName: isPlaceholderGuardianName(name) ? name || null : name || null,
     parentPhone: normPhone || phone || null,
   };
 }
@@ -63,7 +53,7 @@ function resolveSecondaryGuardian({ name, phone }) {
   if (!phone && !name) {
     return { parent2Name: null, parent2Phone: null };
   }
-  const normPhone = phone ? normalisePhone(phone) || phone : null;
+  const normPhone = phone ? normalizeGuardianPhone(phone) : null;
   return {
     parent2Name: name || null,
     parent2Phone: normPhone || phone || null,

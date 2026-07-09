@@ -15,6 +15,7 @@ const {
   resolvePrimaryGuardian,
   resolveSecondaryGuardian,
 } = require('../utils/studentGuardian');
+const { syncStudentGuardians } = require('../services/parentAccount');
 
 const router = Router();
 router.use(authenticate);
@@ -211,6 +212,7 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
     });
 
     const portal = await ensureStudentPortal(prisma, student);
+    await syncStudentGuardians(prisma, student.id);
     await renumberClassStudentIds(prisma, classId);
     const refreshed = await prisma.student.findUnique({
       where: { id: student.id },
@@ -427,13 +429,15 @@ router.put('/:id', authorize('ADMIN'), async (req, res) => {
         ...(isActive !== undefined && { isActive }),
         ...(photo !== undefined && { photo: photo || null }),
         ...(healthInsuranceCard !== undefined && { healthInsuranceCard: healthInsuranceCard || null }),
-        ...(parentName !== undefined && !existing.parentId && { parentName: parentName || null }),
-        ...(normParentPhone !== undefined && !existing.parentId && { parentPhone: normParentPhone }),
+        ...(parentName !== undefined && { parentName: parentName || null }),
+        ...(normParentPhone !== undefined && { parentPhone: normParentPhone }),
         ...(parent2Name !== undefined && { parent2Name: parent2Name || null }),
         ...(normParent2Phone !== undefined && { parent2Phone: normParent2Phone }),
       },
       include: { class: { select: { id: true, name: true } } },
     });
+
+    await syncStudentGuardians(prisma, req.params.id);
 
     if (classId !== undefined && classId !== existing.classId) {
       if (existing.classId) await renumberClassStudentIds(prisma, existing.classId);
@@ -522,6 +526,7 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
           },
         });
         await ensureStudentPortal(prisma, student);
+        await syncStudentGuardians(prisma, student.id);
         touchedClassIds.add(row.classId);
         results.imported++;
       } catch (rowErr) {

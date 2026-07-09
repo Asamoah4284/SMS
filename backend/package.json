@@ -14,6 +14,7 @@
     "db:seed": "node prisma/seed.js",
     "db:import": "node src/scripts/import-seed-data.js",
     "students:renumber-ids": "node src/scripts/renumber-student-ids.js",
+    "parents:sync-guardians": "node src/scripts/sync-student-guardians.js",
     "seed:admin": "node src/scripts/seed-admin.js",
     "seed:classes": "node src/scripts/seed-classes.js",
     "seed:subjects": "node src/scripts/seed-subjects.js",
