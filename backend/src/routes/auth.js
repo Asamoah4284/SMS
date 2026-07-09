@@ -919,4 +919,107 @@ router.get('/me', authenticate, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────
+// POST /auth/student/login — studentId + PIN
+// ─────────────────────────────────────────────────────────────────
+
+router.post(
+  '/student/login',
+  [
+    body('studentId').notEmpty().withMessage('Student ID is required'),
+    body('pin').notEmpty().withMessage('PIN is required'),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { studentId, pin } = req.body;
+      const profile = await prisma.studentProfile.findFirst({
+        where: { student: { studentId: String(studentId).trim(), isActive: true } },
+        include: {
+          user: true,
+          student: {
+            select: {
+              id: true,
+              studentId: true,
+              firstName: true,
+              lastName: true,
+              class: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+
+      if (!profile || !profile.user.isActive) {
+        return res.status(401).json({ error: 'Invalid student ID or PIN' });
+      }
+
+      const valid = await bcrypt.compare(String(pin), profile.user.password);
+      if (!valid) {
+        return res.status(401).json({ error: 'Invalid student ID or PIN' });
+      }
+
+      const token = jwt.sign(
+        {
+          id: profile.user.id,
+          role: 'STUDENT',
+          studentDbId: profile.student.id,
+          schoolStudentId: profile.student.studentId,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '12h' }
+      );
+
+      res.json({
+        token,
+        mustChangePin: profile.mustChangePin,
+        student: profile.student,
+      });
+    } catch (error) {
+      console.error('Student login error:', error);
+      res.status(500).json({ error: 'Login failed' });
+    }
+  }
+);
+
+// POST /auth/student/change-pin
+router.post(
+  '/student/change-pin',
+  authenticate,
+  [
+    body('currentPin').notEmpty(),
+    body('newPin').isLength({ min: 4, max: 6 }).withMessage('PIN must be 4-6 digits'),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      if (req.user.role !== 'STUDENT') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const profile = await prisma.studentProfile.findUnique({
+        where: { userId: req.user.id },
+        include: { user: true },
+      });
+      if (!profile) return res.status(404).json({ error: 'Profile not found' });
+
+      const valid = await bcrypt.compare(String(req.body.currentPin), profile.user.password);
+      if (!valid) return res.status(401).json({ error: 'Current PIN is incorrect' });
+
+      const hashed = await bcrypt.hash(String(req.body.newPin), 10);
+      await prisma.$transaction([
+        prisma.user.update({ where: { id: profile.userId }, data: { password: hashed } }),
+        prisma.studentProfile.update({
+          where: { id: profile.id },
+          data: { mustChangePin: false },
+        }),
+      ]);
+
+      res.json({ message: 'PIN changed successfully' });
+    } catch (error) {
+      console.error('Change PIN error:', error);
+      res.status(500).json({ error: 'Failed to change PIN' });
+    }
+  }
+);
+
 module.exports = router;

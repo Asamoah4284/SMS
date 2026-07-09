@@ -103,7 +103,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     // Placeholder items — visible to admin only for now
     { name: "Leaves", href: "/leaves", icon: ClipboardList, teacherVisible: true },
     { name: "Certificate", href: "/certificate", icon: Award, adminOnly: true },
-    { name: "Library", href: "/library", icon: Library, adminOnly: true },
+    { name: "Library", href: "/library", icon: Library, teacherVisible: true },
+    { name: "Online Exams", href: "/online-exams", icon: FileText, teacherVisible: true },
   ], [isAdmin, myClassId]);
 
   // Filter based on role

@@ -125,6 +125,30 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
 
   useEffect(() => { fetchStudent(); }, [fetchStudent]);
 
+  const enablePortal = async () => {
+    const token = localStorage.getItem('accessToken');
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/students/${studentId}/portal/enable`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.message || 'Failed'); return; }
+    alert(data.defaultPin ? `Portal enabled. Default PIN: ${data.defaultPin}` : 'Portal enabled.');
+  };
+
+  const resetPortalPin = async () => {
+    const token = localStorage.getItem('accessToken');
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/students/${studentId}/portal/reset-pin`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.message || 'Failed'); return; }
+    alert(data.defaultPin ? `PIN reset. New PIN: ${data.defaultPin}` : 'PIN reset.');
+  };
+
   if (loading) {
     return (
       <div className="p-4 sm:p-6 md:p-8 max-w-[1200px] mx-auto animate-fade-in space-y-5">
@@ -199,6 +223,11 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
               <div className="flex items-start gap-1.5 text-sm text-gray-500 font-mono">
                 <Hash className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span className="break-all">{student.studentId}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" size="sm" onClick={enablePortal}>Enable student portal</Button>
+                <Button variant="ghost" size="sm" onClick={resetPortalPin}>Reset PIN</Button>
+                <Link href="/student/login" className="text-xs text-primary-600 self-center hover:underline">Student login →</Link>
               </div>
               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600">
                 {age !== null && (

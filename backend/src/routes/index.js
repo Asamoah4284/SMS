@@ -19,6 +19,9 @@ const portalRoutes = require('./portal');
 const notificationRoutes = require('./notifications');
 const libraryRoutes = require('./library');
 const certificateRoutes = require('./certificates');
+const booksRoutes = require('./books');
+const onlineExamsRoutes = require('./onlineExams');
+const studentPortalRoutes = require('./studentPortal');
 
 const router = Router();
 
@@ -41,5 +44,8 @@ router.use('/portal', portalRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/library', libraryRoutes);
 router.use('/certificates', certificateRoutes);
+router.use('/books', booksRoutes);
+router.use('/online-exams', onlineExamsRoutes);
+router.use('/student-portal', studentPortalRoutes);
 
 module.exports = router;

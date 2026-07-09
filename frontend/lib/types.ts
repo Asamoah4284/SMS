@@ -1,6 +1,6 @@
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
-export type Role = 'ADMIN' | 'TEACHER' | 'PARENT';
+export type Role = 'ADMIN' | 'TEACHER' | 'PARENT' | 'STUDENT';
 export type Gender = 'MALE' | 'FEMALE';
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
 export type PaymentStatus = 'FULLY_PAID' | 'HALF_PAID' | 'PARTIAL' | 'UNPAID';

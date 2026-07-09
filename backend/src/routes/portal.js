@@ -5,6 +5,10 @@ const { authenticateParent, parentPhoneVariants } = require('../middleware/paren
 const { getStudentFeeLinesForTerm } = require('../utils/studentFeeLines');
 const { computeClassPositionByTerm } = require('../utils/classRanking');
 const { finalizePaystackIntentByReference } = require('../services/paystackFinalize');
+const {
+  finalizeBookPaystackIntentByReference,
+} = require('../services/bookPaystackFinalize');
+const { getStudentBookLines } = require('../utils/studentBooks');
 
 const router = Router();
 
@@ -414,6 +418,273 @@ router.get('/paystack/verify/:reference', authenticateParent, async (req, res) =
   } catch (error) {
     console.error('GET /portal/paystack/verify error:', error);
     res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// GET /portal/child/:studentId/books
+// ─────────────────────────────────────────────────────────────────
+
+router.get('/child/:studentId/books', authenticateParent, async (req, res) => {
+  try {
+    const { studentId: schoolStudentId } = req.params;
+    const phoneVariants = parentPhoneVariants(req.parentPhone);
+
+    const student = await prisma.student.findUnique({
+      where: { studentId: schoolStudentId },
+      include: { parent: { include: { user: { select: { phone: true } } } } },
+    });
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    const hasAccess =
+      phoneVariants.includes(student.parentPhone) ||
+      (student.parent && phoneVariants.includes(student.parent.user.phone));
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+    const currentTerm = await prisma.term.findFirst({ where: { isCurrent: true } });
+    if (!currentTerm) {
+      return res.json({ termName: null, books: [], totalDue: 0, totalPaid: 0, balance: 0 });
+    }
+
+    const lines = await getStudentBookLines(prisma, student.id, currentTerm.id);
+    res.json({
+      termId: currentTerm.id,
+      termName: `${currentTerm.name} ${currentTerm.year}`,
+      ...lines,
+    });
+  } catch (error) {
+    console.error('GET /portal/child/:studentId/books error:', error);
+    res.status(500).json({ error: 'Failed to fetch books' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// POST /portal/books/paystack/initialize
+// Body: { studentId, bookIds?: string[], amount?: GHS, callbackUrl? }
+// ─────────────────────────────────────────────────────────────────
+
+router.post('/books/paystack/initialize', authenticateParent, async (req, res) => {
+  try {
+    const secret = process.env.PAYSTACK_SECRET_KEY;
+    if (!secret) {
+      return res.status(503).json({ error: 'Online payments are not configured on this server' });
+    }
+
+    const { studentId: schoolStudentId, bookIds: bookIdsRaw, amount: amountRaw, callbackUrl } =
+      req.body || {};
+    if (!schoolStudentId || typeof schoolStudentId !== 'string') {
+      return res.status(400).json({ error: 'studentId is required' });
+    }
+
+    const phoneVariants = parentPhoneVariants(req.parentPhone);
+    const student = await prisma.student.findUnique({
+      where: { studentId: schoolStudentId.trim() },
+      include: {
+        parent: { include: { user: { select: { phone: true, email: true } } } },
+      },
+    });
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    const hasAccess =
+      phoneVariants.includes(student.parentPhone) ||
+      (student.parent && phoneVariants.includes(student.parent.user.phone));
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+    const currentTerm = await prisma.term.findFirst({ where: { isCurrent: true } });
+    if (!currentTerm) {
+      return res.status(400).json({ error: 'No active school term' });
+    }
+
+    const linesData = await getStudentBookLines(prisma, student.id, currentTerm.id);
+    const unpaid = linesData.books.filter((b) => !b.isPaid && b.remaining > 0.004);
+    if (unpaid.length === 0) {
+      return res.status(400).json({ error: 'No unpaid books for this term' });
+    }
+
+    let targetBooks = unpaid;
+    if (bookIdsRaw !== undefined && bookIdsRaw !== null) {
+      if (!Array.isArray(bookIdsRaw)) {
+        return res.status(400).json({ error: 'bookIds must be an array' });
+      }
+      const ids = [...new Set(bookIdsRaw.map((id) => String(id).trim()).filter(Boolean))];
+      if (ids.length === 0) {
+        return res.status(400).json({ error: 'Select at least one book to pay' });
+      }
+      targetBooks = unpaid.filter((b) => ids.includes(b.bookId));
+      if (targetBooks.length === 0) {
+        return res.status(400).json({ error: 'Selected books are not valid or already paid' });
+      }
+    }
+
+    const maxPayable = targetBooks.reduce((s, b) => s + b.remaining, 0);
+    let payAmount = maxPayable;
+    if (amountRaw != null && amountRaw !== '') {
+      const n = typeof amountRaw === 'number' ? amountRaw : parseFloat(String(amountRaw));
+      if (!Number.isFinite(n) || n <= 0) {
+        return res.status(400).json({ error: 'amount must be a positive number' });
+      }
+      payAmount = Math.min(n, maxPayable);
+    }
+
+    if (payAmount < 0.01) {
+      return res.status(400).json({ error: 'Minimum payment is GH₵0.01' });
+    }
+
+    if (callbackUrl != null && typeof callbackUrl === 'string' && callbackUrl.length > 0) {
+      const ok =
+        callbackUrl.startsWith('edutracksms://') ||
+        callbackUrl.startsWith('exp://') ||
+        callbackUrl.startsWith('http://localhost');
+      if (!ok) {
+        return res.status(400).json({ error: 'callbackUrl is not allowed' });
+      }
+    }
+
+    const amountPesewas = Math.round(payAmount * 100);
+    const reference = `EDB_${crypto.randomBytes(10).toString('hex')}`;
+
+    await prisma.bookPaystackIntent.create({
+      data: {
+        reference,
+        amountGhs: payAmount,
+        amountPesewas,
+        studentId: student.id,
+        termId: currentTerm.id,
+        callbackUrl: callbackUrl || null,
+        targetBookIds: targetBooks.map((b) => b.bookId),
+      },
+    });
+
+    const email = paystackCustomerEmail(
+      student.parent?.user?.email,
+      schoolStudentId,
+      reference
+    );
+
+    const paystackRes = await fetch('https://api.paystack.co/transaction/initialize', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        amount: amountPesewas,
+        currency: 'GHS',
+        reference,
+        callback_url: callbackUrl || undefined,
+        metadata: {
+          type: 'books',
+          studentSchoolId: schoolStudentId,
+          termId: currentTerm.id,
+        },
+      }),
+    });
+
+    const paystackJson = await paystackRes.json();
+    if (!paystackJson.status || !paystackJson.data?.authorization_url) {
+      await prisma.bookPaystackIntent.update({
+        where: { reference },
+        data: { status: 'FAILED' },
+      });
+      return res.status(502).json({
+        error: paystackJson.message || 'Could not start payment with Paystack',
+      });
+    }
+
+    await prisma.bookPaystackIntent.update({
+      where: { reference },
+      data: { paystackAccessCode: paystackJson.data.access_code || null },
+    });
+
+    return res.json({
+      authorizationUrl: paystackJson.data.authorization_url,
+      reference,
+      amountGhs: payAmount,
+      currency: 'GHS',
+    });
+  } catch (error) {
+    console.error('POST /portal/books/paystack/initialize error:', error);
+    res.status(500).json({ error: 'Failed to initialize payment' });
+  }
+});
+
+// GET /portal/books/paystack/verify/:reference
+router.get('/books/paystack/verify/:reference', authenticateParent, async (req, res) => {
+  try {
+    const secret = process.env.PAYSTACK_SECRET_KEY;
+    if (!secret) {
+      return res.status(503).json({ error: 'Online payments are not configured' });
+    }
+
+    const { reference } = req.params;
+    const intent = await prisma.bookPaystackIntent.findUnique({
+      where: { reference },
+      include: { student: { select: { studentId: true } } },
+    });
+    if (!intent) return res.status(404).json({ error: 'Payment not found' });
+
+    const phoneVariants = parentPhoneVariants(req.parentPhone);
+    const st = await prisma.student.findUnique({
+      where: { id: intent.studentId },
+      include: { parent: { include: { user: { select: { phone: true } } } } },
+    });
+    if (!st) return res.status(404).json({ error: 'Student not found' });
+
+    const hasAccess =
+      phoneVariants.includes(st.parentPhone) ||
+      (st.parent && phoneVariants.includes(st.parent.user.phone));
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+    if (intent.status === 'SUCCESS') {
+      return res.json({ status: 'SUCCESS', reference });
+    }
+
+    const verifyRes = await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      { headers: { Authorization: `Bearer ${secret}` } }
+    );
+    const verifyJson = await verifyRes.json();
+    if (!verifyJson.status || verifyJson.data?.status !== 'success') {
+      return res.json({
+        status: intent.status,
+        reference,
+        paystackStatus: verifyJson.data?.status || verifyJson.message,
+      });
+    }
+
+    const finalize = await finalizeBookPaystackIntentByReference(reference, Number(verifyJson.data.amount));
+    if (!finalize.ok && finalize.reason === 'AMOUNT_MISMATCH') {
+      return res.status(400).json({ error: 'Amount verification failed' });
+    }
+
+    return res.json({ status: 'SUCCESS', reference });
+  } catch (error) {
+    console.error('GET /portal/books/paystack/verify error:', error);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+// GET /portal/announcements
+router.get('/announcements', authenticateParent, async (req, res) => {
+  try {
+    const announcements = await prisma.announcement.findMany({
+      where: {
+        targetAudience: { in: ['ALL', 'PARENTS'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        createdAt: true,
+      },
+    });
+    res.json(announcements);
+  } catch (error) {
+    console.error('GET /portal/announcements error:', error);
+    res.status(500).json({ error: 'Failed to fetch announcements' });
   }
 });
 

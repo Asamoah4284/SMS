@@ -27,6 +27,10 @@ model Term {
   feeStructures      FeeStructure[]
   assessments        Assessment[]
   termRemarks        TermRemarks[]
+  bookAssignments    BookAssignment[]
+  bookPayments       BookPayment[]
+  bookPaystackIntents BookPaystackIntent[]
+  onlineExams        OnlineExam[]
 
   @@unique([name, year])
   @@map("terms")
@@ -52,6 +56,7 @@ model User {
 
   teacherProfile     Teacher?
   parentProfile      Parent?
+  studentProfile     StudentProfile?
   permissionRequests PermissionRequest[]
   announcements      Announcement[]
   notifications      Notification[]
@@ -64,6 +69,7 @@ enum Role {
   ADMIN   // school admin — full access
   TEACHER // class + subject teacher
   PARENT  // read-only portal
+  STUDENT // student portal for CBT
 }
 
 // ─────────────────────────────────────────
@@ -139,6 +145,21 @@ model Parent {
 }
 
 // ─────────────────────────────────────────
+// STUDENT PROFILE (portal login)
+// ─────────────────────────────────────────
+
+model StudentProfile {
+  id            String  @id @default(cuid())
+  userId        String  @unique
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentDbId   String  @unique
+  student       Student @relation(fields: [studentDbId], references: [id], onDelete: Cascade)
+  mustChangePin Boolean @default(true)
+
+  @@map("student_profiles")
+}
+
+// ─────────────────────────────────────────
 // STUDENT
 // ─────────────────────────────────────────
 
@@ -190,6 +211,11 @@ model Student {
   paystackIntents  PaystackIntent[]
   assessmentScores AssessmentScore[]
   termRemarks      TermRemarks[]
+  studentProfile   StudentProfile?
+  bookAssignments  BookAssignment[]
+  bookPayments     BookPayment[]
+  bookPaystackIntents BookPaystackIntent[]
+  examAttempts     ExamAttempt[]
 
   @@map("students")
 }
@@ -217,6 +243,8 @@ model Class {
   timetables      Timetable[]
   assessments     Assessment[]
   digitalMaterials DigitalMaterial[]
+  bookAssignments BookAssignment[]
+  onlineExams     OnlineExam[]
 
   @@unique([level, section])
   @@map("classes")
@@ -252,6 +280,7 @@ model Subject {
   timetables      Timetable[]
   assessments     Assessment[]
   digitalMaterials DigitalMaterial[]
+  onlineExams     OnlineExam[]
 
   @@map("subjects")
 }
@@ -621,4 +650,192 @@ model Timetable {
 
   @@unique([classId, dayOfWeek, startTime])
   @@map("timetable")
+}
+
+// ─────────────────────────────────────────
+// TEXTBOOK LIBRARY
+// ─────────────────────────────────────────
+
+model Book {
+  id          String   @id @default(cuid())
+  title       String
+  author      String?
+  isbn        String?
+  description String?
+  priceGhs    Float
+  coverUrl    String?
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments BookAssignment[]
+  payments    BookPayment[]
+
+  @@map("books")
+}
+
+model BookAssignment {
+  id         String  @id @default(cuid())
+  bookId     String
+  book       Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  classId    String?
+  class      Class?  @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentId  String?
+  student    Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  termId     String
+  term       Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+  isRequired Boolean @default(true)
+  createdAt  DateTime @default(now())
+
+  @@index([bookId, classId, termId])
+  @@index([bookId, studentId, termId])
+  @@map("book_assignments")
+}
+
+model BookPayment {
+  id            String        @id @default(cuid())
+  studentId     String
+  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  bookId        String
+  book          Book          @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  amountPaid    Float
+  paymentStatus PaymentStatus @default(FULLY_PAID)
+  paymentMethod String?
+  paystackRef   String?
+  paidAt        DateTime?
+  termId        String
+  term          Term          @relation(fields: [termId], references: [id], onDelete: Cascade)
+  createdAt     DateTime      @default(now())
+
+  @@unique([studentId, bookId, termId])
+  @@map("book_payments")
+}
+
+model BookPaystackIntent {
+  id                 String   @id @default(cuid())
+  reference          String   @unique
+  amountGhs          Float
+  amountPesewas      Int
+  status             String   @default("PENDING")
+  callbackUrl        String?
+  studentId          String
+  student            Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  termId             String
+  term               Term     @relation(fields: [termId], references: [id], onDelete: Cascade)
+  targetBookIds      String[] @default([])
+  paystackAccessCode String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([studentId, termId])
+  @@map("book_paystack_intents")
+}
+
+// ─────────────────────────────────────────
+// ONLINE EXAMS (CBT)
+// ─────────────────────────────────────────
+
+enum ExamQuestionType {
+  MCQ_SINGLE
+  MCQ_MULTIPLE
+  TRUE_FALSE
+  THEORY
+}
+
+enum OnlineExamStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum ExamAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
+}
+
+model OnlineExam {
+  id              String           @id @default(cuid())
+  title           String
+  description     String?
+  instructions    String?
+  durationMinutes Int
+  startAt         DateTime?
+  endAt           DateTime?
+  totalMarks      Float            @default(0)
+  status          OnlineExamStatus @default(DRAFT)
+  classId         String
+  class           Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId       String
+  subject         Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  termId          String
+  term            Term             @relation(fields: [termId], references: [id], onDelete: Cascade)
+  createdById     String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  questions ExamQuestion[]
+  attempts  ExamAttempt[]
+
+  @@map("online_exams")
+}
+
+model ExamQuestion {
+  id          String           @id @default(cuid())
+  examId      String
+  exam        OnlineExam       @relation(fields: [examId], references: [id], onDelete: Cascade)
+  type        ExamQuestionType
+  text        String
+  marks       Float
+  order       Int
+  modelAnswer String?
+
+  options ExamOption[]
+  answers ExamAnswer[]
+
+  @@map("exam_questions")
+}
+
+model ExamOption {
+  id         String       @id @default(cuid())
+  questionId String
+  question   ExamQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean      @default(false)
+
+  @@map("exam_options")
+}
+
+model ExamAttempt {
+  id          String            @id @default(cuid())
+  examId      String
+  exam        OnlineExam        @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  startedAt   DateTime          @default(now())
+  submittedAt DateTime?
+  status      ExamAttemptStatus @default(IN_PROGRESS)
+  score       Float?
+
+  answers ExamAnswer[]
+
+  @@unique([examId, studentId])
+  @@map("exam_attempts")
+}
+
+model ExamAnswer {
+  id                String       @id @default(cuid())
+  attemptId         String
+  attempt           ExamAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId        String
+  question          ExamQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOptionIds String[]     @default([])
+  textAnswer        String?
+  marksAwarded      Float?
+  gradedById        String?
+  feedback          String?
+
+  @@unique([attemptId, questionId])
+  @@map("exam_answers")
 }

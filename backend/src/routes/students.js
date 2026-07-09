@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const bcrypt = require('bcryptjs');
 const { totalDueFromPayments } = require('../utils/feeAccounting');
 const { computeClassPositionByTerm } = require('../utils/classRanking');
 const { authenticate, authorize } = require('../middleware/auth');
@@ -424,6 +425,92 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
   } catch (err) {
     console.error('POST /students/bulk-import', err);
     res.status(500).json({ message: 'Failed to bulk import students' });
+  }
+});
+
+// POST /students/:id/portal/enable — create student portal account with PIN
+router.post('/:id/portal/enable', authorize('ADMIN', 'TEACHER'), async (req, res) => {
+  try {
+    const { pin } = req.body;
+    const defaultPin = pin ? String(pin) : '1234';
+
+    const student = await prisma.student.findUnique({
+      where: { id: req.params.id },
+      include: { studentProfile: { include: { user: true } } },
+    });
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    if (student.studentProfile) {
+      return res.status(400).json({ message: 'Portal access already enabled' });
+    }
+
+    const internalPhone = `STU-${student.studentId}`;
+    const existingPhone = await prisma.user.findUnique({ where: { phone: internalPhone } });
+    if (existingPhone) {
+      return res.status(400).json({ message: 'Portal user already exists for this student' });
+    }
+
+    const hashed = await bcrypt.hash(defaultPin, 10);
+    const user = await prisma.user.create({
+      data: {
+        phone: internalPhone,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        password: hashed,
+        role: 'STUDENT',
+      },
+    });
+
+    const profile = await prisma.studentProfile.create({
+      data: {
+        userId: user.id,
+        studentDbId: student.id,
+        mustChangePin: true,
+      },
+    });
+
+    res.status(201).json({
+      message: 'Student portal enabled',
+      studentId: student.studentId,
+      defaultPin: pin ? undefined : defaultPin,
+      profileId: profile.id,
+    });
+  } catch (err) {
+    console.error('POST /students/:id/portal/enable', err);
+    res.status(500).json({ message: 'Failed to enable portal' });
+  }
+});
+
+// POST /students/:id/portal/reset-pin
+router.post('/:id/portal/reset-pin', authorize('ADMIN', 'TEACHER'), async (req, res) => {
+  try {
+    const { pin } = req.body;
+    const newPin = pin ? String(pin) : '1234';
+
+    const student = await prisma.student.findUnique({
+      where: { id: req.params.id },
+      include: { studentProfile: { include: { user: true } } },
+    });
+    if (!student?.studentProfile) {
+      return res.status(404).json({ message: 'Student portal not enabled' });
+    }
+
+    const hashed = await bcrypt.hash(newPin, 10);
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: student.studentProfile.userId },
+        data: { password: hashed },
+      }),
+      prisma.studentProfile.update({
+        where: { id: student.studentProfile.id },
+        data: { mustChangePin: true },
+      }),
+    ]);
+
+    res.json({ message: 'PIN reset successfully', defaultPin: pin ? undefined : newPin });
+  } catch (err) {
+    console.error('POST /students/:id/portal/reset-pin', err);
+    res.status(500).json({ message: 'Failed to reset PIN' });
   }
 });
 
