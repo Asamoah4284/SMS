@@ -32,7 +32,7 @@ import {
 // ─── School Branding (from .env) ──────────────────────────────────────────────
 
 export const schoolConfig = {
-  name: process.env.NEXT_PUBLIC_SCHOOL_NAME || 'EduTrack SMS',
+  name: process.env.NEXT_PUBLIC_SCHOOL_NAME || 'DEACONS SMS',
   logo: process.env.NEXT_PUBLIC_SCHOOL_LOGO || '/images/logo.png',
   motto: process.env.NEXT_PUBLIC_SCHOOL_MOTTO || 'Excellence in Education',
   address: process.env.NEXT_PUBLIC_SCHOOL_ADDRESS || '',
@@ -110,10 +110,19 @@ export const statusStyles = {
 // ─── Class level display names ────────────────────────────────────────────────
 
 export const classLevelLabels: Record<string, string> = {
+  CRECHE:    'Creche',
   NURSERY_1: 'Nursery 1',
   NURSERY_2: 'Nursery 2',
   KG_1:      'KG 1',
   KG_2:      'KG 2',
+  YEAR_1:    'Year 1',
+  YEAR_2:    'Year 2',
+  YEAR_3:    'Year 3',
+  YEAR_4:    'Year 4',
+  YEAR_5:    'Year 5',
+  YEAR_6:    'Year 6',
+  YEAR_7:    'Year 7',
+  YEAR_8:    'Year 8',
   BASIC_1:   'Basic 1',
   BASIC_2:   'Basic 2',
   BASIC_3:   'Basic 3',

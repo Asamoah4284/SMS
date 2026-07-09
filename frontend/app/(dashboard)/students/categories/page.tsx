@@ -1,4 +1,4 @@
-export const metadata = { title: 'Student Categories — EduTrack SMS' };
+export const metadata = { title: 'Student Categories — DEACONS SMS' };
 
 export default function StudentCategoriesPage() {
   return (

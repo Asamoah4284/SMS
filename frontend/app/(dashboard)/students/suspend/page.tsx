@@ -1,4 +1,4 @@
-export const metadata = { title: 'Suspend Student — EduTrack SMS' };
+export const metadata = { title: 'Suspend Student — DEACONS SMS' };
 
 export default function SuspendStudentPage() {
   return (

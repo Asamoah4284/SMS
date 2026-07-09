@@ -71,7 +71,7 @@ function setColumns(sheet, defs) {
 
 async function build() {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'EduTrack SMS';
+  wb.creator = 'DEACONS SMS';
   wb.created = new Date();
   wb.title = 'School Onboarding Template';
 
@@ -94,7 +94,7 @@ function buildReadme(wb) {
   s.getColumn(1).width = 110;
 
   const lines = [
-    { t: 'EduTrack SMS — School Onboarding Template', style: 'title' },
+    { t: 'DEACONS SMS — School Onboarding Template', style: 'title' },
     { t: '', style: 'blank' },
     { t: 'Thank you for choosing EduTrack. This workbook collects everything we need to set up your school in the app.', style: 'body' },
     { t: '', style: 'blank' },

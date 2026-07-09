@@ -1,6 +1,6 @@
 import SetPasswordForm from './SetPasswordForm';
 
-export const metadata = { title: 'Set Password — EduTrack SMS' };
+export const metadata = { title: 'Set Password — DEACONS SMS' };
 
 export default function SetPasswordPage() {
   return (

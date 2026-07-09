@@ -1,4 +1,4 @@
-# EduTrack SMS — Full Feature Specification
+# DEACONS SMS — Full Feature Specification
 
 Target market: Ghanaian schools (Nursery 1 → JHS 3)
 Pricing: ₵10 per active student per term

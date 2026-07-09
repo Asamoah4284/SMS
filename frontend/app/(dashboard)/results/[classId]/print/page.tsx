@@ -5,7 +5,7 @@ interface Props {
   searchParams: Promise<{ termId?: string }>;
 }
 
-export const metadata = { title: 'Print Report Cards — EduTrack SMS' };
+export const metadata = { title: 'Print Report Cards — DEACONS SMS' };
 
 export default async function PrintPage({ params, searchParams }: Props) {
   const { classId } = await params;

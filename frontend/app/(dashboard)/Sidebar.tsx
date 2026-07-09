@@ -101,12 +101,11 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     { name: "Fees Collection", href: "/fees", icon: CreditCard, adminOnly: true },
     { name: "Payments", href: "/payments", icon: Wallet, adminOnly: true },
     { name: "Attendance", href: "/attendance", icon: CalendarCheck, classTeacherOnly: true },
-    { name: "Settings", href: "/settings", icon: Settings, adminOnly: true },
-    // Placeholder items — visible to admin only for now
+    { name: "Online Exams", href: "/online-exams", icon: FileText, teacherVisible: true },
+    { name: "Library", href: "/library", icon: Library, teacherVisible: true },
     { name: "Leaves", href: "/leaves", icon: ClipboardList, teacherVisible: true },
     { name: "Certificate", href: "/certificate", icon: Award, adminOnly: true },
-    { name: "Library", href: "/library", icon: Library, teacherVisible: true },
-    { name: "Online Exams", href: "/online-exams", icon: FileText, teacherVisible: true },
+    { name: "Settings", href: "/settings", icon: Settings, adminOnly: true },
   ], [isAdmin, myClassId]);
 
   // Filter based on role

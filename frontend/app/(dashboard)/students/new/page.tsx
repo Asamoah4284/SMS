@@ -1,4 +1,4 @@
-export const metadata = { title: 'Add Student — EduTrack SMS' };
+export const metadata = { title: 'Add Student — DEACONS SMS' };
 
 import AddStudentPageClient from './AddStudentPageClient';
 

@@ -1,6 +1,6 @@
 import ClassDetail from './ClassDetail';
 
-export const metadata = { title: 'Class Details — EduTrack SMS' };
+export const metadata = { title: 'Class Details — DEACONS SMS' };
 
 export default async function ClassDetailPage({
   params,

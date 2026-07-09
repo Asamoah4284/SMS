@@ -1,7 +1,7 @@
 {
   "name": "sms-backend",
   "version": "1.0.0",
-  "description": "EduTrack SMS — School Management System API",
+  "description": "DEACONS SMS — School Management System API",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {

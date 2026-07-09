@@ -15,6 +15,199 @@ function startOfNextMonth(date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 1);
 }
 
+function paymentDisplayStatus(status) {
+  return status === 'FULLY_PAID' ? 'Paid' : 'Pending';
+}
+
+async function computeTermFeeCollection(termId) {
+  const structures = await prisma.feeStructure.findMany({ where: { termId } });
+  const tuitionByLevel = {};
+  const supplementary = [];
+  for (const s of structures) {
+    if (s.category === 'TUITION' && s.classLevel) tuitionByLevel[s.classLevel] = s.amount;
+    else if (s.category !== 'TUITION') supplementary.push(s);
+  }
+  const suppForLevel = (level) =>
+    supplementary
+      .filter((f) => f.classLevel === null || f.classLevel === level)
+      .reduce((sum, f) => sum + f.amount, 0);
+
+  const students = await prisma.student.findMany({
+    where: { isActive: true },
+    select: { class: { select: { level: true } } },
+  });
+
+  let totalExpected = 0;
+  for (const st of students) {
+    const level = st.class?.level;
+    if (!level) continue;
+    totalExpected += (tuitionByLevel[level] ?? 0) + suppForLevel(level);
+  }
+
+  const collectedAgg = await prisma.feePayment.aggregate({
+    where: { termId },
+    _sum: { amountPaid: true },
+  });
+  const totalCollected = collectedAgg._sum.amountPaid ?? 0;
+  const collectionRate =
+    totalExpected > 0 ? Math.min(100, Math.round((totalCollected / totalExpected) * 100)) : 100;
+
+  return { totalExpected, totalCollected, collectionRate };
+}
+
+async function fetchUpcomingEvents(now, currentTermId) {
+  const [assessments, exams, terms] = await Promise.all([
+    prisma.assessment.findMany({
+      where: {
+        date: { not: null, gte: now },
+        ...(currentTermId ? { termId: currentTermId } : {}),
+      },
+      include: {
+        class: { select: { name: true } },
+        subject: { select: { name: true } },
+      },
+      orderBy: { date: 'asc' },
+      take: 10,
+    }),
+    prisma.onlineExam.findMany({
+      where: {
+        status: 'PUBLISHED',
+        OR: [{ startAt: { gte: now } }, { endAt: { gte: now } }],
+        ...(currentTermId ? { termId: currentTermId } : {}),
+      },
+      include: {
+        class: { select: { name: true } },
+        subject: { select: { name: true } },
+      },
+      orderBy: { startAt: 'asc' },
+      take: 10,
+    }),
+    prisma.term.findMany({
+      where: { endDate: { gte: now } },
+      orderBy: { endDate: 'asc' },
+      take: 3,
+    }),
+  ]);
+
+  const events = [
+    ...assessments.map((a) => ({
+      id: `assessment-${a.id}`,
+      title: a.name,
+      date: a.date.toISOString(),
+      type: 'assessment',
+      subtitle: `${a.class.name} · ${a.subject.name}`,
+    })),
+    ...exams.map((e) => ({
+      id: `exam-${e.id}`,
+      title: e.title,
+      date: (e.startAt ?? e.endAt).toISOString(),
+      type: 'exam',
+      subtitle: `${e.class.name} · ${e.subject.name}`,
+    })),
+    ...terms.map((t) => ({
+      id: `term-${t.id}`,
+      title: `${t.name} ${t.year} ends`,
+      date: t.endDate.toISOString(),
+      type: 'term',
+      subtitle: 'Academic term',
+    })),
+  ];
+
+  return events
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .slice(0, 5);
+}
+
+function dateKey(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+function summarizeAttendanceRecords(records) {
+  let present = 0;
+  let absent = 0;
+  let total = 0;
+  for (const r of records) {
+    total += 1;
+    if (r.status === 'PRESENT' || r.status === 'LATE') present += 1;
+    else if (r.status === 'ABSENT') absent += 1;
+  }
+  const presentRate = total > 0 ? Math.round((present / total) * 100) : 0;
+  const absentRate = total > 0 ? Math.round((absent / total) * 100) : 0;
+  return { present, absent, total, presentRate, absentRate };
+}
+
+async function fetchAttendanceWeeklyTrend(now, currentTermId) {
+  const DAY_COUNT = 6;
+  const termFilter = currentTermId ? { termId: currentTermId } : {};
+
+  const chartStart = new Date(now);
+  chartStart.setDate(chartStart.getDate() - (DAY_COUNT - 1));
+  chartStart.setHours(0, 0, 0, 0);
+
+  const thisWeekStart = new Date(now);
+  thisWeekStart.setDate(thisWeekStart.getDate() - 6);
+  thisWeekStart.setHours(0, 0, 0, 0);
+
+  const lastWeekStart = new Date(thisWeekStart);
+  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+  const lastWeekEnd = new Date(thisWeekStart);
+  lastWeekEnd.setMilliseconds(-1);
+
+  const allRecords = await prisma.attendance.findMany({
+    where: {
+      date: { gte: lastWeekStart, lte: now },
+      ...termFilter,
+    },
+    select: { date: true, status: true },
+  });
+
+  const byDate = {};
+  for (const r of allRecords) {
+    const key = dateKey(new Date(r.date));
+    if (!byDate[key]) byDate[key] = [];
+    byDate[key].push(r);
+  }
+
+  const days = [];
+  for (let i = 0; i < DAY_COUNT; i += 1) {
+    const d = new Date(chartStart);
+    d.setDate(d.getDate() + i);
+    const key = dateKey(d);
+    const summary = summarizeAttendanceRecords(byDate[key] ?? []);
+    days.push({
+      date: key,
+      label: d.toLocaleDateString('en-US', { weekday: 'short' }),
+      presentRate: summary.presentRate,
+      absentRate: summary.absentRate,
+      present: summary.present,
+      absent: summary.absent,
+      totalMarked: summary.total,
+    });
+  }
+
+  const avgPresentRate = (records) => {
+    if (!records.length) return null;
+    const present = records.filter((r) => r.status === 'PRESENT' || r.status === 'LATE').length;
+    return Math.round((present / records.length) * 100);
+  };
+
+  const thisWeekRecords = allRecords.filter((r) => {
+    const d = new Date(r.date);
+    return d >= thisWeekStart && d <= now;
+  });
+  const lastWeekRecords = allRecords.filter((r) => {
+    const d = new Date(r.date);
+    return d >= lastWeekStart && d <= lastWeekEnd;
+  });
+
+  const thisAvg = avgPresentRate(thisWeekRecords);
+  const lastAvg = avgPresentRate(lastWeekRecords);
+  const weekOverWeekChange =
+    thisAvg !== null && lastAvg !== null ? Number((thisAvg - lastAvg).toFixed(1)) : null;
+
+  return { days, weekOverWeekChange };
+}
+
 // GET /reports/overview
 // Dashboard stat cards: students, attendance, fees, staff
 router.get('/overview', async (req, res) => {
@@ -42,6 +235,10 @@ router.get('/overview', async (req, res) => {
       attendanceGroups,
       feesCollectedThisMonthAgg,
       pendingFeesCount,
+      recentFeePayments,
+      termFeeCollection,
+      upcomingEvents,
+      attendanceWeekly,
     ] = await Promise.all([
       prisma.student.count(),
       prisma.student.count({ where: { isActive: true } }),
@@ -77,6 +274,25 @@ router.get('/overview', async (req, res) => {
           ...(currentTerm ? { termId: currentTerm.id } : {}),
         },
       }),
+
+      prisma.feePayment.findMany({
+        where: currentTerm ? { termId: currentTerm.id } : {},
+        include: {
+          student: { select: { firstName: true, lastName: true } },
+        },
+        orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
+        take: 5,
+      }),
+
+      currentTerm ? computeTermFeeCollection(currentTerm.id) : Promise.resolve({
+        totalExpected: 0,
+        totalCollected: 0,
+        collectionRate: 100,
+      }),
+
+      fetchUpcomingEvents(now, currentTerm?.id ?? null),
+
+      fetchAttendanceWeeklyTrend(now, currentTerm?.id ?? null),
     ]);
 
     const attendanceCountByStatus = attendanceGroups.reduce((acc, g) => {
@@ -105,15 +321,24 @@ router.get('/overview', async (req, res) => {
         excused: excusedCount,
         totalMarked,
       },
+      attendanceWeekly,
       fees: {
         collectedThisMonth: feesCollectedThisMonthAgg._sum.amountPaid ?? 0,
         pendingCount: pendingFeesCount,
+        collectionRate: termFeeCollection.collectionRate,
+        recentPayments: recentFeePayments.map((p) => ({
+          studentName: `${p.student.firstName} ${p.student.lastName}`,
+          date: (p.paidAt ?? p.createdAt).toISOString(),
+          amount: p.amountPaid,
+          status: paymentDisplayStatus(p.paymentStatus),
+        })),
       },
       staff: {
         total: totalTeachers,
         active: activeTeachers,
         inactive: inactiveTeachers,
       },
+      upcomingEvents,
     });
   } catch (error) {
     console.error('Reports overview error:', error);

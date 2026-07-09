@@ -2,7 +2,7 @@ import { schoolConfig } from '@/lib/theme';
 import ForgotPasswordForm from './ForgotPasswordForm';
 import Image from 'next/image';
 
-export const metadata = { title: 'Forgot Password — EduTrack SMS' };
+export const metadata = { title: 'Forgot Password — DEACONS SMS' };
 
 export default function ForgotPasswordPage() {
   return (

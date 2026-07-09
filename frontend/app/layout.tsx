@@ -31,8 +31,8 @@ function metadataBaseUrl(): URL {
 export const metadata: Metadata = {
   metadataBase: metadataBaseUrl(),
   title: {
-    template: `%s — ${process.env.NEXT_PUBLIC_APP_NAME || 'EduTrack SMS'}`,
-    default: "EduTrack SMS",
+    template: `%s — ${process.env.NEXT_PUBLIC_APP_NAME || 'DEACONS SMS'}`,
+    default: "DEACONS SMS",
   },
   description: `${process.env.NEXT_PUBLIC_APP_MOTTO || 'School Motto'}`,
 };

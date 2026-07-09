@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import TimetableClientPage from './TimetableClientPage';
 
-export const metadata = { title: 'Timetable — EduTrack SMS' };
+export const metadata = { title: 'Timetable — DEACONS SMS' };
 
 function TimetableFallback() {
   return (

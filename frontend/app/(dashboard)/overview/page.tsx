@@ -8,10 +8,10 @@ import {
   ArrowRight,
   MoreHorizontal,
   TrendingUp,
+  TrendingDown,
   Check,
   Clock,
   CalendarDays,
-  Microscope,
   ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -20,13 +20,81 @@ import Link from "next/link";
 import { DropdownMenu } from "@/components/ui";
 import OverviewRoleGate from "./OverviewRoleGate";
 
-export const metadata = { title: `${process.env.NEXT_PUBLIC_APP_NAME || 'EduTrack SMS'} — Overview` };
+export const metadata = { title: `${process.env.NEXT_PUBLIC_APP_NAME || 'DEACONS SMS'} — Overview` };
 
 type OverviewStats = {
   students: { total: number; active: number; inactive: number; addedThisMonth: number };
   attendanceToday: { rate: number; present: number; absent: number; excused: number; totalMarked: number };
-  fees: { collectedThisMonth: number; pendingCount: number };
+  attendanceWeekly: {
+    days: {
+      date: string;
+      label: string;
+      presentRate: number;
+      absentRate: number;
+      present: number;
+      absent: number;
+      totalMarked: number;
+    }[];
+    weekOverWeekChange: number | null;
+  };
+  fees: {
+    collectedThisMonth: number;
+    pendingCount: number;
+    collectionRate: number;
+    recentPayments: {
+      studentName: string;
+      date: string;
+      amount: number;
+      status: 'Paid' | 'Pending';
+    }[];
+  };
   staff: { total: number; active: number; inactive: number };
+  upcomingEvents: {
+    id: string;
+    title: string;
+    date: string;
+    type: 'assessment' | 'exam' | 'term';
+    subtitle: string;
+  }[];
+};
+
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(value));
+}
+
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+const EVENT_STYLES: Record<
+  OverviewStats['upcomingEvents'][number]['type'],
+  { icon: LucideIcon; iconClass: string; iconBg: string }
+> = {
+  assessment: {
+    icon: ClipboardCheck,
+    iconClass: 'text-purple-700',
+    iconBg: 'bg-purple-50 border-purple-100',
+  },
+  exam: {
+    icon: ClipboardCheck,
+    iconClass: 'text-purple-700',
+    iconBg: 'bg-purple-50 border-purple-100',
+  },
+  term: {
+    icon: CalendarDays,
+    iconClass: 'text-emerald-700',
+    iconBg: 'bg-emerald-50 border-emerald-100',
+  },
 };
 
 function formatInt(value: number): string {
@@ -59,6 +127,11 @@ export default async function DashboardPage() {
   const studentsValue = stats ? `${formatInt(stats.students.total)}` : "—";
   const attendanceValue = stats ? `${stats.attendanceToday.rate}% Present` : "—";
   const feesValue = stats ? formatGhs(stats.fees.collectedThisMonth) : "—";
+  const feesCollectionRate = stats?.fees.collectionRate ?? 0;
+  const recentPayments = stats?.fees.recentPayments ?? [];
+  const upcomingEvents = stats?.upcomingEvents ?? [];
+  const attendanceDays = stats?.attendanceWeekly.days ?? [];
+  const weekOverWeekChange = stats?.attendanceWeekly.weekOverWeekChange ?? null;
   const staffValue = stats ? `${formatInt(stats.staff.total)}` : "—";
 
   return (
@@ -134,9 +207,8 @@ export default async function DashboardPage() {
           progress={
             stats
               ? {
-                  // We don't have total due yet; show a subtle, non-committal bar when there are pending items.
-                  value: Math.max(0, Math.min(100, stats.fees.pendingCount > 0 ? 79 : 100)),
-                  label: stats.fees.pendingCount > 0 ? "79% collected" : "100% collected",
+                  value: feesCollectionRate,
+                  label: `${feesCollectionRate}% collected`,
                 }
               : undefined
           }
@@ -190,12 +262,31 @@ export default async function DashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-4 items-stretch">
             <div className="bg-gradient-to-b from-blue-50/60 to-transparent rounded-xl border border-gray-100 p-4">
-              <MiniLineChart />
+              <MiniLineChart days={attendanceDays} />
               <div className="mt-3 flex items-center justify-center gap-3">
-                <div className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" />
-                  5.5% <span className="font-medium text-emerald-600">since last week</span>
-                </div>
+                {weekOverWeekChange !== null ? (
+                  <div
+                    className={[
+                      "px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 border",
+                      weekOverWeekChange >= 0
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                        : "bg-red-50 text-red-700 border-red-100",
+                    ].join(" ")}
+                  >
+                    {weekOverWeekChange >= 0 ? (
+                      <TrendingUp className="w-4 h-4" />
+                    ) : (
+                      <TrendingDown className="w-4 h-4" />
+                    )}
+                    {weekOverWeekChange >= 0 ? "+" : ""}
+                    {weekOverWeekChange}%
+                    <span className={weekOverWeekChange >= 0 ? "font-medium text-emerald-600" : "font-medium text-red-600"}>
+                      since last week
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">Not enough attendance data for weekly trend.</p>
+                )}
               </div>
             </div>
 
@@ -259,17 +350,13 @@ export default async function DashboardPage() {
                   <div
                     className="h-full bg-emerald-500 rounded-none"
                     style={{
-                      width: `${stats ? (stats.fees.pendingCount > 0 ? 79 : 100) : 0}%`,
+                      width: `${stats ? feesCollectionRate : 0}%`,
                     }}
                   />
                 </div>
                 <div className="mt-2 flex items-center gap-2 text-[11px] font-semibold">
                   <span className="text-emerald-700">
-                    {stats
-                      ? stats.fees.pendingCount > 0
-                        ? "79% collected"
-                        : "100% collected"
-                      : "—"}
+                    {stats ? `${feesCollectionRate}% collected` : "—"}
                   </span>
                   <span className="text-gray-300">•</span>
                   <span className="text-gray-500">
@@ -295,31 +382,30 @@ export default async function DashboardPage() {
             </div>
 
             <div className="space-y-2">
-              {[
-                { name: "Kofi Ansah", date: "Apr 22, 2024", amount: "GHS 2,500", status: "Paid" },
-                { name: "Abena Mensah", date: "Apr 21, 2024", amount: "GHS 1,500", status: "Paid" },
-                { name: "Isaac Owusu", date: "Apr 20, 2024", amount: "GHS 900", status: "Pending" },
-              ].map((p) => (
+              {recentPayments.length === 0 ? (
+                <p className="text-xs text-gray-500 px-1 py-3">No fee payments recorded yet.</p>
+              ) : (
+                recentPayments.map((p) => (
                 <div
-                  key={p.name}
+                  key={`${p.studentName}-${p.date}-${p.amount}`}
                   className="grid grid-cols-[1.4fr_0.8fr_0.6fr] gap-3 items-center rounded-xl px-1 py-2 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-[11px] font-bold text-gray-700 shrink-0">
-                      {p.name.split(" ").map((s) => s[0]).slice(0, 2).join("")}
+                      {p.studentName.split(" ").map((s) => s[0]).slice(0, 2).join("")}
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-gray-900 truncate">
-                        {p.name}
+                        {p.studentName}
                       </p>
                       <p className="text-[11px] font-medium text-gray-500 truncate">
-                        {p.date}
+                        {formatDate(p.date)}
                       </p>
                     </div>
                   </div>
 
                   <p className="text-xs font-bold text-gray-900 text-right">
-                    {p.amount}
+                    {formatGhs(p.amount)}
                   </p>
 
                   <div className="flex justify-end">
@@ -340,7 +426,8 @@ export default async function DashboardPage() {
                     </span>
                   </div>
                 </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -348,51 +435,30 @@ export default async function DashboardPage() {
         <div className="bg-white border border-gray-200 shadow-sm shadow-gray-200/50 rounded-2xl p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-gray-900">Upcoming Events</h3>
-            <Link href="/timetable" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+            <Link href="/results" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
               View All <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
           <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 overflow-hidden">
-            {[
-              {
-                title: "Parent-Teacher Meeting",
-                subtitle: "Apr 25, 2024",
-                right: "Apr 25, 2024 · 2:00 PM",
-                icon: CalendarDays,
-                iconClass: "text-emerald-700",
-                iconBg: "bg-emerald-50 border-emerald-100",
-              },
-              {
-                title: "Science Fair",
-                subtitle: "May 9, 2024",
-                right: "May 2, 2024 · 9:00 AM",
-                icon: Microscope,
-                iconClass: "text-amber-700",
-                iconBg: "bg-amber-50 border-amber-100",
-              },
-              {
-                title: "Final Exams",
-                subtitle: "May 10, 2024",
-                right: "May 10, 2024 · 8:00 AM",
-                icon: ClipboardCheck,
-                iconClass: "text-purple-700",
-                iconBg: "bg-purple-50 border-purple-100",
-              },
-            ].map((e) => {
-              const Icon = e.icon;
+            {upcomingEvents.length === 0 ? (
+              <p className="text-xs text-gray-500 px-4 py-6">No upcoming events scheduled.</p>
+            ) : (
+              upcomingEvents.map((e) => {
+              const style = EVENT_STYLES[e.type];
+              const Icon = style.icon;
               return (
                 <div
-                  key={e.title}
+                  key={e.id}
                   className="flex items-center justify-between gap-4 px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div
                       className={[
                         "w-9 h-9 rounded-xl border flex items-center justify-center shrink-0",
-                        e.iconBg,
+                        style.iconBg,
                       ].join(" ")}
                     >
-                      <Icon className={["w-4.5 h-4.5", e.iconClass].join(" ")} />
+                      <Icon className={["w-4.5 h-4.5", style.iconClass].join(" ")} />
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-extrabold text-gray-900 truncate">
@@ -405,11 +471,12 @@ export default async function DashboardPage() {
                   </div>
 
                   <p className="text-[11px] font-semibold text-gray-500 shrink-0">
-                    {e.right}
+                    {formatDateTime(e.date)}
                   </p>
                 </div>
               );
-            })}
+              })
+            )}
           </div>
         </div>
 
@@ -516,8 +583,51 @@ function MiniSparkline({ color }: { color: string }) {
   );
 }
 
-function MiniLineChart() {
-  // Lightweight SVG chart to match the design without adding deps.
+function MiniLineChart({
+  days,
+}: {
+  days: OverviewStats["attendanceWeekly"]["days"];
+}) {
+  const chartTop = 35;
+  const chartHeight = 105;
+  const xStart = 10;
+  const xEnd = 510;
+
+  const rateToY = (rate: number) => chartTop + chartHeight - (rate / 100) * chartHeight;
+
+  const buildSmoothPath = (values: number[]) => {
+    if (values.length === 0) return "";
+    const step = values.length > 1 ? (xEnd - xStart) / (values.length - 1) : 0;
+    const points = values.map((v, i) => ({
+      x: xStart + i * step,
+      y: rateToY(v),
+    }));
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+    let d = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i += 1) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const cpx = (prev.x + curr.x) / 2;
+      d += ` C ${cpx} ${prev.y}, ${cpx} ${curr.y}, ${curr.x} ${curr.y}`;
+    }
+    return d;
+  };
+
+  const presentRates = days.map((d) => d.presentRate);
+  const absentRates = days.map((d) => d.absentRate);
+  const presentPath = buildSmoothPath(presentRates);
+  const absentPath = buildSmoothPath(absentRates);
+  const hasData = days.some((d) => d.totalMarked > 0);
+
+  const markerPoints = days.map((d, i) => {
+    const step = days.length > 1 ? (xEnd - xStart) / (days.length - 1) : 0;
+    return {
+      x: xStart + i * step,
+      y: rateToY(d.presentRate),
+      show: d.totalMarked > 0,
+    };
+  });
+
   return (
     <svg viewBox="0 0 520 170" className="w-full h-[170px]">
       <defs>
@@ -531,54 +641,50 @@ function MiniLineChart() {
         </linearGradient>
       </defs>
 
-      {/* grid */}
       <g stroke="#e5e7eb" strokeWidth="1">
         <line x1="0" y1="140" x2="520" y2="140" />
         <line x1="0" y1="95" x2="520" y2="95" />
         <line x1="0" y1="50" x2="520" y2="50" />
       </g>
 
-      {/* blue line */}
-      <path
-        d="M 10 95 C 90 70, 140 80, 190 55 C 250 25, 300 35, 340 40 C 390 50, 420 75, 460 85 C 490 92, 505 70, 510 62"
-        fill="none"
-        stroke="#3b82f6"
-        strokeWidth="3"
-      />
-      <path
-        d="M 10 95 C 90 70, 140 80, 190 55 C 250 25, 300 35, 340 40 C 390 50, 420 75, 460 85 C 490 92, 505 70, 510 62 L 510 170 L 10 170 Z"
-        fill="url(#lineFill)"
-      />
+      {!hasData ? (
+        <text x="260" y="90" textAnchor="middle" fill="#9ca3af" fontSize="12" fontWeight="600">
+          No attendance marked this week
+        </text>
+      ) : (
+        <>
+          {presentPath && (
+            <>
+              <path d={presentPath} fill="none" stroke="#3b82f6" strokeWidth="3" />
+              <path d={`${presentPath} L ${xEnd} 170 L ${xStart} 170 Z`} fill="url(#lineFill)" />
+            </>
+          )}
+          {absentPath && (
+            <>
+              <path d={absentPath} fill="none" stroke="#10b981" strokeWidth="3" />
+              <path d={`${absentPath} L ${xEnd} 170 L ${xStart} 170 Z`} fill="url(#lineFill2)" />
+            </>
+          )}
+          <g fill="#ffffff" stroke="#3b82f6" strokeWidth="3">
+            {markerPoints
+              .filter((p) => p.show)
+              .map((p) => (
+                <circle key={`${p.x}-${p.y}`} cx={p.x} cy={p.y} r="6" />
+              ))}
+          </g>
+        </>
+      )}
 
-      {/* green line */}
-      <path
-        d="M 10 140 C 120 120, 200 110, 260 95 C 310 80, 360 78, 410 90 C 460 105, 490 95, 510 85"
-        fill="none"
-        stroke="#10b981"
-        strokeWidth="3"
-        strokeDasharray="0"
-      />
-      <path
-        d="M 10 140 C 120 120, 200 110, 260 95 C 310 80, 360 78, 410 90 C 460 105, 490 95, 510 85 L 510 170 L 10 170 Z"
-        fill="url(#lineFill2)"
-      />
-
-      {/* markers */}
-      <g fill="#ffffff" stroke="#3b82f6" strokeWidth="3">
-        <circle cx="110" cy="78" r="6" />
-        <circle cx="205" cy="55" r="6" />
-        <circle cx="300" cy="35" r="6" />
-        <circle cx="380" cy="55" r="6" />
-      </g>
-
-      {/* x labels */}
       <g fill="#6b7280" fontSize="12" fontWeight="600">
-        <text x="35" y="165">Tue</text>
-        <text x="120" y="165">Wed</text>
-        <text x="205" y="165">Thu</text>
-        <text x="295" y="165">Fri</text>
-        <text x="390" y="165">Sat</text>
-        <text x="475" y="165">Mon</text>
+        {days.map((d, i) => {
+          const step = days.length > 1 ? (xEnd - xStart) / (days.length - 1) : 0;
+          const x = xStart + i * step;
+          return (
+            <text key={d.date} x={x} y="165" textAnchor="middle">
+              {d.label}
+            </text>
+          );
+        })}
       </g>
     </svg>
   );

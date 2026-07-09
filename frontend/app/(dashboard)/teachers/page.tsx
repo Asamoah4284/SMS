@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import {
-  Button, Modal, Alert,
-  SkeletonTable, PageHeader, AdminOnly,
+  Button, Modal, Alert, Badge,
+  SkeletonTable, AdminOnly,
 } from '@/components/ui';
 import {
   GraduationCap, Phone, Hash,
   CheckCircle2, Clock, Upload, Download,
   AlertTriangle, BookOpen, Trash2,
+  Plus, Search, Users, UserCheck, ArrowRight,
 } from 'lucide-react';
 
 interface Teacher {
@@ -33,11 +34,69 @@ interface BulkRow {
   qualification: string;
 }
 
+const AVATAR_COLORS = [
+  'bg-blue-50 text-blue-700 border-blue-100',
+  'bg-violet-50 text-violet-700 border-violet-100',
+  'bg-emerald-50 text-emerald-700 border-emerald-100',
+  'bg-amber-50 text-amber-800 border-amber-100',
+  'bg-rose-50 text-rose-700 border-rose-100',
+  'bg-cyan-50 text-cyan-700 border-cyan-100',
+];
+
+function avatarColor(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function formatClassName(name: string | null | undefined) {
+  if (!name) return null;
+  return name
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function StatCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  accent,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: typeof Users;
+  accent: 'primary' | 'success' | 'warning' | 'slate';
+}) {
+  const accents = {
+    primary: 'bg-primary-50 text-primary-700 border-primary-100',
+    success: 'bg-success-50 text-success-700 border-success-100',
+    warning: 'bg-warning-50 text-warning-800 border-warning-100',
+    slate: 'bg-gray-50 text-gray-700 border-gray-100',
+  };
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
+      <div className={`shrink-0 w-10 h-10 rounded-xl border flex items-center justify-center ${accents[accent]}`}>
+        <Icon className="w-4.5 h-4.5" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
+        <p className="text-xl font-bold text-gray-900 tabular-nums leading-tight">{value}</p>
+        {sub && <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending'>('all');
 
   const fetchTeachers = useCallback(async () => {
     setLoading(true);
@@ -59,40 +118,133 @@ export default function TeachersPage() {
 
   useEffect(() => { fetchTeachers(); }, [fetchTeachers]);
 
+  const stats = useMemo(() => {
+    const active = teachers.filter((t) => t.user.isActive).length;
+    const classTeachers = teachers.filter((t) => t.classTeacherOf).length;
+    const withSubjects = teachers.filter((t) => t.subjectCount > 0).length;
+    return { total: teachers.length, active, classTeachers, withSubjects };
+  }, [teachers]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return teachers.filter((t) => {
+      if (statusFilter === 'active' && !t.user.isActive) return false;
+      if (statusFilter === 'pending' && t.user.isActive) return false;
+      if (!q) return true;
+      const name = `${t.user.firstName} ${t.user.lastName}`.toLowerCase();
+      return (
+        name.includes(q) ||
+        t.staffId.toLowerCase().includes(q) ||
+        t.user.phone.includes(q) ||
+        (t.classTeacherOf?.name ?? '').toLowerCase().includes(q)
+      );
+    });
+  }, [teachers, search, statusFilter]);
+
   return (
     <AdminOnly>
-    <div className="px-5 py-6 sm:px-8 md:px-10 lg:px-12 max-w-[1600px] mx-auto animate-fade-in">
-      <PageHeader
-        title="Teachers"
-        subtitle={loading ? '' : `${teachers.length} staff member${teachers.length !== 1 ? 's' : ''}`}
-        actions={
-          <div className="flex gap-2">
-            <Button variant="secondary" icon={<Upload className="w-4 h-4" />} onClick={() => setBulkOpen(true)}>
-              Bulk Import
-            </Button>
+    <div className="px-5 py-6 sm:px-8 max-w-[1600px] mx-auto animate-fade-in space-y-6">
+      {/* Header */}
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6 sm:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-4 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-primary-50 border border-primary-100 flex items-center justify-center shrink-0">
+              <GraduationCap className="w-6 h-6 text-primary-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-primary-600 uppercase tracking-wide mb-1">Staff directory</p>
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Teachers</h1>
+              <p className="text-sm text-gray-500 mt-1 max-w-lg">
+                Manage staff accounts, class assignments, and subject teaching loads.
+              </p>
+            </div>
           </div>
-        }
-      />
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Button
+              variant="secondary"
+              icon={<Upload className="w-4 h-4" />}
+              onClick={() => setBulkOpen(true)}
+            >
+              Bulk import
+            </Button>
+            <Link href="/teachers/new">
+              <Button icon={<Plus className="w-4 h-4" />}>Add teacher</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
 
-      {error && <Alert type="error" message={error} className="mb-6" onDismiss={() => setError('')} />}
+      {!loading && teachers.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard label="Total staff" value={String(stats.total)} icon={Users} accent="primary" />
+          <StatCard label="Active" value={String(stats.active)} sub={`${stats.total - stats.active} pending`} icon={UserCheck} accent="success" />
+          <StatCard label="Class teachers" value={String(stats.classTeachers)} icon={GraduationCap} accent="slate" />
+          <StatCard label="Teaching subjects" value={String(stats.withSubjects)} sub="with assignments" icon={BookOpen} accent="warning" />
+        </div>
+      )}
+
+      {error && <Alert type="error" message={error} className="mb-2" onDismiss={() => setError('')} />}
+
+      {!loading && teachers.length > 0 && (
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="search"
+              placeholder="Search by name, staff ID, phone, or class…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500/25 focus:border-primary-400"
+            />
+          </div>
+          <div className="flex gap-2">
+            {(['all', 'active', 'pending'] as const).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setStatusFilter(key)}
+                className={[
+                  'px-3.5 py-2 rounded-xl text-xs font-semibold border transition-colors capitalize',
+                  statusFilter === key
+                    ? 'bg-primary-50 text-primary-800 border-primary-200'
+                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50',
+                ].join(' ')}
+              >
+                {key === 'all' ? 'All' : key}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <SkeletonTable rows={6} />
       ) : teachers.length === 0 ? (
-        <EmptyState />
+        <EmptyState onBulk={() => setBulkOpen(true)} />
+      ) : filtered.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-2xl p-12 text-center shadow-sm">
+          <p className="text-sm font-medium text-gray-700">No teachers match your search.</p>
+          <button type="button" onClick={() => { setSearch(''); setStatusFilter('all'); }} className="text-sm text-primary-600 font-semibold mt-2 hover:underline">
+            Clear filters
+          </button>
+        </div>
       ) : (
         <>
           <div className="md:hidden space-y-3">
-            {teachers.map((t) => (
+            {filtered.map((t) => (
               <TeacherCard key={t.id} teacher={t} onDeleted={fetchTeachers} />
             ))}
           </div>
 
           <div className="hidden md:block">
-            <TeachersTable teachers={teachers} fetchTeachers={fetchTeachers} />
+            <TeachersTable teachers={filtered} fetchTeachers={fetchTeachers} />
           </div>
         </>
       )}
+
+      <p className="text-xs text-gray-400 text-center pb-2">
+        {!loading && teachers.length > 0 && `Showing ${filtered.length} of ${teachers.length} staff`}
+      </p>
 
       <Modal isOpen={bulkOpen} onClose={() => setBulkOpen(false)} title="Bulk Import Teachers" size="lg">
         <BulkImportForm onDone={() => { setBulkOpen(false); fetchTeachers(); }} onCancel={() => setBulkOpen(false)} />
@@ -106,17 +258,17 @@ export default function TeachersPage() {
 
 function TeachersTable({ teachers, fetchTeachers }: { teachers: Teacher[]; fetchTeachers: () => void }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden px-5 py-5 sm:px-7 sm:py-6 md:px-8 md:py-6">
-      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto_auto] gap-4 px-1 sm:px-2 py-2.5 border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="grid grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto_auto] gap-4 px-5 py-3 border-b border-gray-100 bg-gray-50/80 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
         <span>Teacher</span>
         <span>Staff ID</span>
-        <span className="hidden md:block">Phone</span>
-        <span className="hidden lg:block">Class</span>
-        <span className="hidden lg:block">Subjects</span>
+        <span>Phone</span>
+        <span>Class</span>
+        <span>Subjects</span>
         <span className="text-right">Status</span>
-        <span className="text-right w-10" aria-hidden />
+        <span className="w-10" aria-hidden />
       </div>
-      <div className="divide-y divide-gray-100">
+      <div className="divide-y divide-gray-50">
         {teachers.map((teacher) => (
           <TeacherRow key={teacher.id} teacher={teacher} onDeleted={fetchTeachers} />
         ))}
@@ -128,64 +280,81 @@ function TeachersTable({ teachers, fetchTeachers }: { teachers: Teacher[]; fetch
 function TeacherRow({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () => void }) {
   const fullName = `${teacher.user.firstName} ${teacher.user.lastName}`.trim();
   const initials = `${teacher.user.firstName[0] ?? ''}${teacher.user.lastName[0] ?? ''}`.toUpperCase();
+  const className = formatClassName(teacher.classTeacherOf?.name);
 
   return (
-    <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto_auto] gap-4 items-center px-1 sm:px-2 py-3.5 hover:bg-gray-50/60 transition-colors">
-    <Link
-      href={`/teachers/${teacher.id}`}
-      className="contents"
-    >
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
+    <div className="group grid grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto_auto] gap-4 items-center px-5 py-4 hover:bg-primary-50/30 transition-colors">
+      <Link href={`/teachers/${teacher.id}`} className="flex items-center gap-3 min-w-0">
+        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center font-bold text-sm shrink-0 ${avatarColor(fullName)}`}>
           {initials}
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-gray-900 truncate">{fullName || '—'}</p>
-          {teacher.qualification && (
-            <p className="text-xs text-gray-500 truncate">{teacher.qualification}</p>
+          <p className="font-semibold text-gray-900 truncate group-hover:text-primary-800 transition-colors">{fullName || '—'}</p>
+          {teacher.qualification ? (
+            <p className="text-xs text-gray-500 truncate mt-0.5">{teacher.qualification}</p>
+          ) : (
+            <p className="text-xs text-gray-400 italic mt-0.5">No qualification listed</p>
           )}
         </div>
-      </div>
+      </Link>
 
-      <div className="flex items-center gap-1.5 text-sm font-mono font-semibold text-gray-700">
-        <Hash className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-        {teacher.staffId}
-      </div>
+      <Link href={`/teachers/${teacher.id}`} className="flex items-center gap-1.5 min-w-0">
+        <span className="inline-flex items-center gap-1 rounded-lg bg-gray-50 border border-gray-100 px-2 py-1 text-xs font-mono font-semibold text-gray-700 truncate">
+          <Hash className="w-3 h-3 text-gray-400 shrink-0" />
+          {teacher.staffId}
+        </span>
+      </Link>
 
-      <div className="hidden md:flex items-center gap-1.5 text-sm text-gray-600">
-        <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-        {teacher.user.phone}
-      </div>
+      <Link href={`/teachers/${teacher.id}`} className="flex items-center gap-1.5 text-sm text-gray-600 min-w-0">
+        <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+        <span className="truncate tabular-nums">{teacher.user.phone}</span>
+      </Link>
 
-      <div className="hidden lg:block text-sm text-gray-600 truncate">
-        {teacher.classTeacherOf ? (
-          <span className="font-medium text-gray-700">{teacher.classTeacherOf.name}</span>
+      <Link href={`/teachers/${teacher.id}`} className="min-w-0">
+        {className ? (
+          <span className="inline-flex items-center rounded-lg bg-indigo-50 text-indigo-800 border border-indigo-100 px-2.5 py-1 text-xs font-semibold truncate max-w-full">
+            {className}
+          </span>
         ) : (
-          <span className="text-gray-400 italic text-xs">Not assigned</span>
+          <span className="text-xs text-gray-400 italic">Not assigned</span>
         )}
-      </div>
+      </Link>
 
-      <div className="hidden lg:flex items-center gap-1.5 text-sm text-gray-600">
+      <Link href={`/teachers/${teacher.id}`} className="min-w-0">
         {teacher.subjectCount > 0 ? (
-          <><BookOpen className="w-3.5 h-3.5 text-gray-400" />{teacher.subjectCount} subject{teacher.subjectCount !== 1 ? 's' : ''}</>
+          <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-100 px-2.5 py-1 text-xs font-semibold">
+            <BookOpen className="w-3 h-3" />
+            {teacher.subjectCount}
+          </span>
         ) : (
-          <span className="text-gray-400 italic text-xs">None</span>
+          <span className="text-xs text-gray-400 italic">None</span>
+        )}
+      </Link>
+
+      <div className="flex justify-end">
+        {teacher.user.isActive ? (
+          <Badge variant="success">
+            <CheckCircle2 className="w-3 h-3 mr-1" />
+            Active
+          </Badge>
+        ) : (
+          <Badge variant="warning">
+            <Clock className="w-3 h-3 mr-1" />
+            Pending
+          </Badge>
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-2">
-        {teacher.user.isActive ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 px-2 py-1 text-[11px] font-semibold">
-            <CheckCircle2 className="w-3.5 h-3.5" /> Active
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 px-2 py-1 text-[11px] font-semibold">
-            <Clock className="w-3.5 h-3.5" /> Pending
-          </span>
-        )}
+      <div className="flex items-center gap-1">
+        <Link
+          href={`/teachers/${teacher.id}`}
+          className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-all"
+          title="View profile"
+        >
+          <ArrowRight className="w-4 h-4" />
+        </Link>
+        <TeacherDeleteButton teacher={teacher} onDeleted={onDeleted} />
       </div>
-    </Link>
-      <TeacherDeleteButton teacher={teacher} onDeleted={onDeleted} />
     </div>
   );
 }
@@ -251,68 +420,58 @@ function TeacherDeleteButton({
 function TeacherCard({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () => void }) {
   const fullName = `${teacher.user.firstName} ${teacher.user.lastName}`.trim();
   const initials = `${teacher.user.firstName[0] ?? ''}${teacher.user.lastName[0] ?? ''}`.toUpperCase();
+  const className = formatClassName(teacher.classTeacherOf?.name);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4">
-      <Link href={`/teachers/${teacher.id}`} className="block">
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="h-1 bg-gradient-to-r from-primary-500 to-indigo-500" />
+      <Link href={`/teachers/${teacher.id}`} className="block p-4">
         <div className="flex items-start gap-3">
-          <div className="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-base font-bold text-gray-700 shrink-0">
+          <div className={`w-12 h-12 rounded-xl border flex items-center justify-center text-base font-bold shrink-0 ${avatarColor(fullName)}`}>
             {initials}
           </div>
 
-          <div className="min-w-0 flex-1 flex flex-col">
-            <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-sm font-bold text-gray-900 truncate">{fullName || '—'}</p>
-                <div className="mt-1 space-y-0.5">
-                  <p className="text-[11px] font-semibold text-gray-500 truncate">
-                    <span className="text-gray-400 uppercase tracking-wider">ID:</span>{' '}
-                    <span className="font-mono text-gray-600">{teacher.staffId}</span>
-                  </p>
-                  <p className="text-[11px] font-semibold text-gray-500 truncate">
-                    <span className="text-gray-400 uppercase tracking-wider">Phone:</span>{' '}
-                    <span className="text-gray-600">{teacher.user.phone}</span>
-                  </p>
-                </div>
+                <p className="text-[11px] font-mono text-gray-500 mt-0.5">{teacher.staffId}</p>
               </div>
-
-              <div className="pt-0.5">
-                {teacher.user.isActive ? (
-                  <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-1 text-[11px] font-semibold shrink-0">
-                    Active
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 px-2 py-1 text-[11px] font-semibold shrink-0">
-                    Pending
-                  </span>
-                )}
-              </div>
+              {teacher.user.isActive ? (
+                <Badge variant="success">Active</Badge>
+              ) : (
+                <Badge variant="warning">Pending</Badge>
+              )}
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-[11px]">
-              <div className="min-w-0">
-                <p className="text-gray-400 font-semibold uppercase tracking-wider">Class</p>
-                <p className="text-gray-700 font-semibold truncate">
-                  {teacher.classTeacherOf?.name ?? 'Not assigned'}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-gray-400 font-semibold uppercase tracking-wider">Subjects</p>
-                <p className="text-gray-700 font-semibold">
-                  {teacher.subjectCount > 0 ? `${teacher.subjectCount}` : '—'}
-                </p>
-              </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1 text-[11px] text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1">
+                <Phone className="w-3 h-3" />
+                {teacher.user.phone}
+              </span>
+              {className && (
+                <span className="inline-flex text-[11px] font-semibold text-indigo-800 bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1">
+                  {className}
+                </span>
+              )}
+              {teacher.subjectCount > 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">
+                  <BookOpen className="w-3 h-3" />
+                  {teacher.subjectCount} subject{teacher.subjectCount !== 1 ? 's' : ''}
+                </span>
+              )}
             </div>
           </div>
         </div>
       </Link>
-      <div className="mt-4 flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
+      <div className="flex items-center justify-between gap-2 border-t border-gray-50 px-4 py-3 bg-gray-50/50">
         <TeacherDeleteButton teacher={teacher} onDeleted={onDeleted} />
         <Link
           href={`/teachers/${teacher.id}`}
-          className="inline-flex items-center justify-center rounded-lg bg-gray-100 text-gray-700 px-3 py-2 text-xs font-semibold"
+          className="inline-flex items-center gap-1 rounded-lg bg-primary-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-primary-700 transition-colors"
         >
-          View
+          View profile
+          <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
     </div>
@@ -477,16 +636,24 @@ function BulkImportForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
   );
 }
 
-function EmptyState() {
+function EmptyState({ onBulk }: { onBulk: () => void }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl shadow-[var(--shadow-card)] flex flex-col items-center justify-center py-20 px-6 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center mb-4">
-        <GraduationCap className="w-8 h-8 text-primary-500" />
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm flex flex-col items-center justify-center py-20 px-6 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-50 to-indigo-50 border border-primary-100 flex items-center justify-center mb-4">
+        <GraduationCap className="w-8 h-8 text-primary-600" />
       </div>
       <h3 className="text-xl font-bold text-gray-900 mb-2">No teachers yet</h3>
-      <p className="text-gray-500 max-w-sm mb-6">
-        No teacher records yet. Use bulk import or add teachers from the dedicated flow.
+      <p className="text-gray-500 max-w-sm mb-6 text-sm">
+        Add staff individually or import your teacher list from a CSV file.
       </p>
+      <div className="flex flex-wrap gap-2 justify-center">
+        <Button variant="secondary" icon={<Upload className="w-4 h-4" />} onClick={onBulk}>
+          Bulk import
+        </Button>
+        <Link href="/teachers/new">
+          <Button icon={<Plus className="w-4 h-4" />}>Add teacher</Button>
+        </Link>
+      </div>
     </div>
   );
 }
