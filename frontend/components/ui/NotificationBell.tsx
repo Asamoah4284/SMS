@@ -4,21 +4,30 @@ import { useState, useEffect } from 'react';
 import { Bell } from 'lucide-react';
 import { api } from '@/lib/api';
 
+function getAccessToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('accessToken');
+}
+
 export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchNotifications = async () => {
+      const token = getAccessToken();
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        const res = await api.get<{ data: { isRead: boolean }[] } | { isRead: boolean }[]>('/notifications');
-        const notifications: { isRead: boolean }[] = Array.isArray(res)
-          ? res
-          : (res as { data: { isRead: boolean }[] }).data ?? [];
+        const notifications = await api.get<{ isRead: boolean }[]>('/notifications', token);
         const unread = notifications.filter((n) => !n.isRead).length;
         setUnreadCount(unread);
-      } catch (error) {
-        console.error('Failed to fetch notifications', error);
+      } catch {
+        // Silent fail — bell is non-critical; avoid noisy dev overlay on auth errors
+        setUnreadCount(0);
       } finally {
         setLoading(false);
       }
@@ -28,19 +37,19 @@ export function NotificationBell() {
 
   const handleClick = async () => {
     if (unreadCount === 0) return;
+    const token = getAccessToken();
+    if (!token) return;
+
     try {
-      // Assuming a blanket endpoint to mark all as read or handling it on click
-      await api.post('/notifications/mark-all-read', {});
+      await api.put('/notifications/read-all', {}, token);
       setUnreadCount(0);
-    } catch (error) {
-      console.error('Failed to mark notifications as read', error);
-      // Optimistically clear it anyways
+    } catch {
       setUnreadCount(0);
     }
   };
 
   return (
-    <button 
+    <button
       onClick={handleClick}
       className="relative text-gray-500 hover:text-gray-700 transition-colors p-2 rounded-full hover:bg-gray-100"
       aria-label="Notifications"

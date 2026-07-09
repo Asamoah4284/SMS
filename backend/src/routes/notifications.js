@@ -20,6 +20,19 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// PUT /read-all - mark all notifications as read (must be before /:id/read)
+router.put('/read-all', async (req, res, next) => {
+  try {
+    await prisma.notification.updateMany({
+      where: { userId: req.user.id, isRead: false },
+      data: { isRead: true },
+    });
+    res.json({ message: 'All notifications marked as read' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PUT /:id/read - mark read
 router.put('/:id/read', async (req, res, next) => {
   try {

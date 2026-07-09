@@ -113,6 +113,12 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
 // PUT /:id — update exam metadata
 router.put('/:id', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
   try {
+    const existing = await prisma.onlineExam.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ message: 'Exam not found' });
+    if (existing.status === 'CLOSED') {
+      return res.status(400).json({ message: 'Cannot edit a closed exam' });
+    }
+
     const {
       title,
       description,
@@ -121,6 +127,9 @@ router.put('/:id', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
       startAt,
       endAt,
       status,
+      classId,
+      subjectId,
+      termId,
     } = req.body;
 
     const data = {};
@@ -131,6 +140,9 @@ router.put('/:id', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
     if (startAt !== undefined) data.startAt = startAt ? new Date(startAt) : null;
     if (endAt !== undefined) data.endAt = endAt ? new Date(endAt) : null;
     if (status != null) data.status = status;
+    if (classId != null) data.classId = classId;
+    if (subjectId != null) data.subjectId = subjectId;
+    if (termId != null) data.termId = termId;
 
     const exam = await prisma.onlineExam.update({
       where: { id: req.params.id },
@@ -224,6 +236,12 @@ router.post('/:id/questions', authorize('ADMIN', 'TEACHER'), async (req, res, ne
 // PUT /:examId/questions/:questionId
 router.put('/:examId/questions/:questionId', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
   try {
+    const parentExam = await prisma.onlineExam.findUnique({ where: { id: req.params.examId } });
+    if (!parentExam) return res.status(404).json({ message: 'Exam not found' });
+    if (parentExam.status === 'CLOSED') {
+      return res.status(400).json({ message: 'Cannot edit a closed exam' });
+    }
+
     const { type, text, marks, order, modelAnswer, options } = req.body;
 
     const question = await prisma.$transaction(async (tx) => {
@@ -274,6 +292,12 @@ router.put('/:examId/questions/:questionId', authorize('ADMIN', 'TEACHER'), asyn
 // DELETE /:examId/questions/:questionId
 router.delete('/:examId/questions/:questionId', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
   try {
+    const parentExam = await prisma.onlineExam.findUnique({ where: { id: req.params.examId } });
+    if (!parentExam) return res.status(404).json({ message: 'Exam not found' });
+    if (parentExam.status === 'CLOSED') {
+      return res.status(400).json({ message: 'Cannot edit a closed exam' });
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.examQuestion.delete({ where: { id: req.params.questionId } });
       const allQuestions = await tx.examQuestion.findMany({ where: { examId: req.params.examId } });
@@ -317,6 +341,34 @@ router.post('/:id/close', authorize('ADMIN', 'TEACHER'), async (req, res, next) 
     const updated = await prisma.onlineExam.update({
       where: { id: req.params.id },
       data: { status: 'CLOSED' },
+    });
+    res.json(updated);
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ message: 'Exam not found' });
+    next(err);
+  }
+});
+
+// POST /:id/release-results — let students see their scores
+router.post('/:id/release-results', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
+  try {
+    const updated = await prisma.onlineExam.update({
+      where: { id: req.params.id },
+      data: { resultsReleased: true },
+    });
+    res.json(updated);
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ message: 'Exam not found' });
+    next(err);
+  }
+});
+
+// POST /:id/hide-results — hide scores from students again
+router.post('/:id/hide-results', authorize('ADMIN', 'TEACHER'), async (req, res, next) => {
+  try {
+    const updated = await prisma.onlineExam.update({
+      where: { id: req.params.id },
+      data: { resultsReleased: false },
     });
     res.json(updated);
   } catch (err) {

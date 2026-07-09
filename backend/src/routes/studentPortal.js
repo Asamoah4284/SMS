@@ -14,9 +14,10 @@ function examIsAvailable(exam, now = new Date()) {
 }
 
 function stripCorrectAnswers(exam) {
+  const { attempts: _attempts, ...rest } = exam;
   return {
-    ...exam,
-    questions: exam.questions.map((q) => ({
+    ...rest,
+    questions: (exam.questions || []).map((q) => ({
       id: q.id,
       type: q.type,
       text: q.text,
@@ -25,6 +26,13 @@ function stripCorrectAnswers(exam) {
       options: q.options.map((o) => ({ id: o.id, text: o.text })),
     })),
   };
+}
+
+/** Students only see scores after staff releases results and attempt is fully graded. */
+function studentVisibleScore(attempt, exam) {
+  if (!exam?.resultsReleased) return null;
+  if (!attempt || attempt.status !== 'GRADED') return null;
+  return attempt.score;
 }
 
 // GET /dashboard
@@ -41,6 +49,7 @@ router.get('/dashboard', async (req, res, next) => {
                 id: true,
                 title: true,
                 totalMarks: true,
+                resultsReleased: true,
                 subject: { select: { name: true } },
                 term: { select: { name: true, year: true } },
               },
@@ -83,6 +92,7 @@ router.get('/dashboard', async (req, res, next) => {
         term: `${e.term.name} ${e.term.year}`,
         hasAttempt: e.attempts.length > 0,
         attemptStatus: e.attempts[0]?.status ?? null,
+        resultsReleased: e.resultsReleased,
       }));
 
     res.json({
@@ -93,17 +103,20 @@ router.get('/dashboard', async (req, res, next) => {
         class: student.class,
       },
       availableExams: exams,
-      recentAttempts: student.examAttempts.map((a) => ({
-        id: a.id,
-        examId: a.exam.id,
-        title: a.exam.title,
-        subject: a.exam.subject.name,
-        term: `${a.exam.term.name} ${a.exam.term.year}`,
-        score: a.score,
-        totalMarks: a.exam.totalMarks,
-        status: a.status,
-        submittedAt: a.submittedAt,
-      })),
+      recentAttempts: student.examAttempts
+        .filter((a) => a.status !== 'IN_PROGRESS')
+        .map((a) => ({
+          id: a.id,
+          examId: a.exam.id,
+          title: a.exam.title,
+          subject: a.exam.subject.name,
+          term: `${a.exam.term.name} ${a.exam.term.year}`,
+          score: studentVisibleScore(a, a.exam),
+          totalMarks: a.exam.totalMarks,
+          status: a.status,
+          submittedAt: a.submittedAt,
+          resultsReleased: a.exam.resultsReleased,
+        })),
     });
   } catch (err) {
     next(err);
@@ -184,7 +197,7 @@ router.get('/exams/:id', async (req, res, next) => {
             status: attempt.status,
             startedAt: attempt.startedAt,
             submittedAt: attempt.submittedAt,
-            score: attempt.score,
+            score: studentVisibleScore(attempt, exam),
           }
         : null,
     });
@@ -303,15 +316,13 @@ router.post('/exams/:id/submit', async (req, res, next) => {
       });
     });
 
-    const grading = await autoGradeAttempt(attempt.id);
+    await autoGradeAttempt(attempt.id);
     const updated = await prisma.examAttempt.findUnique({ where: { id: attempt.id } });
 
     res.json({
       attemptId: attempt.id,
       status: updated.status,
-      score: updated.score,
-      totalMarks: exam.totalMarks,
-      grading,
+      message: 'Your answers have been submitted. Your teacher will release results when ready.',
     });
   } catch (err) {
     next(err);
@@ -360,14 +371,26 @@ router.get('/exams/:id/result', async (req, res, next) => {
         title: attempt.exam.title,
         subject: attempt.exam.subject.name,
         totalMarks: attempt.exam.totalMarks,
+        resultsReleased: attempt.exam.resultsReleased,
       },
       attempt: {
         id: attempt.id,
         status: attempt.status,
-        score: attempt.score,
+        score: studentVisibleScore(attempt, attempt.exam),
         submittedAt: attempt.submittedAt,
       },
-      questions: details,
+      questions: attempt.exam.resultsReleased && attempt.status === 'GRADED'
+        ? details
+        : details.map((q) => ({
+            questionId: q.questionId,
+            text: q.text,
+            type: q.type,
+            marks: q.marks,
+            marksAwarded: null,
+            feedback: null,
+            selectedOptionIds: [],
+            textAnswer: null,
+          })),
     });
   } catch (err) {
     next(err);

@@ -778,6 +778,7 @@ model OnlineExam {
   endAt           DateTime?
   totalMarks      Float            @default(0)
   status          OnlineExamStatus @default(DRAFT)
+  resultsReleased Boolean          @default(false)
   classId         String
   class           Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
   subjectId       String

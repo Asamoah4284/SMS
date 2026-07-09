@@ -22,6 +22,70 @@ const prisma = new PrismaClient();
 const DEMO_CLASS = process.env.DEMO_CLASS || 'Class 4';
 const DEMO_PIN = process.env.DEMO_PIN || '1234';
 
+const DEMO_QUESTIONS = [
+  {
+    type: 'MCQ_SINGLE',
+    text: 'What is 12 + 8?',
+    marks: 2,
+    order: 1,
+    options: [
+      { text: '18', isCorrect: false },
+      { text: '20', isCorrect: true },
+      { text: '22', isCorrect: false },
+      { text: '24', isCorrect: false },
+    ],
+  },
+  {
+    type: 'MCQ_SINGLE',
+    text: 'How many sides does a triangle have?',
+    marks: 2,
+    order: 2,
+    options: [
+      { text: '2', isCorrect: false },
+      { text: '3', isCorrect: true },
+      { text: '4', isCorrect: false },
+      { text: '5', isCorrect: false },
+    ],
+  },
+  {
+    type: 'TRUE_FALSE',
+    text: '100 is greater than 50.',
+    marks: 1,
+    order: 3,
+    options: [
+      { text: 'True', isCorrect: true },
+      { text: 'False', isCorrect: false },
+    ],
+  },
+];
+
+async function addDemoQuestions(examId) {
+  let totalMarks = 0;
+  for (const q of DEMO_QUESTIONS) {
+    const question = await prisma.examQuestion.create({
+      data: {
+        examId,
+        type: q.type,
+        text: q.text,
+        marks: q.marks,
+        order: q.order,
+      },
+    });
+    totalMarks += q.marks;
+    await prisma.examOption.createMany({
+      data: q.options.map((o) => ({
+        questionId: question.id,
+        text: o.text,
+        isCorrect: o.isCorrect,
+      })),
+    });
+  }
+  await prisma.onlineExam.update({
+    where: { id: examId },
+    data: { totalMarks },
+  });
+}
+
 async function ensureDemoExam({ classId, subjectId, termId, createdById }) {
   const existing = await prisma.onlineExam.findFirst({
     where: {
@@ -31,6 +95,13 @@ async function ensureDemoExam({ classId, subjectId, termId, createdById }) {
     },
   });
   if (existing) {
+    const qCount = await prisma.examQuestion.count({ where: { examId: existing.id } });
+    if (qCount === 0) {
+      // Exam shell exists but has no questions — backfill demo questions
+      await addDemoQuestions(existing.id);
+      const updated = await prisma.onlineExam.findUnique({ where: { id: existing.id } });
+      return { exam: updated, created: false, backfilled: true };
+    }
     return { exam: existing, created: false };
   }
 
@@ -55,70 +126,10 @@ async function ensureDemoExam({ classId, subjectId, termId, createdById }) {
     },
   });
 
-  const questions = [
-    {
-      type: 'MCQ_SINGLE',
-      text: 'What is 12 + 8?',
-      marks: 2,
-      order: 1,
-      options: [
-        { text: '18', isCorrect: false },
-        { text: '20', isCorrect: true },
-        { text: '22', isCorrect: false },
-        { text: '24', isCorrect: false },
-      ],
-    },
-    {
-      type: 'MCQ_SINGLE',
-      text: 'How many sides does a triangle have?',
-      marks: 2,
-      order: 2,
-      options: [
-        { text: '2', isCorrect: false },
-        { text: '3', isCorrect: true },
-        { text: '4', isCorrect: false },
-        { text: '5', isCorrect: false },
-      ],
-    },
-    {
-      type: 'TRUE_FALSE',
-      text: '100 is greater than 50.',
-      marks: 1,
-      order: 3,
-      options: [
-        { text: 'True', isCorrect: true },
-        { text: 'False', isCorrect: false },
-      ],
-    },
-  ];
+  await addDemoQuestions(exam.id);
 
-  let totalMarks = 0;
-  for (const q of questions) {
-    const question = await prisma.examQuestion.create({
-      data: {
-        examId: exam.id,
-        type: q.type,
-        text: q.text,
-        marks: q.marks,
-        order: q.order,
-      },
-    });
-    totalMarks += q.marks;
-    await prisma.examOption.createMany({
-      data: q.options.map((o) => ({
-        questionId: question.id,
-        text: o.text,
-        isCorrect: o.isCorrect,
-      })),
-    });
-  }
-
-  await prisma.onlineExam.update({
-    where: { id: exam.id },
-    data: { totalMarks },
-  });
-
-  return { exam, created: true };
+  const updated = await prisma.onlineExam.findUnique({ where: { id: exam.id } });
+  return { exam: updated, created: true };
 }
 
 async function main() {
