@@ -9,6 +9,7 @@
     "start": "node index.js",
     "postinstall": "npm run db:generate",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
     "db:import": "node src/scripts/import-seed-data.js",
