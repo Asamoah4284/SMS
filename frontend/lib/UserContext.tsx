@@ -37,6 +37,8 @@ interface UserContextValue {
   isSubjectTeacher: boolean;
   /** Subject-only teacher who must pick at least one subject+class (from /auth/me) */
   needsTeachingSetup: boolean;
+  /** Seeded / default password — must change before using dashboard */
+  mustChangePassword: boolean;
   /** The classId this teacher is class-teacher of (null if not a class teacher) */
   myClassId: string | null;
   /** Subject+class combos this teacher teaches */
@@ -53,6 +55,7 @@ const UserContext = createContext<UserContextValue>({
   isClassTeacher: false,
   isSubjectTeacher: false,
   needsTeachingSetup: false,
+  mustChangePassword: false,
   myClassId: null,
   mySubjects: [],
   refresh: async () => {},
@@ -63,6 +66,7 @@ const UserContext = createContext<UserContextValue>({
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [needsTeachingSetup, setNeedsTeachingSetup] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -80,6 +84,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
     if (!token) {
       setNeedsTeachingSetup(false);
+      setMustChangePassword(false);
       setLoading(false);
       return;
     }
@@ -93,6 +98,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         const fullUser: AppUser = data.user;
         setUser(fullUser);
         setNeedsTeachingSetup(Boolean(data.needsTeachingSetup));
+        setMustChangePassword(Boolean(data.mustChangePassword));
         // Update localStorage so next page load is instant
         localStorage.setItem('user', JSON.stringify({
           id: fullUser.id,
@@ -125,6 +131,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         isClassTeacher,
         isSubjectTeacher,
         needsTeachingSetup,
+        mustChangePassword,
         myClassId,
         mySubjects,
         refresh: load,

@@ -5,24 +5,12 @@ const { computeClassPositionByTerm } = require('../utils/classRanking');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 const { ensureStudentPortal, DEFAULT_STUDENT_PIN } = require('../utils/studentPortal');
+const { generateStudentId } = require('../utils/studentId');
 
 const router = Router();
 router.use(authenticate);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-/** Generate next student ID: STM-YYYY-NNN */
-async function generateStudentId() {
-  const year = new Date().getFullYear();
-  const prefix = `STM-${year}-`;
-  const last = await prisma.student.findFirst({
-    where: { studentId: { startsWith: prefix } },
-    orderBy: { studentId: 'desc' },
-  });
-  if (!last) return `${prefix}001`;
-  const seq = parseInt(last.studentId.split('-')[2], 10);
-  return `${prefix}${String(seq + 1).padStart(3, '0')}`;
-}
 
 /** Normalise a Ghanaian phone to 10-digit local format for comparison */
 function normalisePhone(raw) {
@@ -137,13 +125,15 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
       return res.status(400).json({ message: 'Valid gender (MALE/FEMALE) is required' });
     }
 
-    // Validate classId if provided
-    if (classId) {
-      const cls = await prisma.class.findUnique({ where: { id: classId } });
-      if (!cls) return res.status(400).json({ message: 'Class not found' });
+    if (!classId) {
+      return res.status(400).json({ message: 'Class is required (used to generate student ID, e.g. DASE-7-001).' });
     }
 
-    const studentId = await generateStudentId();
+    // Validate classId if provided
+    const cls = await prisma.class.findUnique({ where: { id: classId } });
+    if (!cls) return res.status(400).json({ message: 'Class not found' });
+
+    const studentId = await generateStudentId(prisma, classId);
     const normPhone = normalisePhone(guardianPhone);
 
     // Build the full name (include middle if provided)
@@ -386,7 +376,12 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
       }
 
       try {
-        const studentId = await generateStudentId();
+        if (!row.classId) {
+          results.failed.push({ row: rowNum, reason: 'classId or class_name required' });
+          continue;
+        }
+
+        const studentId = await generateStudentId(prisma, row.classId);
         const normPhone = normalisePhone(row.guardianPhone);
 
         let parentId = null;

@@ -429,6 +429,7 @@ router.post(
         message: 'Login successful',
         token,
         refreshToken,
+        mustChangePassword: user.mustChangePassword,
         user: {
           id: user.id,
           phone: user.phone,
@@ -884,6 +885,7 @@ router.get('/me', authenticate, async (req, res) => {
         firstName: true,
         lastName: true,
         role: true,
+        mustChangePassword: true,
         teacherProfile: {
           select: {
             id: true,
@@ -912,12 +914,58 @@ router.get('/me', authenticate, async (req, res) => {
       !user.teacherProfile.classTeacherOf &&
       (user.teacherProfile.subjectTeachers?.length ?? 0) === 0;
 
-    res.json({ user, needsTeachingSetup });
+    res.json({ user, needsTeachingSetup, mustChangePassword: user.mustChangePassword });
   } catch (err) {
     console.error('GET /auth/me', err);
     res.status(500).json({ message: 'Failed to fetch profile' });
   }
 });
+
+// ─────────────────────────────────────────────────────────────────
+// POST /auth/change-password — staff/admin change own password
+// ─────────────────────────────────────────────────────────────────
+
+router.post(
+  '/change-password',
+  authenticate,
+  [
+    body('currentPassword').notEmpty().withMessage('Current password is required'),
+    body('newPassword')
+      .isLength({ min: 8 })
+      .withMessage('New password must be at least 8 characters'),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+
+      if (!isStrongPassword(newPassword)) {
+        return res.status(400).json({
+          error: 'Password must include uppercase, lowercase, and a number',
+        });
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+      if (!user) return res.status(404).json({ error: 'User not found' });
+
+      const valid = await bcrypt.compare(String(currentPassword), user.password);
+      if (!valid) {
+        return res.status(400).json({ error: 'Current password is incorrect' });
+      }
+
+      const hashed = await bcrypt.hash(newPassword, 10);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { password: hashed, mustChangePassword: false },
+      });
+
+      res.json({ message: 'Password updated successfully' });
+    } catch (err) {
+      console.error('POST /auth/change-password', err);
+      res.status(500).json({ error: 'Failed to change password' });
+    }
+  }
+);
 
 // ─────────────────────────────────────────────────────────────────
 // POST /auth/student/login — studentId + PIN

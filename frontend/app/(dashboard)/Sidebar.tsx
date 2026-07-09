@@ -14,6 +14,7 @@ import {
   Clock,
   FileText,
   CreditCard,
+  Wallet,
   UserRound,
   ClipboardList,
   Award,
@@ -98,6 +99,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     { name: "Examinations", href: "/results", icon: FileText, teacherVisible: true },
     { name: "Timetable", href: "/timetable", icon: Clock, teacherVisible: true },
     { name: "Fees Collection", href: "/fees", icon: CreditCard, adminOnly: true },
+    { name: "Payments", href: "/payments", icon: Wallet, adminOnly: true },
     { name: "Attendance", href: "/attendance", icon: CalendarCheck, classTeacherOnly: true },
     { name: "Settings", href: "/settings", icon: Settings, adminOnly: true },
     // Placeholder items — visible to admin only for now

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Alert, Button, Modal, PageHeader, AdminOnly } from '@/components/ui';
-import { Calendar, Plus, Edit2, Trash2, CheckCircle2, Loader2, Save, User, Sliders, Settings, Lock, Mail, Phone, Moon, Bell } from 'lucide-react';
+import { Calendar, Plus, Edit2, Trash2, CheckCircle2, Loader2, Save, User, Sliders, Settings, Lock, Moon, Bell } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,65 +119,7 @@ export default function SettingsClientPage() {
 
       <div className="mt-6">
         {/* Account Settings Tab */}
-        {activeTab === 'account' && (
-          <div className="space-y-6 max-w-2xl animate-fade-in">
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-              <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                <div className="p-2 bg-primary-50 text-primary-600 rounded-lg">
-                  <Lock size={20} />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Change Password</h3>
-                  <p className="text-sm text-gray-500">Update your account password</p>
-                </div>
-              </div>
-              <div className="space-y-3 pt-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
-                  <input type="password" placeholder="••••••••" className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                  <input type="password" placeholder="••••••••" className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
-                </div>
-                <div className="flex justify-end pt-2">
-                  <Button variant="primary" size="sm">Update Password</Button>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-              <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                <div className="p-2 bg-primary-50 text-primary-600 rounded-lg">
-                  <Mail size={20} />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Contact Details</h3>
-                  <p className="text-sm text-gray-500">Update your email and phone number</p>
-                </div>
-              </div>
-              <div className="space-y-3 pt-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                  <div className="relative">
-                    <Mail size={16} className="absolute left-3 top-3 text-gray-400" />
-                    <input type="email" placeholder="email@example.com" className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                  <div className="relative">
-                    <Phone size={16} className="absolute left-3 top-3 text-gray-400" />
-                    <input type="tel" placeholder="+1 234 567 890" className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
-                  </div>
-                </div>
-                <div className="flex justify-end pt-2">
-                  <Button variant="primary" size="sm">Save Details</Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === 'account' && <AccountSettingsTab />}
 
         {/* App Preferences Tab */}
         {activeTab === 'preferences' && (
@@ -316,6 +258,105 @@ export default function SettingsClientPage() {
             )}
           </AdminOnly>
         )}
+      </div>
+    </div>
+  );
+}
+
+function AccountSettingsTab() {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setMessage('');
+    if (newPassword !== confirmPassword) {
+      setError('New passwords do not match');
+      return;
+    }
+    setSaving(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API}/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update password');
+      setMessage('Password updated successfully');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update password');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 max-w-2xl animate-fade-in">
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+        <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+          <div className="p-2 bg-primary-50 text-primary-600 rounded-lg">
+            <Lock size={20} />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">Change Password</h3>
+            <p className="text-sm text-gray-500">Update your account password anytime</p>
+          </div>
+        </div>
+        <form onSubmit={handlePasswordSubmit} className="space-y-3 pt-2">
+          {error && <Alert type="error" message={error} />}
+          {message && <Alert type="success" message={message} />}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+            <input
+              type="password"
+              required
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+            />
+            <p className="text-xs text-gray-500 mt-1">8+ characters with uppercase, lowercase, and a number</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+            <input
+              type="password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+            />
+          </div>
+          <div className="flex justify-end pt-2">
+            <Button variant="primary" size="sm" type="submit" loading={saving}>Update Password</Button>
+          </div>
+        </form>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const STAFF_AUTH_ROUTES = ['/login', '/invite', '/set-password', '/forgot-password'];
+const STAFF_AUTH_ROUTES = ['/login', '/invite', '/set-password', '/forgot-password', '/change-password'];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -31,7 +31,7 @@ export function proxy(request: NextRequest) {
 
   // ── Staff / admin routes ─────────────────────────────────────────
   if (STAFF_AUTH_ROUTES.includes(pathname)) {
-    if (token) {
+    if (token && pathname !== '/change-password') {
       return NextResponse.redirect(new URL('/overview', request.url));
     }
     return NextResponse.next();

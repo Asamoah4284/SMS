@@ -50,6 +50,7 @@ model User {
   role         Role
   photo        String?
   isActive     Boolean  @default(true)
+  mustChangePassword Boolean @default(false)
   refreshToken String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -61,6 +62,7 @@ model User {
   announcements      Announcement[]
   notifications      Notification[]
   digitalMaterials   DigitalMaterial[]
+  payoutRequests     PayoutRequest[]
 
   @@map("users")
 }
@@ -166,8 +168,10 @@ model StudentProfile {
 model PaystackIntent {
   id             String   @id @default(cuid())
   reference      String   @unique
-  amountGhs      Float
+  amountGhs      Float    // Gross charged to parent (incl. platform fee)
   amountPesewas  Int      // Paystack amount (minor units)
+  schoolAmountGhs Float   @default(0) // Net credited to school / applied to fees
+  platformFeeGhs  Float   @default(0)
   status           String   @default("PENDING") // PENDING | SUCCESS | FAILED
   callbackUrl    String?
   studentId      String
@@ -230,10 +234,11 @@ enum Gender {
 // ─────────────────────────────────────────
 
 model Class {
-  id      String     @id @default(cuid())
-  name    String     // display name e.g. "Basic 4A"
-  level   ClassLevel
-  section String?    // "A", "B"
+  id          String     @id @default(cuid())
+  name        String     // display name e.g. "Class 3"
+  classNumber Int        @unique // used in student IDs e.g. DASE-7-001
+  level       ClassLevel
+  section     String?    // "A", "B"
 
   classTeacherId String?  @unique
   classTeacher   Teacher? @relation("ClassTeacher", fields: [classTeacherId], references: [id])
@@ -728,8 +733,10 @@ model BookPayment {
 model BookPaystackIntent {
   id                 String   @id @default(cuid())
   reference          String   @unique
-  amountGhs          Float
+  amountGhs          Float    // Gross charged to parent
   amountPesewas      Int
+  schoolAmountGhs    Float    @default(0)
+  platformFeeGhs     Float    @default(0)
   status             String   @default("PENDING")
   callbackUrl        String?
   studentId          String
@@ -852,4 +859,38 @@ model ExamAnswer {
 
   @@unique([attemptId, questionId])
   @@map("exam_answers")
+}
+
+// ─────────────────────────────────────────
+// SCHOOL WALLET & PAYOUTS (Paystack settlements)
+// ─────────────────────────────────────────
+
+model SchoolWallet {
+  id                 String   @id @default("default")
+  availableBalanceGhs Float   @default(0)
+  updatedAt          DateTime @updatedAt
+
+  @@map("school_wallet")
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model PayoutRequest {
+  id              String       @id @default(cuid())
+  amountGhs       Float
+  status          PayoutStatus @default(PENDING)
+  note            String?
+  paystackTransferCode String?
+  failureReason   String?
+  requestedById   String
+  requestedBy     User         @relation(fields: [requestedById], references: [id])
+  createdAt       DateTime     @default(now())
+  processedAt     DateTime?
+
+  @@map("payout_requests")
 }

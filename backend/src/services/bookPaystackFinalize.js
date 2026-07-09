@@ -1,4 +1,6 @@
 const prisma = require('../config/db');
+const { creditSchoolWallet } = require('./schoolWallet');
+const { resolveSchoolAmount } = require('../utils/commission');
 
 /**
  * Mark book intent SUCCESS and create BookPayment records (idempotent).
@@ -25,6 +27,8 @@ async function finalizeBookPaystackIntentByReference(reference, amountPesewas) {
 
   const { getStudentBookLines } = require('../utils/studentBooks');
 
+  const schoolAmountGhs = resolveSchoolAmount(intent);
+
   await prisma.$transaction(async (tx) => {
     const locked = await tx.bookPaystackIntent.findUnique({ where: { reference } });
     if (!locked || locked.status === 'SUCCESS') return;
@@ -38,7 +42,7 @@ async function finalizeBookPaystackIntentByReference(reference, amountPesewas) {
       targetBooks = unpaid.filter((b) => idSet.has(b.bookId));
     }
 
-    let remainingPay = intent.amountGhs;
+    let remainingPay = schoolAmountGhs;
     for (const book of targetBooks) {
       if (remainingPay <= 0.004) break;
       const pay = Math.min(remainingPay, book.remaining);
@@ -73,6 +77,8 @@ async function finalizeBookPaystackIntentByReference(reference, amountPesewas) {
 
       remainingPay -= pay;
     }
+
+    await creditSchoolWallet(tx, schoolAmountGhs);
 
     await tx.bookPaystackIntent.update({
       where: { reference },

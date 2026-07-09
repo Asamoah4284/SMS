@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Bell, Menu } from 'lucide-react';
 import { UserProvider, useUser } from '@/lib/UserContext';
 import { TeachingOnboardingGuard } from './TeachingOnboardingGuard';
+import { PasswordChangeGuard } from './PasswordChangeGuard';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { ProfileDropdown } from '@/components/ui/ProfileDropdown';
 
@@ -63,7 +64,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           <main className="flex-1 overflow-x-hidden overflow-y-auto bg-white custom-scrollbar h-full w-full">
             <div className="min-h-full">
-              <TeachingOnboardingGuard>{children}</TeachingOnboardingGuard>
+              <PasswordChangeGuard>
+                <TeachingOnboardingGuard>{children}</TeachingOnboardingGuard>
+              </PasswordChangeGuard>
             </div>
           </main>
         </div>
