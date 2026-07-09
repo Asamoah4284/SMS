@@ -292,11 +292,14 @@ interface BulkRow {
   classId: string;
   guardianName: string;
   guardianPhone: string;
+  guardian2Name: string;
+  guardian2Phone: string;
 }
 
-const CSV_TEMPLATE = `firstName,middleName,lastName,dateOfBirth,gender,address,className,guardianName,guardianPhone
-Kofi,,Mensah,2015-06-15,MALE,Accra,Basic 4A,Ama Mensah,0241234567
-Abena,Akua,Boateng,2014-08-22,FEMALE,Tema,,Joseph Boateng,0251234567`;
+const CSV_TEMPLATE = `firstName,middleName,lastName,dateOfBirth,gender,address,className,guardianName,guardianPhone,guardian2Name,guardian2Phone
+Kwame,,Mensah,2015-03-12,MALE,Accra,Year 1,Ama Mensah,0241234567,Kofi Mensah,0551234567
+Kofi,,Mensah,2015-06-15,MALE,Accra,Basic 4A,Ama Mensah,0241234567,,
+Abena,Akua,Boateng,2014-08-22,FEMALE,Tema,,Joseph Boateng,0251234567,,`;
 
 function downloadTemplate() {
   const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' });
@@ -324,6 +327,8 @@ function parseCSV(text: string): BulkRow[] {
       classId: '',          // resolved by backend from className if provided
       guardianName: cols[7] ?? '',
       guardianPhone: cols[8] ?? '',
+      guardian2Name: cols[9] ?? '',
+      guardian2Phone: cols[10] ?? '',
     };
   });
 }

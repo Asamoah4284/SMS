@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Alert, Button, Modal, PageHeader, AdminOnly } from '@/components/ui';
-import { Calendar, Plus, Edit2, Trash2, CheckCircle2, Loader2, Save, User, Sliders, Settings, Lock, Moon, Bell } from 'lucide-react';
+import { useUser } from '@/lib/UserContext';
+import { getApiBase, parseApiError } from '@/lib/apiBase';
+import { Calendar, Plus, Edit2, Trash2, Loader2, Save, User, Sliders, Settings, Lock, Moon, Bell } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -12,12 +15,23 @@ interface Term {
 }
 
 function getToken() { return typeof window !== 'undefined' ? localStorage.getItem('accessToken') : ''; }
-const API = process.env.NEXT_PUBLIC_API_URL;
+const API = getApiBase();
+
+const PREF_KEYS = {
+  theme: 'edutrack_theme',
+  inApp: 'edutrack_notify_inapp',
+  email: 'edutrack_notify_email',
+} as const;
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function SettingsClientPage() {
-  const [activeTab, setActiveTab] = useState<'account' | 'preferences' | 'school'>('account');
+function SettingsClientPageInner() {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialTab =
+    tabParam === 'preferences' || tabParam === 'school' ? tabParam : 'account';
+
+  const [activeTab, setActiveTab] = useState<'account' | 'preferences' | 'school'>(initialTab);
   const [terms, setTerms] = useState<Term[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -38,6 +52,12 @@ export default function SettingsClientPage() {
     }
     finally { setLoading(false); }
   }, []);
+
+  useEffect(() => {
+    if (tabParam === 'account' || tabParam === 'preferences' || tabParam === 'school') {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   useEffect(() => {
     if (activeTab === 'school') {
@@ -122,58 +142,7 @@ export default function SettingsClientPage() {
         {activeTab === 'account' && <AccountSettingsTab />}
 
         {/* App Preferences Tab */}
-        {activeTab === 'preferences' && (
-          <div className="space-y-6 max-w-2xl animate-fade-in">
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-              <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                <div className="p-2 bg-primary-50 text-primary-600 rounded-lg">
-                  <Moon size={20} />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Appearance</h3>
-                  <p className="text-sm text-gray-500">Customize the look and feel of the app</p>
-                </div>
-              </div>
-              <div className="pt-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Theme Preference</label>
-                <select className="w-full max-w-xs border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer">
-                  <option value="system">System Default</option>
-                  <option value="light">Light Mode</option>
-                  <option value="dark">Dark Mode</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-              <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                <div className="p-2 bg-primary-50 text-primary-600 rounded-lg">
-                  <Bell size={20} />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Notifications</h3>
-                  <p className="text-sm text-gray-500">Choose how you want to be notified</p>
-                </div>
-              </div>
-              <div className="space-y-4 pt-2">
-                <label className="flex items-center justify-between cursor-pointer group">
-                  <div>
-                    <p className="font-medium text-gray-900 group-hover:text-primary-600 transition-colors">In-App Notifications</p>
-                    <p className="text-sm text-gray-500">Receive alerts within the application dashboard</p>
-                  </div>
-                  <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-                </label>
-                <div className="h-px bg-gray-50"></div>
-                <label className="flex items-center justify-between cursor-pointer group">
-                  <div>
-                    <p className="font-medium text-gray-900 group-hover:text-primary-600 transition-colors">Email Notifications</p>
-                    <p className="text-sm text-gray-500">Receive important updates and weekly reports via email</p>
-                  </div>
-                  <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-                </label>
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === 'preferences' && <PreferencesTab />}
 
         {/* School Config Tab */}
         {activeTab === 'school' && (
@@ -263,23 +232,76 @@ export default function SettingsClientPage() {
   );
 }
 
+export default function SettingsClientPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-gray-500">Loading settings…</div>}>
+      <SettingsClientPageInner />
+    </Suspense>
+  );
+}
+
 function AccountSettingsTab() {
+  const { user, refresh } = useUser();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
+  const [profileError, setProfileError] = useState('');
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  useEffect(() => {
+    if (!user) return;
+    setFirstName(user.firstName ?? '');
+    setLastName(user.lastName ?? '');
+    setEmail(user.email ?? '');
+  }, [user]);
+
+  const handleProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileError('');
+    setProfileMessage('');
+    setProfileSaving(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API}/auth/me`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ firstName, lastName, email: email || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(parseApiError(data, 'Failed to update profile'));
+      setProfileMessage('Profile saved successfully');
+      await refresh();
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : 'Failed to update profile');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setMessage('');
+    setPasswordError('');
+    setPasswordMessage('');
     if (newPassword !== confirmPassword) {
-      setError('New passwords do not match');
+      setPasswordError('New passwords do not match');
       return;
     }
-    setSaving(true);
+    if (!/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      setPasswordError('Password must include uppercase, lowercase, and a number');
+      return;
+    }
+    setPasswordSaving(true);
     try {
       const token = getToken();
       const res = await fetch(`${API}/auth/change-password`, {
@@ -290,21 +312,84 @@ function AccountSettingsTab() {
         },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update password');
-      setMessage('Password updated successfully');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(parseApiError(data, 'Failed to update password'));
+      setPasswordMessage('Password updated successfully');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      localStorage.removeItem('mustChangePassword');
+      await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update password');
+      setPasswordError(err instanceof Error ? err.message : 'Failed to update password');
     } finally {
-      setSaving(false);
+      setPasswordSaving(false);
     }
   };
 
   return (
     <div className="space-y-6 max-w-2xl animate-fade-in">
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+        <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+          <div className="p-2 bg-primary-50 text-primary-600 rounded-lg">
+            <User size={20} />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">Profile</h3>
+            <p className="text-sm text-gray-500">Update your name and contact details</p>
+          </div>
+        </div>
+        <form onSubmit={handleProfileSubmit} className="space-y-3 pt-2">
+          {profileError && <Alert type="error" message={profileError} onDismiss={() => setProfileError('')} />}
+          {profileMessage && <Alert type="success" message={profileMessage} onDismiss={() => setProfileMessage('')} />}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
+              <input
+                type="text"
+                required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+              <input
+                type="text"
+                required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <input
+              type="text"
+              value={user?.phone ?? ''}
+              disabled
+              className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm bg-gray-50 text-gray-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">Phone is your login ID and cannot be changed here.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email (optional)</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@school.edu.gh"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+            />
+          </div>
+          <div className="flex justify-end pt-2">
+            <Button variant="primary" size="sm" type="submit" loading={profileSaving}>Save changes</Button>
+          </div>
+        </form>
+      </div>
+
       <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
         <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
           <div className="p-2 bg-primary-50 text-primary-600 rounded-lg">
@@ -316,8 +401,8 @@ function AccountSettingsTab() {
           </div>
         </div>
         <form onSubmit={handlePasswordSubmit} className="space-y-3 pt-2">
-          {error && <Alert type="error" message={error} />}
-          {message && <Alert type="success" message={message} />}
+          {passwordError && <Alert type="error" message={passwordError} onDismiss={() => setPasswordError('')} />}
+          {passwordMessage && <Alert type="success" message={passwordMessage} onDismiss={() => setPasswordMessage('')} />}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
             <input
@@ -354,11 +439,122 @@ function AccountSettingsTab() {
             />
           </div>
           <div className="flex justify-end pt-2">
-            <Button variant="primary" size="sm" type="submit" loading={saving}>Update Password</Button>
+            <Button variant="primary" size="sm" type="submit" loading={passwordSaving}>Update password</Button>
           </div>
         </form>
       </div>
     </div>
+  );
+}
+
+function PreferencesTab() {
+  const [theme, setTheme] = useState('system');
+  const [inApp, setInApp] = useState(true);
+  const [emailNotify, setEmailNotify] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setTheme(localStorage.getItem(PREF_KEYS.theme) || 'system');
+    setInApp(localStorage.getItem(PREF_KEYS.inApp) !== 'false');
+    setEmailNotify(localStorage.getItem(PREF_KEYS.email) === 'true');
+  }, []);
+
+  const applyTheme = (value: string) => {
+    const root = document.documentElement;
+    if (value === 'dark') root.classList.add('dark');
+    else if (value === 'light') root.classList.remove('dark');
+    else if (window.matchMedia('(prefers-color-scheme: dark)').matches) root.classList.add('dark');
+    else root.classList.remove('dark');
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    localStorage.setItem(PREF_KEYS.theme, theme);
+    localStorage.setItem(PREF_KEYS.inApp, String(inApp));
+    localStorage.setItem(PREF_KEYS.email, String(emailNotify));
+    applyTheme(theme);
+    setMessage('Preferences saved');
+    setSaving(false);
+    setTimeout(() => setMessage(''), 3000);
+  };
+
+  return (
+    <form onSubmit={handleSave} className="space-y-6 max-w-2xl animate-fade-in">
+      {message && <Alert type="success" message={message} onDismiss={() => setMessage('')} />}
+
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+        <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+          <div className="p-2 bg-primary-50 text-primary-600 rounded-lg">
+            <Moon size={20} />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">Appearance</h3>
+            <p className="text-sm text-gray-500">Customize the look and feel of the app</p>
+          </div>
+        </div>
+        <div className="pt-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Theme preference</label>
+          <select
+            value={theme}
+            onChange={(e) => setTheme(e.target.value)}
+            className="w-full max-w-xs border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer"
+          >
+            <option value="system">System default</option>
+            <option value="light">Light mode</option>
+            <option value="dark">Dark mode</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+        <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+          <div className="p-2 bg-primary-50 text-primary-600 rounded-lg">
+            <Bell size={20} />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">Notifications</h3>
+            <p className="text-sm text-gray-500">Choose how you want to be notified</p>
+          </div>
+        </div>
+        <div className="space-y-4 pt-2">
+          <label className="flex items-center justify-between cursor-pointer group">
+            <div>
+              <p className="font-medium text-gray-900">In-app notifications</p>
+              <p className="text-sm text-gray-500">Bell alerts for announcements, leave requests, and updates</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={inApp}
+              onChange={(e) => setInApp(e.target.checked)}
+              className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+          </label>
+          <div className="h-px bg-gray-50" />
+          <label className="flex items-center justify-between cursor-pointer group">
+            <div>
+              <p className="font-medium text-gray-900">Email notifications</p>
+              <p className="text-sm text-gray-500">Weekly summaries and important updates (coming soon)</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={emailNotify}
+              onChange={(e) => setEmailNotify(e.target.checked)}
+              className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <Button variant="primary" size="sm" type="submit" loading={saving}>
+          <Save size={14} className="mr-1" />
+          Save changes
+        </Button>
+      </div>
+    </form>
   );
 }
 

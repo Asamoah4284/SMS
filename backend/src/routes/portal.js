@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const crypto = require('crypto');
 const prisma = require('../config/db');
-const { authenticateParent, parentPhoneVariants } = require('../middleware/parentPortalAuth');
+const { authenticateParent, parentPhoneVariants, parentHasAccessToStudent } = require('../middleware/parentPortalAuth');
 const { getStudentFeeLinesForTerm } = require('../utils/studentFeeLines');
 const { computeClassPositionByTerm } = require('../utils/classRanking');
 const { finalizePaystackIntentByReference } = require('../services/paystackFinalize');
@@ -79,9 +79,7 @@ router.get('/child/:studentId', authenticateParent, async (req, res) => {
 
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
-    const hasAccess =
-      phoneVariants.includes(student.parentPhone) ||
-      (student.parent && phoneVariants.includes(student.parent.user.phone));
+    const hasAccess = parentHasAccessToStudent(student, phoneVariants);
 
     if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
 
@@ -221,9 +219,7 @@ router.post('/paystack/initialize', authenticateParent, async (req, res) => {
 
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
-    const hasAccess =
-      phoneVariants.includes(student.parentPhone) ||
-      (student.parent && phoneVariants.includes(student.parent.user.phone));
+    const hasAccess = parentHasAccessToStudent(student, phoneVariants);
 
     if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
 
@@ -394,9 +390,7 @@ router.get('/paystack/verify/:reference', authenticateParent, async (req, res) =
     });
     if (!st) return res.status(404).json({ error: 'Student not found' });
 
-    const hasAccess =
-      phoneVariants.includes(st.parentPhone) ||
-      (st.parent && phoneVariants.includes(st.parent.user.phone));
+    const hasAccess = parentHasAccessToStudent(st, phoneVariants);
     if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
 
     if (intent.status === 'SUCCESS') {
@@ -443,9 +437,7 @@ router.get('/child/:studentId/books', authenticateParent, async (req, res) => {
     });
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
-    const hasAccess =
-      phoneVariants.includes(student.parentPhone) ||
-      (student.parent && phoneVariants.includes(student.parent.user.phone));
+    const hasAccess = parentHasAccessToStudent(student, phoneVariants);
     if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
 
     const currentTerm = await prisma.term.findFirst({ where: { isCurrent: true } });
@@ -492,9 +484,7 @@ router.post('/books/paystack/initialize', authenticateParent, async (req, res) =
     });
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
-    const hasAccess =
-      phoneVariants.includes(student.parentPhone) ||
-      (student.parent && phoneVariants.includes(student.parent.user.phone));
+    const hasAccess = parentHasAccessToStudent(student, phoneVariants);
     if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
 
     const currentTerm = await prisma.term.findFirst({ where: { isCurrent: true } });
@@ -648,9 +638,7 @@ router.get('/books/paystack/verify/:reference', authenticateParent, async (req, 
     });
     if (!st) return res.status(404).json({ error: 'Student not found' });
 
-    const hasAccess =
-      phoneVariants.includes(st.parentPhone) ||
-      (st.parent && phoneVariants.includes(st.parent.user.phone));
+    const hasAccess = parentHasAccessToStudent(st, phoneVariants);
     if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
 
     if (intent.status === 'SUCCESS') {

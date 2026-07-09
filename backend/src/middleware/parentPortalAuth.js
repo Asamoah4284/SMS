@@ -36,4 +36,41 @@ function parentPhoneVariants(parentPhone) {
   return [...new Set([localPhone, e164Phone, parentPhone, rawDigits])];
 }
 
-module.exports = { authenticateParent, normalisePhone, parentPhoneVariants };
+/**
+ * Whether a parent portal phone can access this student.
+ * Checks primary guardian phone, second guardian phone, and linked parent account.
+ */
+function parentHasAccessToStudent(student, phoneVariants) {
+  if (!student || !phoneVariants?.length) return false;
+
+  const quickPhones = [student.parentPhone, student.parent2Phone].filter(Boolean);
+  if (quickPhones.some((p) => phoneVariants.includes(p))) return true;
+
+  const linkedPhone = student.parent?.user?.phone;
+  return !!(linkedPhone && phoneVariants.includes(linkedPhone));
+}
+
+/**
+ * Unique guardian phone numbers for SMS / notifications.
+ */
+function studentGuardianPhones(student) {
+  const seen = new Set();
+  const out = [];
+  const add = (phone) => {
+    if (!phone || seen.has(phone)) return;
+    seen.add(phone);
+    out.push(phone);
+  };
+  add(student.parent?.user?.phone);
+  add(student.parentPhone);
+  add(student.parent2Phone);
+  return out;
+}
+
+module.exports = {
+  authenticateParent,
+  normalisePhone,
+  parentPhoneVariants,
+  parentHasAccessToStudent,
+  studentGuardianPhones,
+};

@@ -1,8 +1,3 @@
-/**
- * API client — thin wrapper around fetch for the Express backend.
- * All requests go to NEXT_PUBLIC_API_URL/api/v1/...
- */
-
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api/v1';
 
 type RequestOptions = Omit<RequestInit, 'body'> & {
@@ -30,7 +25,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Request failed' }));
-    throw new Error(error.message ?? 'Request failed');
+    const msg =
+      (error as { message?: string }).message ||
+      (error as { error?: string }).error ||
+      'Request failed';
+    throw new Error(msg);
   }
 
   return response.json() as Promise<T>;
