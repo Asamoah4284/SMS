@@ -197,10 +197,17 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-[1200px] mx-auto animate-fade-in space-y-5">
-      {/* Back */}
-      <Link href="/students" className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium">
-        ← Back to Students
-      </Link>
+      {/* Back + admin actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href="/students" className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium">
+          ← Back to Students
+        </Link>
+        {isAdmin && (
+          <Button variant="primary" size="sm" onClick={() => setEditModal(true)}>
+            <Pencil className="w-4 h-4" /> Edit student
+          </Button>
+        )}
+      </div>
 
       {/* Profile Header */}
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-sm">
@@ -242,7 +249,7 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
                   </div>
                 </div>
                 {isAdmin && (
-                  <Button variant="secondary" size="sm" onClick={() => setEditModal(true)} className="shrink-0">
+                  <Button variant="primary" size="sm" onClick={() => setEditModal(true)} className="shrink-0">
                     <Pencil className="w-4 h-4" /> Edit
                   </Button>
                 )}
@@ -382,6 +389,7 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
           age={age}
           onRefresh={fetchStudent}
           onEdit={() => setEditModal(true)}
+          isAdmin={isAdmin}
         />
       )}
       {activeTab === 'attendance' && <AttendanceTab attendances={student.attendances} summary={student.attendanceSummary} />}
@@ -733,8 +741,20 @@ function StatCard({
 
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 
+function SectionEditButton({ onClick, label = 'Edit' }: { onClick: () => void; label?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:text-primary-700"
+    >
+      <Pencil className="w-4 h-4" /> {label}
+    </button>
+  );
+}
+
 function OverviewTab({
-  student, parentName, parentPhone, parent2Name, parent2Phone, parentLinked, age, onRefresh, onEdit,
+  student, parentName, parentPhone, parent2Name, parent2Phone, parentLinked, age, onRefresh, onEdit, isAdmin,
 }: {
   student: StudentData;
   parentName: string | null | undefined;
@@ -745,16 +765,18 @@ function OverviewTab({
   age: number | null;
   onRefresh: () => void;
   onEdit: () => void;
+  isAdmin: boolean;
 }) {
-  const { isAdmin } = useUser();
-
   return (
     <div className="grid md:grid-cols-2 gap-5">
       {/* Personal Info */}
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
-        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <GraduationCap className="w-4 h-4 text-gray-400" /> Personal Details
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <GraduationCap className="w-4 h-4 text-gray-400" /> Personal Details
+          </h3>
+          {isAdmin && <SectionEditButton onClick={onEdit} />}
+        </div>
         <dl className="space-y-3">
           {student.dateOfBirth && (
             <InfoRow icon={<Calendar className="w-4 h-4" />} label="Date of Birth"
@@ -788,15 +810,18 @@ function OverviewTab({
 
       {/* Guardian / Parent */}
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gap-2">
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             <Users className="w-4 h-4 text-gray-400" /> Guardians
           </h3>
-          {(parentLinked || parentPhone || parent2Phone) && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-success-50 border border-success-100 text-success-700 text-xs font-semibold rounded-full">
-              <CheckCircle2 className="w-3 h-3" /> Parent portal
-            </span>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {(parentLinked || parentPhone || parent2Phone) && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-success-50 border border-success-100 text-success-700 text-xs font-semibold rounded-full">
+                <CheckCircle2 className="w-3 h-3" /> Parent portal
+              </span>
+            )}
+            {isAdmin && <SectionEditButton onClick={onEdit} label={parentName || parent2Name ? 'Edit' : 'Add'} />}
+          </div>
         </div>
         {parentName || parentPhone || parent2Name || parent2Phone ? (
           <dl className="space-y-5">
@@ -869,9 +894,14 @@ function OverviewTab({
             )}
           </dl>
         ) : (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Users className="w-8 h-8 text-gray-200 mb-2" />
+          <div className="flex flex-col items-center justify-center py-8 text-center gap-3">
+            <Users className="w-8 h-8 text-gray-200" />
             <p className="text-sm text-gray-400">No guardian info recorded</p>
+            {isAdmin && (
+              <Button variant="secondary" size="sm" onClick={onEdit}>
+                <Plus className="w-4 h-4" /> Add guardian details
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -882,15 +912,7 @@ function OverviewTab({
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-gray-400" /> Child photo & documents
           </h3>
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:text-primary-700"
-            >
-              <Pencil className="w-4 h-4" /> Edit
-            </button>
-          )}
+          {isAdmin && <SectionEditButton onClick={onEdit} label="Edit photos" />}
         </div>
         <div className="flex flex-col sm:flex-row gap-8">
           <div>
