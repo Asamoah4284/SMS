@@ -4,6 +4,7 @@ const { totalDueFromPayments } = require('../utils/feeAccounting');
 const { computeClassPositionByTerm } = require('../utils/classRanking');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
+const { ensureStudentPortal, DEFAULT_STUDENT_PIN } = require('../utils/studentPortal');
 
 const router = Router();
 router.use(authenticate);
@@ -195,6 +196,8 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
       },
     });
 
+    const portal = await ensureStudentPortal(prisma, student);
+
     res.status(201).json({
       message: 'Student created successfully',
       student: {
@@ -209,6 +212,12 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
           ? `${student.parent.user.firstName} ${student.parent.user.lastName}`
           : student.parentName,
         parentPhone: student.parent ? student.parent.user.phone : student.parentPhone,
+      },
+      portal: {
+        enabled: portal.portalEnabled,
+        studentId: portal.studentId,
+        defaultPin: portal.defaultPin ?? null,
+        loginPath: '/student/login',
       },
     });
   } catch (err) {
@@ -238,6 +247,7 @@ router.get('/:id', async (req, res) => {
             },
           },
         },
+        studentProfile: { select: { id: true, mustChangePin: true } },
         attendances: {
           orderBy: { date: 'desc' },
           take: 30,
@@ -292,6 +302,7 @@ router.get('/:id', async (req, res) => {
 
     res.json({
       ...student,
+      portalEnabled: !!student.studentProfile,
       attendanceSummary: { ...attendanceSummary, total: totalDays, rate: attendanceRate },
       feeSummary: { totalPaid: feeTotalPaid, totalDue: feeTotalDue, balance: Math.max(0, feeTotalDue - feeTotalPaid) },
       classPositionByTerm,
@@ -401,7 +412,7 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
           ? `${row.firstName} ${row.middleName}`
           : row.firstName;
 
-        await prisma.student.create({
+        const student = await prisma.student.create({
           data: {
             studentId,
             firstName: fullFirst,
@@ -415,6 +426,7 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
             parentPhone: storedParentPhone,
           },
         });
+        await ensureStudentPortal(prisma, student);
         results.imported++;
       } catch (rowErr) {
         results.failed.push({ row: rowNum, reason: rowErr.message });
@@ -428,52 +440,28 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
   }
 });
 
-// POST /students/:id/portal/enable — create student portal account with PIN
+// POST /students/:id/portal/enable — manual fallback for legacy students
 router.post('/:id/portal/enable', authorize('ADMIN', 'TEACHER'), async (req, res) => {
   try {
     const { pin } = req.body;
-    const defaultPin = pin ? String(pin) : '1234';
 
     const student = await prisma.student.findUnique({
       where: { id: req.params.id },
-      include: { studentProfile: { include: { user: true } } },
+      include: { studentProfile: true },
     });
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
-    if (student.studentProfile) {
+    const portal = await ensureStudentPortal(prisma, student, { pin });
+
+    if (!portal.created) {
       return res.status(400).json({ message: 'Portal access already enabled' });
     }
 
-    const internalPhone = `STU-${student.studentId}`;
-    const existingPhone = await prisma.user.findUnique({ where: { phone: internalPhone } });
-    if (existingPhone) {
-      return res.status(400).json({ message: 'Portal user already exists for this student' });
-    }
-
-    const hashed = await bcrypt.hash(defaultPin, 10);
-    const user = await prisma.user.create({
-      data: {
-        phone: internalPhone,
-        firstName: student.firstName,
-        lastName: student.lastName,
-        password: hashed,
-        role: 'STUDENT',
-      },
-    });
-
-    const profile = await prisma.studentProfile.create({
-      data: {
-        userId: user.id,
-        studentDbId: student.id,
-        mustChangePin: true,
-      },
-    });
-
     res.status(201).json({
       message: 'Student portal enabled',
-      studentId: student.studentId,
-      defaultPin: pin ? undefined : defaultPin,
-      profileId: profile.id,
+      studentId: portal.studentId,
+      defaultPin: portal.defaultPin,
+      profileId: student.studentProfile?.id,
     });
   } catch (err) {
     console.error('POST /students/:id/portal/enable', err);
@@ -485,7 +473,7 @@ router.post('/:id/portal/enable', authorize('ADMIN', 'TEACHER'), async (req, res
 router.post('/:id/portal/reset-pin', authorize('ADMIN', 'TEACHER'), async (req, res) => {
   try {
     const { pin } = req.body;
-    const newPin = pin ? String(pin) : '1234';
+    const newPin = pin ? String(pin) : DEFAULT_STUDENT_PIN;
 
     const student = await prisma.student.findUnique({
       where: { id: req.params.id },

@@ -165,6 +165,13 @@ export default function AddStudentPageClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to add student");
 
+      const portal = data.portal;
+      if (portal?.studentId && portal?.defaultPin) {
+        window.alert(
+          `Student added successfully.\n\nStudent portal login:\nStudent ID: ${portal.studentId}\nPIN: ${portal.defaultPin}\n\nShare these with the student. They can sign in at /student/login`
+        );
+      }
+
       setForm(EMPTY_FORM);
       router.push("/students");
     } catch (err) {
@@ -192,7 +199,7 @@ export default function AddStudentPageClient() {
     <div className="p-4 sm:p-6 md:p-8 max-w-[1600px] w-full mx-auto animate-in fade-in duration-500">
       <PageHeader
         title="Add New Student"
-        subtitle="Create a new student record."
+        subtitle="Create a new student record. Portal login is set up automatically."
         actions={
           <div className="flex gap-2">
             <Button

@@ -4,7 +4,7 @@
  * Run:  npm run seed:student-portal
  *
  * What it does:
- *   1. Enables portal (PIN 1234) for the first 3 students in a class
+ *   1. Ensures portal (PIN 1234) for the first 3 students in a class
  *   2. Creates a published sample online exam for that class
  *
  * Env (optional):
@@ -15,45 +15,12 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
+const { ensureStudentPortal } = require('../utils/studentPortal');
 
 const prisma = new PrismaClient();
 
 const DEMO_CLASS = process.env.DEMO_CLASS || 'Class 4';
 const DEMO_PIN = process.env.DEMO_PIN || '1234';
-
-async function enablePortal(student) {
-  if (student.studentProfile) {
-    return { student, already: true };
-  }
-
-  const internalPhone = `STU-${student.studentId}`;
-  const existingPhone = await prisma.user.findUnique({ where: { phone: internalPhone } });
-  if (existingPhone) {
-    return { student, already: true };
-  }
-
-  const hashed = await bcrypt.hash(DEMO_PIN, 10);
-  const user = await prisma.user.create({
-    data: {
-      phone: internalPhone,
-      firstName: student.firstName,
-      lastName: student.lastName,
-      password: hashed,
-      role: 'STUDENT',
-    },
-  });
-
-  await prisma.studentProfile.create({
-    data: {
-      userId: user.id,
-      studentDbId: student.id,
-      mustChangePin: false,
-    },
-  });
-
-  return { student, already: false };
-}
 
 async function ensureDemoExam({ classId, subjectId, termId, createdById }) {
   const existing = await prisma.onlineExam.findFirst({
@@ -185,7 +152,6 @@ async function main() {
 
   const students = await prisma.student.findMany({
     where: { classId: cls.id, isActive: true },
-    include: { studentProfile: true },
     orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     take: 3,
   });
@@ -199,11 +165,14 @@ async function main() {
 
   const enabled = [];
   for (const s of students) {
-    const result = await enablePortal(s);
+    const result = await ensureStudentPortal(prisma, s, {
+      pin: DEMO_PIN,
+      mustChangePin: false,
+    });
     enabled.push({
-      studentId: result.student.studentId,
-      name: `${result.student.firstName} ${result.student.lastName}`,
-      status: result.already ? 'already enabled' : 'enabled now',
+      studentId: s.studentId,
+      name: `${s.firstName} ${s.lastName}`,
+      status: result.created ? 'enabled now' : 'already enabled',
     });
   }
 

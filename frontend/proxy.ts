@@ -7,6 +7,11 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get('accessToken')?.value;
   const parentToken = request.cookies.get('parentToken')?.value;
 
+  // ── Student portal (separate auth — studentToken in localStorage, not staff cookie) ──
+  if (pathname === '/student' || pathname.startsWith('/student/')) {
+    return NextResponse.next();
+  }
+
   // ── Parent portal ────────────────────────────────────────────────
   if (pathname.startsWith('/parent-portal')) {
     // The auth page itself (/parent-portal) is public

@@ -11,6 +11,7 @@
  *   ✓ 1 Admin / Headmaster
  *   ✓ 15 Teachers with class assignments
  *   ✓ 252 Students with authentic Ghanaian names
+ *   ✓ Student portal accounts (Student ID + PIN) for every student
  *   ✓ 132 Parent portal accounts (Basic 4 – JHS 3)
  *   ✓ Subject-Teacher assignments per class
  *   ✓ Full weekly Timetable for every class
@@ -30,6 +31,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const { ensureStudentPortal } = require('../src/utils/studentPortal');
 
 const prisma = new PrismaClient();
 
@@ -39,6 +41,7 @@ const prisma = new PrismaClient();
 const ADMIN_PW   = 'admin@eagles2026';
 const TEACHER_PW = 'teacher@eagles';
 const PARENT_PW  = 'parent@eagles';
+const STUDENT_PW = '1234';
 
 // ════════════════════════════════════════════════════════════════
 // HELPERS
@@ -868,6 +871,26 @@ async function seedStudents(classes) {
   return allStudents;
 }
 
+async function seedStudentPortals(allStudents) {
+  console.log('\n🎓 Seeding student portal accounts...');
+  let created = 0;
+  let already = 0;
+
+  for (const students of Object.values(allStudents)) {
+    for (const student of students) {
+      const result = await ensureStudentPortal(prisma, student, {
+        pin: STUDENT_PW,
+        mustChangePin: false,
+      });
+      if (result.created) created++;
+      else already++;
+    }
+  }
+
+  console.log(`  ✓ ${created} portal accounts created, ${already} already existed`);
+  console.log(`  ✓ Login: Student ID (e.g. STM-2026-001) + PIN ${STUDENT_PW} at /student/login`);
+}
+
 async function seedParents(allStudents, classes, passwordHash) {
   console.log('\n👨‍👩‍👧 Seeding parent accounts...');
   // Create accounts for students in Class 4 – JHS 3
@@ -1358,6 +1381,7 @@ async function main() {
   await seedTimetable(classes, subjects);
 
   const allStudents = await seedStudents(classes);
+  await seedStudentPortals(allStudents);
   await seedParents(allStudents, classes, parentHash);
 
   const term1 = terms['First Term-2025'];
@@ -1382,6 +1406,8 @@ async function main() {
   console.log(`   Admin:   0244100001 / ${ADMIN_PW}`);
   console.log(`   Teacher: 0244100002 / ${TEACHER_PW}  (any teacher phone)`);
   console.log(`   Parent:  0201001035 / ${PARENT_PW}   (any parent phone)`);
+  console.log(`   Student: STM-2026-001 / ${STUDENT_PW}  (any student ID — see student list)`);
+  console.log('            Portal: http://localhost:3000/student/login');
   console.log('');
 }
 

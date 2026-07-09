@@ -94,6 +94,7 @@ interface StudentData {
   attendanceSummary: AttendanceSummary;
   /** Maps term id → class rank for that term */
   classPositionByTerm?: Record<string, ClassPositionEntry>;
+  portalEnabled?: boolean;
 }
 
 type Tab = 'overview' | 'attendance' | 'results' | 'fees';
@@ -134,7 +135,8 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
     });
     const data = await res.json();
     if (!res.ok) { alert(data.message || 'Failed'); return; }
-    alert(data.defaultPin ? `Portal enabled. Default PIN: ${data.defaultPin}` : 'Portal enabled.');
+    alert(data.defaultPin ? `Portal ready. New PIN: ${data.defaultPin}` : 'Portal set up.');
+    fetchStudent();
   };
 
   const resetPortalPin = async () => {
@@ -147,6 +149,7 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
     const data = await res.json();
     if (!res.ok) { alert(data.message || 'Failed'); return; }
     alert(data.defaultPin ? `PIN reset. New PIN: ${data.defaultPin}` : 'PIN reset.');
+    fetchStudent();
   };
 
   if (loading) {
@@ -224,8 +227,14 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
                 <Hash className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span className="break-all">{student.studentId}</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" size="sm" onClick={enablePortal}>Enable student portal</Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {student.portalEnabled ? (
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-100">
+                    Portal active — login with Student ID + PIN
+                  </span>
+                ) : (
+                  <Button variant="secondary" size="sm" onClick={enablePortal}>Set up portal</Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={resetPortalPin}>Reset PIN</Button>
                 <Link href="/student/login" className="text-xs text-primary-600 self-center hover:underline">Student login →</Link>
               </div>
