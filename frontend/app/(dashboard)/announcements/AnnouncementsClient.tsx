@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
+import { Trash2 } from 'lucide-react';
 
 interface Announcement {
   id: string;
@@ -94,6 +95,21 @@ export default function AnnouncementsClient() {
     }
   };
 
+  const handleDelete = async (ann: Announcement) => {
+    if (!window.confirm(`Delete announcement “${ann.title}”?`)) return;
+    try {
+      const res = await fetch(`${API}/announcements/${ann.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to delete');
+      setAnnouncements((prev) => prev.filter((a) => a.id !== ann.id));
+    } catch (err: unknown) {
+      alert((err as Error).message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader 
@@ -116,14 +132,28 @@ export default function AnnouncementsClient() {
         <div className="space-y-4">
           {announcements.map((ann) => (
             <div key={ann.id} className="p-4 bg-white rounded shadow">
-              <h3 className="text-lg font-semibold">{ann.title}</h3>
-              <p className="text-sm text-gray-500 mb-2">
-                To: {ann.targetAudience}
-                {ann.authorName ? ` · ${ann.authorName}` : ''}
-                {' · '}
-                {new Date(ann.createdAt).toLocaleDateString()}
-              </p>
-              <p className="whitespace-pre-wrap">{ann.content}</p>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg font-semibold">{ann.title}</h3>
+                  <p className="text-sm text-gray-500 mb-2">
+                    To: {ann.targetAudience}
+                    {ann.authorName ? ` · ${ann.authorName}` : ''}
+                    {' · '}
+                    {new Date(ann.createdAt).toLocaleDateString()}
+                  </p>
+                  <p className="whitespace-pre-wrap">{ann.content}</p>
+                </div>
+                {canCreate && (
+                  <button
+                    type="button"
+                    title="Delete announcement"
+                    onClick={() => void handleDelete(ann)}
+                    className="shrink-0 p-2 rounded-lg text-gray-400 hover:text-danger-600 hover:bg-danger-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
           {announcements.length === 0 && <p>No announcements found.</p>}

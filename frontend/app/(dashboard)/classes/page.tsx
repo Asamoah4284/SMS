@@ -1,6 +1,6 @@
 import ClassList from './ClassList';
 
-export const metadata = { title: 'Classes — DEACONS SMS' };
+export const metadata = { title: 'Classes — DASE' };
 
 export default function ClassesPage() {
   return (

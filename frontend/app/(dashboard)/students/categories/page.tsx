@@ -1,4 +1,4 @@
-export const metadata = { title: 'Student Categories — DEACONS SMS' };
+export const metadata = { title: 'Student Categories — DASE' };
 
 export default function StudentCategoriesPage() {
   return (

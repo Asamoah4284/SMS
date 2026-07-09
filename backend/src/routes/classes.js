@@ -294,7 +294,8 @@ router.put(
   '/:id',
   [
     body('name').optional().notEmpty(),
-    body('classTeacherId').optional().isString(),
+    // null / '' clears class teacher; omit leaves unchanged
+    body('classTeacherId').optional({ nullable: true }),
   ],
   handleValidationErrors,
   authorize('ADMIN'),
@@ -309,38 +310,43 @@ router.put(
         return res.status(404).json({ error: 'Class not found' });
       }
 
-      // If assigning a class teacher, verify they're a teacher
-      if (classTeacherId) {
-        const teacher = await prisma.teacher.findUnique({
-          where: { id: classTeacherId },
-        });
+      const data = {
+        ...(name && { name }),
+      };
 
-        if (!teacher) {
-          return res.status(404).json({ error: 'Teacher not found' });
-        }
+      if (classTeacherId !== undefined) {
+        if (classTeacherId === null || classTeacherId === '') {
+          data.classTeacherId = null;
+        } else {
+          const teacher = await prisma.teacher.findUnique({
+            where: { id: classTeacherId },
+          });
 
-        // Check if this teacher is already assigned to a class
-        const alreadyAssigned = await prisma.class.findFirst({
-          where: {
-            classTeacherId,
-            id: { not: id },
-          },
-        });
+          if (!teacher) {
+            return res.status(404).json({ error: 'Teacher not found' });
+          }
 
-        if (alreadyAssigned) {
-          return res
-            .status(400)
-            .json({ error: 'This teacher is already assigned to another class' });
+          // One class-teacher role per teacher (they may still teach subjects elsewhere)
+          const alreadyAssigned = await prisma.class.findFirst({
+            where: {
+              classTeacherId,
+              id: { not: id },
+            },
+          });
+
+          if (alreadyAssigned) {
+            return res.status(400).json({
+              error: `This teacher is already class teacher of ${alreadyAssigned.name}. Unassign them there first, or pick another teacher.`,
+            });
+          }
+
+          data.classTeacherId = classTeacherId;
         }
       }
 
-      // Update class
       const updated = await prisma.class.update({
         where: { id },
-        data: {
-          ...(name && { name }),
-          ...(classTeacherId && { classTeacherId }),
-        },
+        data,
         include: {
           classTeacher: {
             include: { user: { select: { firstName: true, lastName: true } } },

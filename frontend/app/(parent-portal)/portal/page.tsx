@@ -11,6 +11,7 @@ import {
   Clock,
   ChevronLeft,
   TrendingUp,
+  Megaphone,
 } from 'lucide-react';
 
 interface StudentInfo {
@@ -60,6 +61,14 @@ interface PortalData {
   } | null;
 }
 
+interface PortalAnnouncement {
+  id: string;
+  title: string;
+  content: string;
+  targetAudience: string;
+  createdAt: string;
+}
+
 const STATUS_COLOR = {
   PRESENT: 'bg-success-500',
   LATE: 'bg-warning-400',
@@ -83,6 +92,7 @@ function getCookie(name: string): string | null {
 export default function PortalPage() {
   const router = useRouter();
   const [data, setData] = useState<PortalData | null>(null);
+  const [announcements, setAnnouncements] = useState<PortalAnnouncement[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -104,20 +114,31 @@ export default function PortalPage() {
     }
 
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/portal/child/${studentId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const [childRes, annRes] = await Promise.all([
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/portal/child/${studentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/portal/announcements`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-      if (res.status === 401 || res.status === 403) {
+      if (childRes.status === 401 || childRes.status === 403) {
         document.cookie = 'parentToken=; path=/; max-age=0';
         router.replace('/parent-portal');
         return;
       }
 
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to load data');
+      const json = await childRes.json();
+      if (!childRes.ok) throw new Error(json.error || 'Failed to load data');
       setData(json);
+
+      if (annRes.ok) {
+        const annJson = await annRes.json();
+        setAnnouncements(Array.isArray(annJson) ? annJson : []);
+      } else {
+        setAnnouncements([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
@@ -207,6 +228,34 @@ export default function PortalPage() {
             Sign out
           </button>
         </div>
+      </div>
+
+      {/* Announcements */}
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+          <Megaphone className="w-4 h-4 text-gray-500" />
+          <span className="font-semibold text-sm text-gray-800">Announcements</span>
+        </div>
+        {announcements.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-gray-400">No announcements yet.</p>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {announcements.slice(0, 8).map((a) => (
+              <div key={a.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-semibold text-sm text-gray-900">{a.title}</p>
+                  <span className="text-[11px] text-gray-400 shrink-0">
+                    {new Date(a.createdAt).toLocaleDateString('en-GB', {
+                      day: 'numeric',
+                      month: 'short',
+                    })}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-gray-600 whitespace-pre-wrap line-clamp-4">{a.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Attendance */}

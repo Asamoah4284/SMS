@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
+import { appName } from "@/lib/theme";
 import "./globals.css";
 
 const inter = Inter({
@@ -31,8 +32,8 @@ function metadataBaseUrl(): URL {
 export const metadata: Metadata = {
   metadataBase: metadataBaseUrl(),
   title: {
-    template: `%s — ${process.env.NEXT_PUBLIC_APP_NAME || 'DEACONS SMS'}`,
-    default: "DEACONS SMS",
+    template: `%s — ${appName}`,
+    default: appName,
   },
   description: `${process.env.NEXT_PUBLIC_APP_MOTTO || 'School Motto'}`,
 };

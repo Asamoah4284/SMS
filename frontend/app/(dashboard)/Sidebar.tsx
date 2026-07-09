@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/lib/UserContext";
+import { schoolConfig } from "@/lib/theme";
 import {
   Home,
   Users,
@@ -146,10 +147,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       <div className="p-5 border-b border-gray-100 flex items-center justify-between shrink-0">
         <Link href="/" className="flex items-center gap-3 outline-none focus:ring-2 focus:ring-blue-500 rounded px-1 transition-opacity hover:opacity-80">
           <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
-            <span className="text-white font-bold text-base tracking-tight">E</span>
+            <span className="text-white font-bold text-base tracking-tight">
+              {schoolConfig.name.charAt(0).toUpperCase()}
+            </span>
           </div>
           <h1 className="font-bold text-lg tracking-tight text-gray-900">
-            EduTrack <span className="text-blue-600">SMS</span>
+            {schoolConfig.name}
           </h1>
         </Link>
         <button

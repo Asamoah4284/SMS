@@ -1,4 +1,4 @@
-export const metadata = { title: 'Add Teacher — DEACONS SMS' };
+export const metadata = { title: 'Add Teacher — DASE' };
 
 import InviteTeacherForm from './InviteTeacherForm';
 

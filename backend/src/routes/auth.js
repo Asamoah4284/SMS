@@ -101,7 +101,7 @@ router.post(
 
       // Send SMS with invite code
       const e164Phone = formatPhoneE164(phone);
-      const smsText = `[${process.env.SCHOOL_ABBREVIATION || 'SMS'}] Welcome ${firstName}! Staff ID: ${staffId} | Code: ${inviteCode} | ${process.env.FRONTEND_URL}/invite`;
+      const smsText = `[${process.env.SCHOOL_ABBREVIATION || 'DASE'}] Welcome ${firstName}! Staff ID: ${staffId} | Code: ${inviteCode} | ${process.env.FRONTEND_URL}/invite`;
       let smsWarning = null;
       try {
         await sendSMS(e164Phone, smsText);
@@ -490,7 +490,7 @@ router.post(
 
       // Send OTP via SMS
       const e164Phone = formatPhoneE164(phone);
-      const smsText = `[${process.env.SCHOOL_ABBREVIATION || 'SMS'}] Your OTP: ${otp}\nValid for 10 minutes`;
+      const smsText = `[${process.env.SCHOOL_ABBREVIATION || 'DASE'}] Your OTP: ${otp}\nValid for 10 minutes`;
 
       await sendSMS(e164Phone, smsText);
 

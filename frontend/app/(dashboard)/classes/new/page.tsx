@@ -1,6 +1,6 @@
 import NewClassForm from './NewClassForm';
 
-export const metadata = { title: 'Create Class — DEACONS SMS' };
+export const metadata = { title: 'Create Class — DASE' };
 
 export default function NewClassPage() {
   return (

@@ -1,6 +1,6 @@
 import ResultsClientPage from './ResultsClientPage';
 
-export const metadata = { title: 'Results — DEACONS SMS' };
+export const metadata = { title: 'Results — DASE' };
 
 export default function ResultsPage() {
   return <ResultsClientPage />;

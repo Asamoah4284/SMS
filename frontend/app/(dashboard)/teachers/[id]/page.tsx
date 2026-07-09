@@ -1,6 +1,6 @@
 import TeacherDetail from './TeacherDetail';
 
-export const metadata = { title: 'Teacher Details — DEACONS SMS' };
+export const metadata = { title: 'Teacher Details — DASE' };
 
 export default async function TeacherDetailPage({
   params,

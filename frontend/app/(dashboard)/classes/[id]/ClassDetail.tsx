@@ -7,8 +7,9 @@ import { classLevelLabels, getGrade } from '@/lib/theme';
 import {
   Users, BookOpen, Award, AlertTriangle, CheckCircle2,
   Clock, BarChart3, ChevronRight, UserCheck, UserX,
-  TrendingDown, Phone, UserPlus, GraduationCap, Search, X,
+  TrendingDown, Phone, UserPlus, GraduationCap, Search, X, Pencil, UserMinus,
 } from 'lucide-react';
+import { useUser } from '@/lib/UserContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,12 +66,14 @@ type Tab = 'overview' | 'students' | 'subjects' | 'performance';
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ClassDetail({ classId }: { classId: string }) {
+  const { isAdmin } = useUser();
   const [classData, setClassData] = useState<ClassData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [assignTeacherOpen, setAssignTeacherOpen] = useState(false);
   const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const [unassigning, setUnassigning] = useState(false);
 
   const fetchClassDetail = useCallback(async () => {
     setLoading(true);
@@ -126,24 +129,69 @@ export default function ClassDetail({ classId }: { classId: string }) {
             </p>
           </div>
           {classData.classTeacher ? (
-            <Link href={`/teachers/${classData.classTeacher.id}`} className="flex items-center gap-2.5 bg-white border border-gray-200 rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 hover:bg-gray-50 transition-colors shadow-sm">
-              <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm">
-                {classData.classTeacher.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 font-medium">Class Teacher</p>
-                <p className="text-sm font-semibold text-gray-900">{classData.classTeacher.name}</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href={`/teachers/${classData.classTeacher.id}`} className="flex items-center gap-2.5 bg-white border border-gray-200 rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 hover:bg-gray-50 transition-colors shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm">
+                  {classData.classTeacher.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Class Teacher</p>
+                  <p className="text-sm font-semibold text-gray-900">{classData.classTeacher.name}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </Link>
+              {isAdmin && (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<Pencil className="w-3.5 h-3.5" />}
+                    onClick={() => setAssignTeacherOpen(true)}
+                  >
+                    Change
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<UserMinus className="w-3.5 h-3.5" />}
+                    disabled={unassigning}
+                    onClick={async () => {
+                      if (!window.confirm(`Unassign ${classData.classTeacher?.name} as class teacher?`)) return;
+                      setUnassigning(true);
+                      try {
+                        const token = localStorage.getItem('accessToken');
+                        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/classes/${classId}`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ classTeacherId: null }),
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(data.error || 'Failed to unassign');
+                        await fetchClassDetail();
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Failed to unassign');
+                      } finally {
+                        setUnassigning(false);
+                      }
+                    }}
+                  >
+                    Unassign
+                  </Button>
+                </>
+              )}
+            </div>
           ) : (
-            <Button
-              variant="secondary"
-              icon={<UserPlus className="w-4 h-4" />}
-              onClick={() => setAssignTeacherOpen(true)}
-            >
-              Assign Teacher
-            </Button>
+            isAdmin ? (
+              <Button
+                variant="secondary"
+                icon={<UserPlus className="w-4 h-4" />}
+                onClick={() => setAssignTeacherOpen(true)}
+              >
+                Assign Teacher
+              </Button>
+            ) : (
+              <span className="text-sm text-gray-400">No class teacher assigned</span>
+            )
           )}
         </div>
       </div>
@@ -223,6 +271,7 @@ export default function ClassDetail({ classId }: { classId: string }) {
         isOpen={assignTeacherOpen}
         classId={classId}
         className={classData.name}
+        currentTeacherId={classData.classTeacher?.id ?? null}
         onClose={() => setAssignTeacherOpen(false)}
         onSuccess={() => { setAssignTeacherOpen(false); fetchClassDetail(); }}
       />
@@ -700,12 +749,14 @@ function AssignTeacherModal({
   isOpen,
   classId,
   className,
+  currentTeacherId,
   onClose,
   onSuccess,
 }: {
   isOpen: boolean;
   classId: string;
   className: string;
+  currentTeacherId: string | null;
   onClose: () => void;
   onSuccess: () => void;
 }) {
@@ -720,8 +771,9 @@ function AssignTeacherModal({
     if (!isOpen) return;
     setLoading(true);
     setError('');
+    setSelected(currentTeacherId ?? '');
     const token = localStorage.getItem('accessToken');
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/teachers`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/teachers?limit=200`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => {
@@ -729,12 +781,16 @@ function AssignTeacherModal({
         return r.json();
       })
       .then((d) => {
-        // Only show teachers not already class teacher of another class
-        setTeachers((d.teachers ?? []).filter((t: TeacherOption) => !t.classTeacherOf));
+        // Available = not class teacher elsewhere (may still teach subjects in other classes)
+        setTeachers(
+          (d.teachers ?? []).filter(
+            (t: TeacherOption) => !t.classTeacherOf || t.id === currentTeacherId,
+          ),
+        );
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load teachers'))
       .finally(() => setLoading(false));
-  }, [isOpen]);
+  }, [isOpen, currentTeacherId]);
 
   const filtered = teachers.filter((t) => {
     const name = `${t.user.firstName} ${t.user.lastName}`.toLowerCase();
@@ -773,19 +829,23 @@ function AssignTeacherModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={`Assign Class Teacher — ${className}`}
+      title={`${currentTeacherId ? 'Change' : 'Assign'} Class Teacher — ${className}`}
       size="md"
       footer={
         <>
           <Button variant="secondary" onClick={handleClose} disabled={submitting} className="flex-1">Cancel</Button>
-          <Button onClick={handleAssign} loading={submitting} disabled={!selected} className="flex-1">
-            Assign Teacher
+          <Button onClick={handleAssign} loading={submitting} disabled={!selected || selected === currentTeacherId} className="flex-1">
+            {currentTeacherId ? 'Save change' : 'Assign Teacher'}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
         {error && <Alert type="error" message={error} onDismiss={() => setError('')} />}
+
+        <p className="text-sm text-gray-600">
+          A teacher can be class teacher of only one class, but may still teach subjects in other classes.
+        </p>
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -804,16 +864,18 @@ function AssignTeacherModal({
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-8 text-center text-sm text-gray-400">
-            {teachers.length === 0 ? 'No unassigned teachers available' : 'No teachers match your search'}
+            {teachers.length === 0 ? 'No available teachers' : 'No teachers match your search'}
           </div>
         ) : (
-          <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
+          <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden max-h-72 overflow-y-auto">
             {filtered.map((t) => {
               const name = `${t.user.firstName} ${t.user.lastName}`;
               const isSelected = selected === t.id;
+              const isCurrent = t.id === currentTeacherId;
               return (
                 <button
                   key={t.id}
+                  type="button"
                   onClick={() => setSelected(t.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${isSelected ? 'bg-primary-50' : 'hover:bg-gray-50'}`}
                 >
@@ -821,7 +883,10 @@ function AssignTeacherModal({
                     {name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-semibold truncate ${isSelected ? 'text-primary-700' : 'text-gray-900'}`}>{name}</p>
+                    <p className={`text-sm font-semibold truncate ${isSelected ? 'text-primary-700' : 'text-gray-900'}`}>
+                      {name}
+                      {isCurrent ? ' (current)' : ''}
+                    </p>
                     <p className="text-xs text-gray-400 font-mono">{t.staffId}</p>
                   </div>
                   {isSelected && <CheckCircle2 className="w-5 h-5 text-primary-600 flex-shrink-0" />}

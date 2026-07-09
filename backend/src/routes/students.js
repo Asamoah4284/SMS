@@ -461,6 +461,44 @@ router.put('/:id', authorize('ADMIN'), async (req, res) => {
   }
 });
 
+// ─── DELETE /students/:id (Admin only) ───────────────────────────────────────
+router.delete('/:id', authorize('ADMIN'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const student = await prisma.student.findUnique({
+      where: { id },
+      select: { id: true, firstName: true, lastName: true, studentId: true, classId: true },
+    });
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.attendance.deleteMany({ where: { studentId: id } });
+      await tx.result.deleteMany({ where: { studentId: id } });
+      await tx.assessmentScore.deleteMany({ where: { studentId: id } });
+      await tx.termRemarks.deleteMany({ where: { studentId: id } });
+      await tx.feePayment.deleteMany({ where: { studentId: id } });
+      // Cascades: StudentProfile, PaystackIntent, book*, ExamAttempt
+      await tx.student.delete({ where: { id } });
+    });
+
+    if (student.classId) {
+      await renumberClassStudentIds(prisma, student.classId);
+    }
+
+    res.json({
+      message: 'Student deleted',
+      student: {
+        id: student.id,
+        studentId: student.studentId,
+        name: `${student.firstName} ${student.lastName}`,
+      },
+    });
+  } catch (err) {
+    console.error('DELETE /students/:id', err);
+    res.status(500).json({ message: 'Failed to delete student' });
+  }
+});
+
 // ─── POST /students/bulk-import ──────────────────────────────────────────────
 router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
   try {

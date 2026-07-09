@@ -170,6 +170,23 @@ router.post(
 					return res.status(400).json({ error: 'teacherId is required when assigning subject to class' });
 				}
 
+				const teacherExists = await prisma.teacher.findUnique({
+					where: { id: selectedTeacherId },
+					select: { id: true },
+				});
+				if (!teacherExists) {
+					return res.status(404).json({ error: 'Teacher not found' });
+				}
+
+				// One subject teacher per class+subject (class teachers may also teach other classes)
+				await prisma.subjectTeacher.deleteMany({
+					where: {
+						classId,
+						subjectId: subject.id,
+						teacherId: { not: selectedTeacherId },
+					},
+				});
+
 				mapped = await prisma.subjectTeacher.upsert({
 					where: {
 						teacherId_subjectId_classId: {
@@ -296,6 +313,72 @@ router.patch(
 		} catch (error) {
 			console.error('Patch subject class link error:', error);
 			return res.status(500).json({ error: 'Failed to update subject' });
+		}
+	}
+);
+
+// ─────────────────────────────────────────────────────────────────
+// PUT /subjects/class-link/teacher
+// Reassign which teacher teaches a subject in a class (Admin, or class teacher for own class).
+// Class teachers may also be subject teachers for other classes.
+// ─────────────────────────────────────────────────────────────────
+
+router.put(
+	'/class-link/teacher',
+	[
+		body('classId').notEmpty().withMessage('classId is required'),
+		body('subjectId').notEmpty().withMessage('subjectId is required'),
+		body('teacherId').notEmpty().withMessage('teacherId is required'),
+	],
+	handleValidationErrors,
+	authorize('ADMIN', 'TEACHER'),
+	async (req, res) => {
+		try {
+			const classId = String(req.body.classId);
+			const subjectId = String(req.body.subjectId);
+			const teacherId = String(req.body.teacherId);
+
+			const gate = await assertClassTeacherOrAdmin(req, classId);
+			if (!gate.ok) return res.status(gate.status).json({ error: gate.error });
+
+			const teacher = await prisma.teacher.findUnique({
+				where: { id: teacherId },
+				include: { user: { select: { firstName: true, lastName: true } } },
+			});
+			if (!teacher) return res.status(404).json({ error: 'Teacher not found' });
+
+			const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+			if (!subject) return res.status(404).json({ error: 'Subject not found' });
+
+			const existing = await prisma.subjectTeacher.findFirst({
+				where: { classId, subjectId },
+			});
+			if (!existing) {
+				return res.status(404).json({ error: 'This subject is not assigned to this class' });
+			}
+
+			await prisma.$transaction(async (tx) => {
+				await tx.subjectTeacher.deleteMany({ where: { classId, subjectId } });
+				await tx.subjectTeacher.create({
+					data: { classId, subjectId, teacherId },
+				});
+			});
+
+			return res.json({
+				message: 'Subject teacher updated',
+				assignment: {
+					classId,
+					subject: { id: subject.id, name: subject.name },
+					teacher: {
+						id: teacher.id,
+						staffId: teacher.staffId,
+						name: `${teacher.user.firstName} ${teacher.user.lastName}`,
+					},
+				},
+			});
+		} catch (error) {
+			console.error('Put subject teacher error:', error);
+			return res.status(500).json({ error: 'Failed to update subject teacher' });
 		}
 	}
 );

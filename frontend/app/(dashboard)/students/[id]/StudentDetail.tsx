@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { Alert, Badge, Button, Modal } from '@/components/ui';
 import { getGrade, classLevelLabels } from '@/lib/theme';
 import { useUser } from '@/lib/UserContext';
@@ -104,12 +105,16 @@ type Tab = 'overview' | 'attendance' | 'results' | 'fees';
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function StudentDetail({ studentId }: { studentId: string }) {
+  const router = useRouter();
   const { isAdmin } = useUser();
   const [student, setStudent] = useState<StudentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [editModal, setEditModal] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const fetchStudent = useCallback(async () => {
     setLoading(true);
@@ -203,9 +208,19 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
           ← Back to Students
         </Link>
         {isAdmin && (
-          <Button variant="primary" size="sm" onClick={() => setEditModal(true)}>
-            <Pencil className="w-4 h-4" /> Edit student
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="primary" size="sm" onClick={() => setEditModal(true)}>
+              <Pencil className="w-4 h-4" /> Edit student
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="!text-danger-700 !border-danger-200 hover:!bg-danger-50"
+              onClick={() => { setDeleteError(''); setDeleteOpen(true); }}
+            >
+              <Trash2 className="w-4 h-4" /> Delete
+            </Button>
+          </div>
         )}
       </div>
 
@@ -414,6 +429,54 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
             onSaved={() => { setEditModal(false); fetchStudent(); }}
             onCancel={() => setEditModal(false)}
           />
+        </Modal>
+      )}
+
+      {isAdmin && (
+        <Modal
+          isOpen={deleteOpen}
+          onClose={() => !deleting && setDeleteOpen(false)}
+          title="Delete student?"
+          size="sm"
+        >
+          <p className="text-sm text-gray-600 mb-2">
+            This permanently removes <strong>{fullName}</strong> ({student.studentId}) and related
+            attendance, results, fees, and portal data. This cannot be undone.
+          </p>
+          {deleteError && (
+            <Alert type="error" message={deleteError} className="mb-3" onDismiss={() => setDeleteError('')} />
+          )}
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="secondary" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="!bg-danger-600 !text-white hover:!bg-danger-700 border-0"
+              loading={deleting}
+              onClick={async () => {
+                setDeleting(true);
+                setDeleteError('');
+                try {
+                  const token = localStorage.getItem('accessToken');
+                  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/students/${student.id}`, {
+                    method: 'DELETE',
+                    headers: { Authorization: `Bearer ${token}` },
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(data.message || 'Failed to delete student');
+                  router.push('/students');
+                } catch (e) {
+                  setDeleteError(e instanceof Error ? e.message : 'Delete failed');
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              Delete permanently
+            </Button>
+          </div>
         </Modal>
       )}
     </div>

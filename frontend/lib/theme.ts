@@ -31,14 +31,25 @@ import {
 
 // ─── School Branding (from .env) ──────────────────────────────────────────────
 
+/** Short app name shown in sidebar, browser tab, etc. */
+export const appName =
+  process.env.NEXT_PUBLIC_APP_NAME ||
+  process.env.NEXT_PUBLIC_SCHOOL_NAME ||
+  'DASE';
+
 export const schoolConfig = {
-  name: process.env.NEXT_PUBLIC_SCHOOL_NAME || 'DEACONS SMS',
+  name: appName,
   logo: process.env.NEXT_PUBLIC_SCHOOL_LOGO || '/images/logo.png',
   motto: process.env.NEXT_PUBLIC_SCHOOL_MOTTO || 'Excellence in Education',
   address: process.env.NEXT_PUBLIC_SCHOOL_ADDRESS || '',
   phone: process.env.NEXT_PUBLIC_SCHOOL_PHONE || '',
   email: process.env.NEXT_PUBLIC_SCHOOL_EMAIL || '',
 } as const;
+
+/** Browser tab title suffix, e.g. pageTitle('Students') → "Students — DASE" */
+export function pageTitle(label: string): string {
+  return `${label} — ${appName}`;
+}
 
 // ─── Route map ────────────────────────────────────────────────────────────────
 

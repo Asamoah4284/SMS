@@ -5,7 +5,7 @@ interface Props {
   searchParams: Promise<{ termId?: string }>;
 }
 
-export const metadata = { title: 'Class Results — DEACONS SMS' };
+export const metadata = { title: 'Class Results — DASE' };
 
 export default async function ClassResultsPage({ params, searchParams }: Props) {
   const { classId } = await params;

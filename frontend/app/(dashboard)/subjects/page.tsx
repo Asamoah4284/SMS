@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import SubjectsClientPage from './SubjectsClientPage';
 
-export const metadata = { title: 'Class subjects — DEACONS SMS' };
+export const metadata = { title: 'Class subjects — DASE' };
 
 export default function SubjectsPage() {
   return (

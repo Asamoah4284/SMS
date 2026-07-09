@@ -12,8 +12,15 @@ type ClassSubject = {
   name: string;
   code?: string | null;
   teacher?: string;
+  teacherId?: string;
 };
 type CatalogSubject = { id: string; name: string; code?: string | null };
+type TeacherOption = {
+  id: string;
+  staffId: string;
+  user: { firstName: string; lastName: string };
+  classTeacherOf?: { id: string; name: string } | null;
+};
 
 export default function SubjectsClientPage() {
   const searchParams = useSearchParams();
@@ -30,6 +37,8 @@ export default function SubjectsClientPage() {
   const [catalogSearch, setCatalogSearch] = useState('');
   const [selectedCatalogId, setSelectedCatalogId] = useState('');
   const [customName, setCustomName] = useState('');
+  const [selectedTeacherId, setSelectedTeacherId] = useState('');
+  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
 
   const [subjects, setSubjects] = useState<ClassSubject[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -42,6 +51,7 @@ export default function SubjectsClientPage() {
   const [editSubject, setEditSubject] = useState<ClassSubject | null>(null);
   const [editName, setEditName] = useState('');
   const [editCode, setEditCode] = useState('');
+  const [editTeacherId, setEditTeacherId] = useState('');
   const [patchSaving, setPatchSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -94,6 +104,20 @@ export default function SubjectsClientPage() {
     }
   }, [token]);
 
+  const fetchTeachers = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teachers?limit=200`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to load teachers');
+      const data = (await res.json()) as { teachers?: TeacherOption[] };
+      setTeachers(data.teachers ?? []);
+    } catch {
+      setTeachers([]);
+    }
+  }, [token]);
+
   const fetchClassSubjects = useCallback(
     async (classId: string) => {
       if (!token || !classId) {
@@ -130,8 +154,9 @@ export default function SubjectsClientPage() {
   useEffect(() => {
     if (token && canUsePage) {
       fetchCatalog().catch(() => null);
+      fetchTeachers().catch(() => null);
     }
-  }, [token, canUsePage, fetchCatalog]);
+  }, [token, canUsePage, fetchCatalog, fetchTeachers]);
 
   useEffect(() => {
     if (!isAdmin && myClassId) {
@@ -159,6 +184,7 @@ export default function SubjectsClientPage() {
     setSelectedCatalogId('');
     setCustomName('');
     setCatalogSearch('');
+    setSelectedTeacherId('');
   }, [effectiveClassId]);
 
   const addOneSubject = async (nameRaw: string) => {
@@ -171,19 +197,26 @@ export default function SubjectsClientPage() {
       setError('That subject is already assigned to this class.');
       return;
     }
+    if (isAdmin && !selectedTeacherId) {
+      setError('Select which teacher will teach this subject.');
+      return;
+    }
 
     setSaving(true);
     setError('');
     setSuccess('');
 
     try {
+      const body: Record<string, string> = { name, classId: effectiveClassId };
+      if (isAdmin && selectedTeacherId) body.teacherId = selectedTeacherId;
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/subjects`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, classId: effectiveClassId }),
+        body: JSON.stringify(body),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; errors?: { msg?: string }[] };
       if (!res.ok) {
@@ -210,6 +243,7 @@ export default function SubjectsClientPage() {
     setEditSubject(s);
     setEditName(s.name);
     setEditCode(s.code ?? '');
+    setEditTeacherId(s.teacherId ?? '');
     setEditOpen(true);
     setError('');
   };
@@ -242,6 +276,24 @@ export default function SubjectsClientPage() {
       if (!res.ok) {
         throw new Error(data.error ?? 'Could not update subject.');
       }
+
+      if (editTeacherId && editTeacherId !== editSubject.teacherId) {
+        const tRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/subjects/class-link/teacher`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            classId: effectiveClassId,
+            subjectId: editSubject.id,
+            teacherId: editTeacherId,
+          }),
+        });
+        const tData = (await tRes.json().catch(() => ({}))) as { error?: string };
+        if (!tRes.ok) throw new Error(tData.error ?? 'Could not update subject teacher.');
+      }
+
       setSuccess(data.message ?? 'Subject updated.');
       setEditOpen(false);
       setEditSubject(null);
@@ -411,6 +463,29 @@ export default function SubjectsClientPage() {
             disabled={patchSaving}
             className="text-gray-950"
           />
+          <div>
+            <label htmlFor="edit-subject-teacher" className="mb-1.5 block text-sm font-medium text-gray-700">
+              Subject teacher
+            </label>
+            <select
+              id="edit-subject-teacher"
+              value={editTeacherId}
+              onChange={(e) => setEditTeacherId(e.target.value)}
+              disabled={patchSaving || teachers.length === 0}
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-950 focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+            >
+              <option value="">Select teacher…</option>
+              {teachers.map((t) => {
+                const name = `${t.user.firstName} ${t.user.lastName}`;
+                const note = t.classTeacherOf ? ` · CT: ${t.classTeacherOf.name}` : '';
+                return (
+                  <option key={t.id} value={t.id}>
+                    {name} ({t.staffId}){note}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
         </div>
       </Modal>
 
@@ -487,6 +562,35 @@ export default function SubjectsClientPage() {
                   If the subject already exists under another spelling, pick it from the catalog instead to avoid duplicates.
                 </p>
               </div>
+
+              {isAdmin && (
+                <div className="space-y-3">
+                  <label htmlFor="subject-teacher" className="text-sm font-semibold text-gray-950">
+                    Subject teacher
+                  </label>
+                  <select
+                    id="subject-teacher"
+                    value={selectedTeacherId}
+                    onChange={(e) => setSelectedTeacherId(e.target.value)}
+                    disabled={!effectiveClassId || saving || teachers.length === 0}
+                    className="w-full appearance-none rounded-xl border-0 bg-white px-4 py-3 pr-10 text-sm font-medium text-gray-950 shadow-sm ring-1 ring-primary-200/25 focus:outline-none focus:ring-2 focus:ring-primary-500/40 disabled:opacity-60"
+                  >
+                    <option value="">Select teacher…</option>
+                    {teachers.map((t) => {
+                      const name = `${t.user.firstName} ${t.user.lastName}`;
+                      const note = t.classTeacherOf ? ` · class teacher of ${t.classTeacherOf.name}` : '';
+                      return (
+                        <option key={t.id} value={t.id}>
+                          {name} ({t.staffId}){note}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <p className="text-xs text-gray-800">
+                    Class teachers can also teach subjects in other classes — pick any teacher.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -494,7 +598,11 @@ export default function SubjectsClientPage() {
                 type="button"
                 variant="primary"
                 loading={saving}
-                disabled={!effectiveClassId || (!selectedCatalogId && !customName.trim())}
+                disabled={
+                  !effectiveClassId ||
+                  (!selectedCatalogId && !customName.trim()) ||
+                  (isAdmin && !selectedTeacherId)
+                }
                 onClick={() => void handleAddFromForm()}
               >
                 Add to class

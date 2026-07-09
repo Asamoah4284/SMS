@@ -19,8 +19,9 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { DropdownMenu } from "@/components/ui";
 import OverviewRoleGate from "./OverviewRoleGate";
+import { pageTitle } from "@/lib/theme";
 
-export const metadata = { title: `${process.env.NEXT_PUBLIC_APP_NAME || 'DEACONS SMS'} — Overview` };
+export const metadata = { title: pageTitle('Overview') };
 
 type OverviewStats = {
   students: { total: number; active: number; inactive: number; addedThisMonth: number };

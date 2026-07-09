@@ -5,6 +5,10 @@
 
 const MOOLRE_API_URL = 'https://api.moolre.com/open/sms/send';
 
+function smsBrand() {
+  return process.env.SCHOOL_ABBREVIATION || process.env.MOOLRE_SENDER_ID || 'DASE';
+}
+
 async function parseResponseBody(response) {
   const contentType = response.headers.get('content-type') || '';
   const raw = await response.text();
@@ -57,7 +61,7 @@ async function sendSMS(to, message) {
     throw new Error('MOOLRE_API_KEY environment variable is not set');
   }
 
-  const senderId = process.env.MOOLRE_SENDER_ID || 'EduTrack';
+  const senderId = process.env.MOOLRE_SENDER_ID || smsBrand();
   const numbers = Array.isArray(to) ? to : [to];
   const recipients = numbers.map((n) => formatPhoneForMoolre(n));
 
@@ -100,22 +104,22 @@ async function sendSMS(to, message) {
 
 const templates = {
   permissionApproved: (name, dates) =>
-    `Dear ${name}, your leave request from ${dates.start} to ${dates.end} has been APPROVED. - EduTrack`,
+    `Dear ${name}, your leave request from ${dates.start} to ${dates.end} has been APPROVED. - ${smsBrand()}`,
 
   permissionRejected: (name, reason) =>
-    `Dear ${name}, your leave request has been DECLINED. Reason: ${reason}. - EduTrack`,
+    `Dear ${name}, your leave request has been DECLINED. Reason: ${reason}. - ${smsBrand()}`,
 
   feeReminder: (studentName, balance, termName) =>
-    `Reminder: ${studentName}'s outstanding fee balance is GHS ${balance} for ${termName}. Please settle at school. - EduTrack`,
+    `Reminder: ${studentName}'s outstanding fee balance is GHS ${balance} for ${termName}. Please settle at school. - ${smsBrand()}`,
 
   resultsReady: (studentName, termName) =>
-    `${studentName}'s ${termName} results are now available. Log in to EduTrack to view. - EduTrack`,
+    `${studentName}'s ${termName} results are now available. Log in to view. - ${smsBrand()}`,
 
   lowAttendance: (studentName, rate) =>
-    `Alert: ${studentName}'s attendance rate is ${rate}% this term. Please contact the school. - EduTrack`,
+    `Alert: ${studentName}'s attendance rate is ${rate}% this term. Please contact the school. - ${smsBrand()}`,
 
   studentAbsent: (parentName, studentName, className, date) =>
-    `Dear ${parentName}, ${studentName} was marked ABSENT from ${className} on ${date}. Contact the school if this was an error. - EduTrack`,
+    `Dear ${parentName}, ${studentName} was marked ABSENT from ${className} on ${date}. Contact the school if this was an error. - ${smsBrand()}`,
 
   payoutRequested: ({ schoolName, amountGhs, requesterName, note, payoutId }) => {
     const amt = Number(amountGhs).toFixed(2);
@@ -125,7 +129,7 @@ const templates = {
       `Ref: ${payoutId}`,
     ];
     if (note) lines.push(`Note: ${note}`);
-    lines.push('Process manually via Paystack/Moolre. - EduTrack');
+    lines.push(`Process manually via Paystack/Moolre. - ${smsBrand()}`);
     return lines.join('. ');
   },
 };

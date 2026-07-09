@@ -1,6 +1,6 @@
 import ParentDetail from './ParentDetail';
 
-export const metadata = { title: 'Parent Details — DEACONS SMS' };
+export const metadata = { title: 'Parent Details — DASE' };
 
 export default async function ParentDetailPage({
   params,
