@@ -55,7 +55,7 @@ export default function StudentLoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <Alert type="error" message={error} />}
-          <Input label="Student ID" placeholder="e.g. STM-2025-001" value={studentId} onChange={(e) => setStudentId(e.target.value)} required />
+          <Input label="Student ID" placeholder="e.g. DASE-7-001" value={studentId} onChange={(e) => setStudentId(e.target.value)} required />
           <Input label="PIN" type="password" placeholder="••••" value={pin} onChange={(e) => setPin(e.target.value)} required maxLength={6} />
           <Button type="submit" loading={loading} className="w-full">Sign In</Button>
         </form>

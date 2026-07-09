@@ -1,5 +1,7 @@
 const prisma = require('../config/db');
 const { allocatePaystackAmountToFeeLines } = require('./paystackFeeSettlement');
+const { creditSchoolWallet } = require('./schoolWallet');
+const { resolveSchoolAmount } = require('../utils/commission');
 
 /**
  * Mark intent SUCCESS and allocate to fee lines (idempotent).
@@ -26,7 +28,7 @@ async function finalizePaystackIntentByReference(reference, amountPesewas) {
     return { ok: false, reason: 'AMOUNT_MISMATCH' };
   }
 
-  const amountGhs = intent.amountGhs;
+  const amountGhs = resolveSchoolAmount(intent);
 
   await prisma.$transaction(async (tx) => {
     const locked = await tx.paystackIntent.findUnique({ where: { reference } });
@@ -39,6 +41,8 @@ async function finalizePaystackIntentByReference(reference, amountPesewas) {
       receiptReference: reference,
       restrictToFeeStructureIds: intent.targetFeeStructureIds,
     });
+
+    await creditSchoolWallet(tx, amountGhs);
 
     await tx.paystackIntent.update({
       where: { reference },

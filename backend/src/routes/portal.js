@@ -9,6 +9,7 @@ const {
   finalizeBookPaystackIntentByReference,
 } = require('../services/bookPaystackFinalize');
 const { getStudentBookLines } = require('../utils/studentBooks');
+const { applyPlatformFee } = require('../utils/commission');
 
 const router = Router();
 
@@ -264,17 +265,13 @@ router.post('/paystack/initialize', authenticateParent, async (req, res) => {
       maxPayable = Math.min(balance, sumSel);
     }
 
-    let payAmount = maxPayable;
+    let schoolAmount = maxPayable;
     if (amountRaw != null && amountRaw !== '') {
       const n = typeof amountRaw === 'number' ? amountRaw : parseFloat(String(amountRaw));
       if (!Number.isFinite(n) || n <= 0) {
         return res.status(400).json({ error: 'amount must be a positive number' });
       }
-      payAmount = Math.min(n, maxPayable);
-    }
-
-    if (payAmount < 0.01) {
-      return res.status(400).json({ error: 'Minimum payment is GH₵0.01' });
+      schoolAmount = Math.min(n, maxPayable);
     }
 
     if (callbackUrl != null && typeof callbackUrl === 'string' && callbackUrl.length > 0) {
@@ -287,7 +284,12 @@ router.post('/paystack/initialize', authenticateParent, async (req, res) => {
       }
     }
 
-    const amountPesewas = Math.round(payAmount * 100);
+    if (schoolAmount < 0.01) {
+      return res.status(400).json({ error: 'Minimum payment is GH₵0.01' });
+    }
+
+    const feeBreakdown = applyPlatformFee(schoolAmount, 'FEE');
+    const amountPesewas = feeBreakdown.grossPesewas;
     if (amountPesewas < 1) {
       return res.status(400).json({ error: 'Amount too small after conversion' });
     }
@@ -297,8 +299,10 @@ router.post('/paystack/initialize', authenticateParent, async (req, res) => {
     const intent = await prisma.paystackIntent.create({
       data: {
         reference,
-        amountGhs: payAmount,
+        amountGhs: feeBreakdown.grossGhs,
         amountPesewas,
+        schoolAmountGhs: feeBreakdown.schoolAmountGhs,
+        platformFeeGhs: feeBreakdown.platformFeeGhs,
         studentId: student.id,
         termId: currentTerm.id,
         callbackUrl: callbackUrl || null,
@@ -352,7 +356,10 @@ router.post('/paystack/initialize', authenticateParent, async (req, res) => {
     return res.json({
       authorizationUrl: paystackJson.data.authorization_url,
       reference,
-      amountGhs: payAmount,
+      schoolAmountGhs: feeBreakdown.schoolAmountGhs,
+      platformFeeGhs: feeBreakdown.platformFeeGhs,
+      grossAmountGhs: feeBreakdown.grossGhs,
+      commissionRatePercent: feeBreakdown.commissionRatePercent,
       currency: 'GHS',
     });
   } catch (error) {
@@ -517,16 +524,16 @@ router.post('/books/paystack/initialize', authenticateParent, async (req, res) =
     }
 
     const maxPayable = targetBooks.reduce((s, b) => s + b.remaining, 0);
-    let payAmount = maxPayable;
+    let schoolAmount = maxPayable;
     if (amountRaw != null && amountRaw !== '') {
       const n = typeof amountRaw === 'number' ? amountRaw : parseFloat(String(amountRaw));
       if (!Number.isFinite(n) || n <= 0) {
         return res.status(400).json({ error: 'amount must be a positive number' });
       }
-      payAmount = Math.min(n, maxPayable);
+      schoolAmount = Math.min(n, maxPayable);
     }
 
-    if (payAmount < 0.01) {
+    if (schoolAmount < 0.01) {
       return res.status(400).json({ error: 'Minimum payment is GH₵0.01' });
     }
 
@@ -540,14 +547,21 @@ router.post('/books/paystack/initialize', authenticateParent, async (req, res) =
       }
     }
 
-    const amountPesewas = Math.round(payAmount * 100);
+    const bookBreakdown = applyPlatformFee(schoolAmount, 'BOOK');
+    const amountPesewas = bookBreakdown.grossPesewas;
+    if (amountPesewas < 1) {
+      return res.status(400).json({ error: 'Amount too small after conversion' });
+    }
+
     const reference = `EDB_${crypto.randomBytes(10).toString('hex')}`;
 
     await prisma.bookPaystackIntent.create({
       data: {
         reference,
-        amountGhs: payAmount,
+        amountGhs: bookBreakdown.grossGhs,
         amountPesewas,
+        schoolAmountGhs: bookBreakdown.schoolAmountGhs,
+        platformFeeGhs: bookBreakdown.platformFeeGhs,
         studentId: student.id,
         termId: currentTerm.id,
         callbackUrl: callbackUrl || null,
@@ -600,7 +614,10 @@ router.post('/books/paystack/initialize', authenticateParent, async (req, res) =
     return res.json({
       authorizationUrl: paystackJson.data.authorization_url,
       reference,
-      amountGhs: payAmount,
+      schoolAmountGhs: bookBreakdown.schoolAmountGhs,
+      platformFeeGhs: bookBreakdown.platformFeeGhs,
+      grossAmountGhs: bookBreakdown.grossGhs,
+      commissionRatePercent: bookBreakdown.commissionRatePercent,
       currency: 'GHS',
     });
   } catch (error) {

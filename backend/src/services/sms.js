@@ -116,6 +116,18 @@ const templates = {
 
   studentAbsent: (parentName, studentName, className, date) =>
     `Dear ${parentName}, ${studentName} was marked ABSENT from ${className} on ${date}. Contact the school if this was an error. - EduTrack`,
+
+  payoutRequested: ({ schoolName, amountGhs, requesterName, note, payoutId }) => {
+    const amt = Number(amountGhs).toFixed(2);
+    const lines = [
+      `Payout request: ${schoolName}`,
+      `GH₵${amt} by ${requesterName}`,
+      `Ref: ${payoutId}`,
+    ];
+    if (note) lines.push(`Note: ${note}`);
+    lines.push('Process manually via Paystack/Moolre. - EduTrack');
+    return lines.join('. ');
+  },
 };
 
 module.exports = { sendSMS, templates, formatPhoneForMoolre };

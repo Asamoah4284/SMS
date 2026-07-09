@@ -47,7 +47,13 @@ export default function LoginForm() {
       localStorage.setItem('user', JSON.stringify(data.user));
       document.cookie = `accessToken=${data.token}; path=/; max-age=604800; samesite=lax`;
 
-      router.push('/overview');
+      if (data.mustChangePassword) {
+        localStorage.setItem('mustChangePassword', '1');
+        router.push('/change-password');
+      } else {
+        localStorage.removeItem('mustChangePassword');
+        router.push('/overview');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

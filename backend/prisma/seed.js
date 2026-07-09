@@ -32,6 +32,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const { ensureStudentPortal } = require('../src/utils/studentPortal');
+const { generateStudentId } = require('../src/utils/studentId');
 
 const prisma = new PrismaClient();
 
@@ -130,19 +131,19 @@ const TERMS_DATA = [
 ];
 
 const CLASSES_DATA = [
-  { name: 'Nursery 1', level: 'NURSERY_1', section: null },
-  { name: 'Nursery 2', level: 'NURSERY_2', section: null },
-  { name: 'KG 1',      level: 'KG_1',      section: null },
-  { name: 'KG 2',      level: 'KG_2',      section: null },
-  { name: 'Class 1',   level: 'BASIC_1',   section: null },
-  { name: 'Class 2',   level: 'BASIC_2',   section: null },
-  { name: 'Class 3',   level: 'BASIC_3',   section: null },
-  { name: 'Class 4',   level: 'BASIC_4',   section: null },
-  { name: 'Class 5',   level: 'BASIC_5',   section: null },
-  { name: 'Class 6',   level: 'BASIC_6',   section: null },
-  { name: 'JHS 1',     level: 'JHS_1',     section: null },
-  { name: 'JHS 2',     level: 'JHS_2',     section: null },
-  { name: 'JHS 3',     level: 'JHS_3',     section: null },
+  { name: 'Nursery 1', classNumber: 1,  level: 'NURSERY_1', section: null },
+  { name: 'Nursery 2', classNumber: 2,  level: 'NURSERY_2', section: null },
+  { name: 'KG 1',      classNumber: 3,  level: 'KG_1',      section: null },
+  { name: 'KG 2',      classNumber: 4,  level: 'KG_2',      section: null },
+  { name: 'Class 1',   classNumber: 5,  level: 'BASIC_1',   section: null },
+  { name: 'Class 2',   classNumber: 6,  level: 'BASIC_2',   section: null },
+  { name: 'Class 3',   classNumber: 7,  level: 'BASIC_3',   section: null },
+  { name: 'Class 4',   classNumber: 8,  level: 'BASIC_4',   section: null },
+  { name: 'Class 5',   classNumber: 9,  level: 'BASIC_5',   section: null },
+  { name: 'Class 6',   classNumber: 10, level: 'BASIC_6',   section: null },
+  { name: 'JHS 1',     classNumber: 11, level: 'JHS_1',     section: null },
+  { name: 'JHS 2',     classNumber: 12, level: 'JHS_2',     section: null },
+  { name: 'JHS 3',     classNumber: 13, level: 'JHS_3',     section: null },
 ];
 
 const SUBJECTS_DATA = [
@@ -647,14 +648,20 @@ async function seedClasses() {
   console.log('\n🏫 Seeding classes...');
   const classes = {};
   for (const c of CLASSES_DATA) {
-    const existing = await prisma.class.findFirst({ where: { level: c.level, section: c.section } });
+    const existing = await prisma.class.findFirst({
+      where: { OR: [{ classNumber: c.classNumber }, { level: c.level, section: c.section }] },
+    });
     if (existing) {
-      console.log(`  ✓ ${c.name} already exists`);
-      classes[c.name] = existing;
+      const updated = await prisma.class.update({
+        where: { id: existing.id },
+        data: { name: c.name, classNumber: c.classNumber, level: c.level, section: c.section },
+      });
+      console.log(`  ✓ ${c.name} (class #${c.classNumber})`);
+      classes[c.name] = updated;
       continue;
     }
     const created = await prisma.class.create({ data: c });
-    console.log(`  ✓ Created: ${created.name}`);
+    console.log(`  ✓ Created: ${created.name} (class #${created.classNumber})`);
     classes[c.name] = created;
   }
   return classes;
@@ -691,6 +698,7 @@ async function seedAdmin(passwordHash) {
         firstName: ADMIN_DATA.firstName,
         lastName:  ADMIN_DATA.lastName,
         role:      'ADMIN',
+        mustChangePassword: true,
       },
     });
     console.log(`  ✓ Admin user created: ${user.firstName} ${user.lastName}`);
@@ -816,18 +824,6 @@ async function seedTimetable(classes, subjects) {
 
 async function seedStudents(classes) {
   console.log('\n🧒 Seeding students...');
-  const year  = 2026;
-  let seqRef  = { value: 1 };
-
-  // Find next available student ID
-  const last = await prisma.student.findFirst({
-    where: { studentId: { startsWith: `STM-${year}-` } },
-    orderBy: { studentId: 'desc' },
-  });
-  if (last) {
-    const seq = parseInt(last.studentId.split('-')[2], 10);
-    seqRef.value = Number.isNaN(seq) ? 1 : seq + 1;
-  }
 
   const allStudents = {}; // className → student[]
   let globalIdx = 0;
@@ -846,8 +842,7 @@ async function seedStudents(classes) {
         continue;
       }
 
-      const studentId = `STM-${year}-${String(seqRef.value).padStart(3, '0')}`;
-      seqRef.value++;
+      const studentId = await generateStudentId(prisma, cls.id);
 
       const student = await prisma.student.create({
         data: {
@@ -1406,7 +1401,7 @@ async function main() {
   console.log(`   Admin:   0244100001 / ${ADMIN_PW}`);
   console.log(`   Teacher: 0244100002 / ${TEACHER_PW}  (any teacher phone)`);
   console.log(`   Parent:  0201001035 / ${PARENT_PW}   (any parent phone)`);
-  console.log(`   Student: STM-2026-001 / ${STUDENT_PW}  (any student ID — see student list)`);
+  console.log(`   Student: DASE-7-001 / ${STUDENT_PW}  (Class 3 example — IDs are per class)`);
   console.log('            Portal: http://localhost:3000/student/login');
   console.log('');
 }

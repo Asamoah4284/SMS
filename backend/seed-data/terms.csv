@@ -1,0 +1,4 @@
+term_name,year,start_date,end_date,is_current
+First Term,2025,2025-09-08,2025-12-13,false
+Second Term,2026,2026-01-12,2026-04-11,true
+Third Term,2026,2026-05-05,2026-07-25,false
