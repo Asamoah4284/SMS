@@ -9,7 +9,7 @@ const DEFAULT_STUDENT_PIN = process.env.DEFAULT_STUDENT_PIN || '1234';
 async function ensureStudentPortal(
   prisma,
   student,
-  { pin, mustChangePin = true } = {}
+  { pin, mustChangePin = false } = {}
 ) {
   if (!student?.id || !student?.studentId) {
     throw new Error('Student id and studentId are required for portal setup');

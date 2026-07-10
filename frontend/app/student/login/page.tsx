@@ -3,14 +3,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Alert, Button } from '@/components/ui';
-import { GraduationCap, Lock, Hash, Sparkles } from 'lucide-react';
+import { GraduationCap, Hash, Sparkles } from 'lucide-react';
 
 const fieldInput =
   'w-full px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/25 focus:border-primary-400 transition-shadow';
 
 export default function StudentLoginPage() {
   const [studentId, setStudentId] = useState('');
-  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -25,7 +24,7 @@ export default function StudentLoginPage() {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ studentId: studentId.trim(), pin }),
+          body: JSON.stringify({ studentId: studentId.trim() }),
         },
       );
       const data = await res.json();
@@ -33,11 +32,7 @@ export default function StudentLoginPage() {
 
       localStorage.setItem('studentToken', data.token);
       localStorage.setItem('studentUser', JSON.stringify(data.student));
-      if (data.mustChangePin) {
-        localStorage.setItem('studentMustChangePin', '1');
-      } else {
-        localStorage.removeItem('studentMustChangePin');
-      }
+      localStorage.removeItem('studentMustChangePin');
       router.push('/student/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -49,7 +44,6 @@ export default function StudentLoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-[420px]">
-        {/* Brand */}
         <div className="text-center mb-6">
           <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-700 text-white items-center justify-center shadow-lg shadow-primary-600/25 mb-4">
             <GraduationCap className="w-7 h-7" />
@@ -58,12 +52,11 @@ export default function StudentLoginPage() {
           <p className="text-sm text-gray-500 mt-1">Take exams and view your results</p>
         </div>
 
-        {/* Card */}
         <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-100 shadow-xl shadow-gray-200/50 p-6 sm:p-8">
           <div className="flex items-center gap-2 mb-5 px-3 py-2 rounded-xl bg-primary-50 border border-primary-100">
             <Sparkles className="w-4 h-4 text-primary-600 shrink-0" />
             <p className="text-xs text-primary-800 leading-snug">
-              Use the <strong>Student ID</strong> and <strong>PIN</strong> from your school.
+              Enter your <strong>Student ID</strong> from your school to sign in.
             </p>
           </div>
 
@@ -82,23 +75,6 @@ export default function StudentLoginPage() {
                 onChange={(e) => setStudentId(e.target.value)}
                 required
                 autoComplete="username"
-              />
-            </div>
-
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1.5">
-                <Lock className="w-3.5 h-3.5 text-gray-400" />
-                PIN
-              </label>
-              <input
-                className={fieldInput}
-                type="password"
-                placeholder="••••"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                required
-                maxLength={6}
-                autoComplete="current-password"
               />
             </div>
 

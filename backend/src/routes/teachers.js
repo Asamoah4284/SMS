@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 const { sendSMS } = require('../services/sms');
+const { isValidEmail } = require('../utils/validators');
 
 const router = Router();
 router.use(authenticate);
@@ -377,22 +378,45 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', authorize('ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { qualification, firstName, lastName, email } = req.body;
+    const { qualification, firstName, lastName, email, phone, isActive } = req.body;
 
     const teacher = await prisma.teacher.findUnique({ where: { id }, include: { user: true } });
     if (!teacher) return res.status(404).json({ error: 'Teacher not found' });
 
+    if (phone !== undefined) {
+      const trimmedPhone = String(phone).trim();
+      if (!isValidPhoneGH(trimmedPhone)) {
+        return res.status(400).json({ error: 'Invalid Ghana phone number' });
+      }
+      if (trimmedPhone !== teacher.user.phone) {
+        const existing = await prisma.user.findUnique({ where: { phone: trimmedPhone } });
+        if (existing) {
+          return res.status(400).json({ error: 'Phone number already in use' });
+        }
+      }
+    }
+
+    if (email !== undefined && email !== null && String(email).trim()) {
+      if (!isValidEmail(String(email).trim())) {
+        return res.status(400).json({ error: 'Invalid email address' });
+      }
+    }
+
     await prisma.$transaction([
       prisma.teacher.update({
         where: { id },
-        data: { ...(qualification !== undefined && { qualification }) },
+        data: {
+          ...(qualification !== undefined && { qualification: qualification ? String(qualification).trim() : null }),
+        },
       }),
       prisma.user.update({
         where: { id: teacher.userId },
         data: {
-          ...(firstName && { firstName }),
-          ...(lastName && { lastName }),
-          ...(email !== undefined && { email }),
+          ...(firstName && { firstName: String(firstName).trim() }),
+          ...(lastName && { lastName: String(lastName).trim() }),
+          ...(email !== undefined && { email: email ? String(email).trim() : null }),
+          ...(phone !== undefined && { phone: String(phone).trim() }),
+          ...(isActive !== undefined && { isActive: Boolean(isActive) }),
         },
       }),
     ]);

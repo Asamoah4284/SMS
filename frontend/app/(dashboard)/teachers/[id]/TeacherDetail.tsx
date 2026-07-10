@@ -2,13 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Alert } from '@/components/ui';
+import { Alert, Button, Input, Modal } from '@/components/ui';
 import { useUser } from '@/lib/UserContext';
 import {
   GraduationCap, Hash, Phone, Mail, BookOpen, Users,
   CalendarCheck, Clock, CheckCircle2, XCircle, AlertTriangle,
   FileText, Calendar, Award, TrendingDown, ChevronRight,
-  UserCheck, UserX, ClipboardList,
+  UserCheck, UserX, ClipboardList, Pencil, Save,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -93,6 +93,7 @@ export default function TeacherDetail({ teacherId }: { teacherId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [editModal, setEditModal] = useState(false);
 
   const fetchTeacher = useCallback(async () => {
     setLoading(true);
@@ -154,17 +155,24 @@ export default function TeacherDetail({ teacherId }: { teacherId: string }) {
                   {fullName}
                 </h1>
               </div>
-              {teacher.user.isActive ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 px-2 py-1 text-[11px] font-semibold">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Active
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 px-2 py-1 text-[11px] font-semibold">
-                  <Clock className="w-3.5 h-3.5" />
-                  Pending
-                </span>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                {isAdmin && (
+                  <Button variant="primary" size="sm" onClick={() => setEditModal(true)}>
+                    <Pencil className="w-4 h-4" /> Edit
+                  </Button>
+                )}
+                {teacher.user.isActive ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 px-2 py-1 text-[11px] font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Active
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 px-2 py-1 text-[11px] font-semibold">
+                    <Clock className="w-3.5 h-3.5" />
+                    Pending
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-1.5 text-sm text-gray-500 font-mono mb-3">
               <Hash className="w-3.5 h-3.5" />
@@ -274,6 +282,16 @@ export default function TeacherDetail({ teacherId }: { teacherId: string }) {
       {activeTab === 'timetable' && <TimetableTab timetable={teacher.timetable} isClassTeacher={!!teacher.classTeacherOf} />}
       {activeTab === 'attendance' && <AttendanceTab attendance={teacher.attendance} />}
       {activeTab === 'leaves' && <LeavesTab leaves={teacher.leaveRequests} />}
+
+      {isAdmin && (
+        <Modal isOpen={editModal} onClose={() => setEditModal(false)} title="Edit teacher" size="lg">
+          <TeacherEditForm
+            teacher={teacher}
+            onSaved={() => { setEditModal(false); void fetchTeacher(); }}
+            onCancel={() => setEditModal(false)}
+          />
+        </Modal>
+      )}
     </div>
   );
 }
@@ -592,5 +610,131 @@ function LeavesTab({ leaves }: { leaves: LeaveRequest[] }) {
         );
       })}
     </div>
+  );
+}
+
+function TeacherEditForm({
+  teacher,
+  onSaved,
+  onCancel,
+}: {
+  teacher: TeacherData;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [firstName, setFirstName] = useState(teacher.user.firstName);
+  const [lastName, setLastName] = useState(teacher.user.lastName);
+  const [phone, setPhone] = useState(teacher.user.phone);
+  const [email, setEmail] = useState(teacher.user.email ?? '');
+  const [qualification, setQualification] = useState(teacher.qualification ?? '');
+  const [isActive, setIsActive] = useState(teacher.user.isActive);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!firstName.trim() || !lastName.trim() || !phone.trim()) {
+      setError('First name, last name, and phone are required.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teachers/${teacher.id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          phone: phone.trim(),
+          email: email.trim() || null,
+          qualification: qualification.trim() || null,
+          isActive,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to update teacher');
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update teacher');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+      {error && <Alert type="error" message={error} onDismiss={() => setError('')} />}
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <Input
+          label="First name"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          required
+        />
+        <Input
+          label="Last name"
+          value={lastName}
+          onChange={(e) => setLastName(e.target.value)}
+          required
+        />
+      </div>
+
+      <Input
+        label="Phone"
+        type="tel"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        placeholder="e.g. 0241234567"
+        required
+      />
+
+      <Input
+        label="Email"
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="optional"
+      />
+
+      <Input
+        label="Qualification"
+        value={qualification}
+        onChange={(e) => setQualification(e.target.value)}
+        placeholder="e.g. B.Ed Mathematics"
+      />
+
+      <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Staff ID</p>
+        <p className="text-sm font-mono text-gray-900">{teacher.staffId}</p>
+        <p className="text-xs text-gray-500 mt-1">Used for login — cannot be changed here.</p>
+      </div>
+
+      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={isActive}
+          onChange={(e) => setIsActive(e.target.checked)}
+          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+        />
+        Account active (can sign in)
+      </label>
+
+      <div className="flex justify-end gap-2 pt-2">
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
+          Cancel
+        </Button>
+        <Button type="submit" loading={saving}>
+          {!saving && <Save className="w-4 h-4" />}
+          Save changes
+        </Button>
+      </div>
+    </form>
   );
 }

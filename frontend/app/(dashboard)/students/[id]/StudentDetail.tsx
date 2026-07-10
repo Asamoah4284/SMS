@@ -145,20 +145,7 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
     });
     const data = await res.json();
     if (!res.ok) { alert(data.message || 'Failed'); return; }
-    alert(data.defaultPin ? `Portal ready. New PIN: ${data.defaultPin}` : 'Portal set up.');
-    fetchStudent();
-  };
-
-  const resetPortalPin = async () => {
-    const token = localStorage.getItem('accessToken');
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/students/${studentId}/portal/reset-pin`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    });
-    const data = await res.json();
-    if (!res.ok) { alert(data.message || 'Failed'); return; }
-    alert(data.defaultPin ? `PIN reset. New PIN: ${data.defaultPin}` : 'PIN reset.');
+    alert('Portal ready. Students can sign in with their Student ID.');
     fetchStudent();
   };
 
@@ -279,12 +266,11 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
               <div className="flex flex-wrap items-center gap-2">
                 {student.portalEnabled ? (
                   <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-100">
-                    Portal active — login with Student ID + PIN
+                    Portal active — login with Student ID
                   </span>
                 ) : (
                   <Button variant="secondary" size="sm" onClick={enablePortal}>Set up portal</Button>
                 )}
-                <Button variant="ghost" size="sm" onClick={resetPortalPin}>Reset PIN</Button>
                 <Link href="/student/login" className="text-xs text-primary-600 self-center hover:underline">Student login →</Link>
               </div>
               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600">

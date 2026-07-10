@@ -12,6 +12,7 @@ const {
 const { generateStaffId } = require('../utils/staffId');
 const { generateOTP, getOTPExpiry } = require('../utils/otp');
 const { sendSMS } = require('../services/sms');
+const { ensureStudentPortal } = require('../utils/studentPortal');
 
 const router = Router();
 
@@ -1036,50 +1037,48 @@ router.post(
 );
 
 // ─────────────────────────────────────────────────────────────────
-// POST /auth/student/login — studentId + PIN
+// POST /auth/student/login — student ID only
 // ─────────────────────────────────────────────────────────────────
 
 router.post(
   '/student/login',
-  [
-    body('studentId').notEmpty().withMessage('Student ID is required'),
-    body('pin').notEmpty().withMessage('PIN is required'),
-  ],
+  [body('studentId').notEmpty().withMessage('Student ID is required')],
   handleValidationErrors,
   async (req, res) => {
     try {
-      const { studentId, pin } = req.body;
-      const profile = await prisma.studentProfile.findFirst({
-        where: { student: { studentId: String(studentId).trim(), isActive: true } },
-        include: {
-          user: true,
-          student: {
-            select: {
-              id: true,
-              studentId: true,
-              firstName: true,
-              lastName: true,
-              class: { select: { id: true, name: true } },
-            },
-          },
+      const { studentId } = req.body;
+      const student = await prisma.student.findFirst({
+        where: { studentId: String(studentId).trim(), isActive: true },
+        select: {
+          id: true,
+          studentId: true,
+          firstName: true,
+          lastName: true,
+          class: { select: { id: true, name: true } },
         },
       });
 
-      if (!profile || !profile.user.isActive) {
-        return res.status(401).json({ error: 'Invalid student ID or PIN' });
+      if (!student) {
+        return res.status(401).json({ error: 'Invalid student ID' });
       }
 
-      const valid = await bcrypt.compare(String(pin), profile.user.password);
-      if (!valid) {
-        return res.status(401).json({ error: 'Invalid student ID or PIN' });
+      await ensureStudentPortal(prisma, student, { mustChangePin: false });
+
+      const profile = await prisma.studentProfile.findFirst({
+        where: { studentDbId: student.id },
+        include: { user: true },
+      });
+
+      if (!profile || !profile.user.isActive) {
+        return res.status(401).json({ error: 'Invalid student ID' });
       }
 
       const token = jwt.sign(
         {
           id: profile.user.id,
           role: 'STUDENT',
-          studentDbId: profile.student.id,
-          schoolStudentId: profile.student.studentId,
+          studentDbId: student.id,
+          schoolStudentId: student.studentId,
         },
         process.env.JWT_SECRET,
         { expiresIn: '12h' }
@@ -1087,8 +1086,7 @@ router.post(
 
       res.json({
         token,
-        mustChangePin: profile.mustChangePin,
-        student: profile.student,
+        student,
       });
     } catch (error) {
       console.error('Student login error:', error);
