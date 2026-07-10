@@ -52,6 +52,8 @@ interface StudentResult {
   isPromoted: boolean | null;
   teacherRemarks?: string | null;
   headmasterRemarks?: string | null;
+  conduct?: string | null;
+  interest?: string | null;
   nextTermBegins?: string | null;
 }
 
@@ -942,6 +944,8 @@ function RemarksModal({ student, termId, userRole, onClose, onSaved }: {
 }) {
   const [teacherRemarks, setTeacherRemarks] = useState(student.teacherRemarks ?? '');
   const [headmasterRemarks, setHeadmasterRemarks] = useState(student.headmasterRemarks ?? '');
+  const [conduct, setConduct] = useState(student.conduct ?? '');
+  const [interest, setInterest] = useState(student.interest ?? '');
   const [nextTermBegins, setNextTermBegins] = useState(
     student.nextTermBegins ? student.nextTermBegins.split('T')[0] : ''
   );
@@ -954,7 +958,13 @@ function RemarksModal({ student, termId, userRole, onClose, onSaved }: {
     const res = await fetch(`${API}/results/remarks/${student.student.id}/${termId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teacherRemarks, headmasterRemarks, nextTermBegins: nextTermBegins || null }),
+      body: JSON.stringify({
+        teacherRemarks,
+        headmasterRemarks,
+        conduct,
+        interest,
+        nextTermBegins: nextTermBegins || null,
+      }),
     });
     const data = await res.json();
     setSaving(false);
@@ -967,14 +977,36 @@ function RemarksModal({ student, termId, userRole, onClose, onSaved }: {
       <div className="space-y-4">
         {error && <Alert type="error" message={error} />}
         {(userRole === 'TEACHER' || userRole === 'ADMIN') && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Class Teacher&apos;s Remarks</label>
-            <textarea rows={3}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
-              placeholder="e.g. A brilliant student who shows great potential..."
-              value={teacherRemarks} onChange={(e) => setTeacherRemarks(e.target.value)}
-            />
-          </div>
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Conduct</label>
+              <input
+                type="text"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+                placeholder="e.g. Calm and respectful"
+                value={conduct}
+                onChange={(e) => setConduct(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Interest</label>
+              <input
+                type="text"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+                placeholder="e.g. All subject areas"
+                value={interest}
+                onChange={(e) => setInterest(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Class Teacher&apos;s Remarks</label>
+              <textarea rows={3}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+                placeholder="e.g. Good job — there is more room for improvement."
+                value={teacherRemarks} onChange={(e) => setTeacherRemarks(e.target.value)}
+              />
+            </div>
+          </>
         )}
         {userRole === 'ADMIN' && (
           <>

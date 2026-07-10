@@ -44,6 +44,9 @@ export const schoolConfig = {
   address: process.env.NEXT_PUBLIC_SCHOOL_ADDRESS || '',
   phone: process.env.NEXT_PUBLIC_SCHOOL_PHONE || '',
   email: process.env.NEXT_PUBLIC_SCHOOL_EMAIL || '',
+  levels:
+    process.env.NEXT_PUBLIC_SCHOOL_LEVELS ||
+    'Crèche/Nursery, Kindergarten (KG), Lower Primary, Upper Primary, JHS',
 } as const;
 
 /** Browser tab title suffix, e.g. pageTitle('Students') → "Students — DASE" */

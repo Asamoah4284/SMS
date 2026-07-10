@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/lib/UserContext';
+import QuickNotesPanel from './QuickNotesPanel';
 import {
   GraduationCap, CalendarCheck, FileText, ClipboardList,
   Users, CheckCircle2, Clock, ArrowRight, BookOpen,
@@ -28,6 +29,12 @@ interface MyClassStats {
     currentTerm: { id: string; name: string; year: number } | null;
     results: { studentsWithResults: number; isPublished: boolean };
   } | null;
+  quickNotes?: Array<{
+    id: string;
+    text: string;
+    href?: string;
+    tone: 'info' | 'warning' | 'success';
+  }>;
 }
 
 function getToken() {
@@ -178,12 +185,18 @@ export default function TeacherDashboard() {
           </div>
 
           {/* Quick links */}
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
-            <h3 className="text-sm font-bold text-gray-900 mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <QuickLink href="/attendance" icon={<CalendarCheck className="w-4 h-4" />} label="Mark Attendance" />
-              <QuickLink href={myClassId ? `/results/${myClassId}` : '/results'} icon={<FileText className="w-4 h-4" />} label="Enter Results" />
-              <QuickLink href="/timetable" icon={<Clock className="w-4 h-4" />} label="View Timetable" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 lg:col-span-2">
+              <h3 className="text-sm font-bold text-gray-900 mb-4">Quick Actions</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <QuickLink href="/attendance" icon={<CalendarCheck className="w-4 h-4" />} label="Mark Attendance" />
+                <QuickLink href={myClassId ? `/results/${myClassId}` : '/results'} icon={<FileText className="w-4 h-4" />} label="Enter Results" />
+                <QuickLink href="/timetable" icon={<Clock className="w-4 h-4" />} label="View Timetable" />
+              </div>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
+              <h3 className="text-sm font-bold text-gray-900 mb-4">Quick Notes</h3>
+              <QuickNotesPanel notes={stats?.quickNotes ?? []} />
             </div>
           </div>
         </>

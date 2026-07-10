@@ -375,18 +375,28 @@ export default function PortalPage() {
                 : undefined;
             return (
             <div key={term}>
-              <div className="px-4 pt-3 pb-1 flex flex-col gap-0.5">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                  {term}
-                </p>
-                {classPos && (
-                  <p className="text-xs text-gray-600">
-                    Class position:{' '}
-                    <span className="font-semibold text-gray-900">
-                      #{classPos.position}
-                    </span>{' '}
-                    <span className="text-gray-500">of {classPos.outOf}</span>
+              <div className="px-4 pt-3 pb-1 flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    {term}
                   </p>
+                  {classPos && (
+                    <p className="text-xs text-gray-600">
+                      Class position:{' '}
+                      <span className="font-semibold text-gray-900">
+                        #{classPos.position}
+                      </span>{' '}
+                      <span className="text-gray-500">of {classPos.outOf}</span>
+                    </p>
+                  )}
+                </div>
+                {firstRow?.termId && (
+                  <a
+                    href={`/portal/reportcard?termId=${encodeURIComponent(firstRow.termId)}`}
+                    className="text-xs font-semibold text-primary-600 hover:text-primary-700 hover:underline mt-1 sm:mt-0"
+                  >
+                    View report card / PDF →
+                  </a>
                 )}
               </div>
               <table className="w-full text-sm">

@@ -29,10 +29,16 @@ type FeeCategory = 'TUITION' | 'UNIFORM' | 'OTHER';
 interface FeeStructure {
   id: string; name: string; amount: number;
   category: FeeCategory;
+  isRequired?: boolean;
   notes: string | null;
   classLevel: string | null;
   term: { id: string; name: string; year: number } | null;
   _count: { feePayments: number };
+}
+
+interface FeeLevelMeta {
+  level: string;
+  classes: { id: string; name: string }[];
 }
 
 const FEE_CATEGORY_LABEL: Record<FeeCategory, string> = {
@@ -498,10 +504,16 @@ function FeeStructuresList({ structures, onEdit, onDelete }: {
                 {FEE_CATEGORY_LABEL[s.category]}
               </span>
               <p className="font-semibold text-gray-900">{s.name}</p>
+              {s.isRequired === false && (
+                <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                  Optional
+                </span>
+              )}
             </div>
             <p className="text-sm text-gray-500 mt-1">
               GHS {s.amount.toLocaleString()}
               {s.classLevel ? ` · ${classLevelLabels[s.classLevel] ?? s.classLevel}` : ' · All levels'}
+              {s.isRequired === false ? ' · Optional charge' : ' · Required'}
               {s.notes ? ` · ${s.notes}` : ''}
               {' · '}{s._count.feePayments} payments recorded
             </p>
@@ -522,14 +534,6 @@ function FeeStructuresList({ structures, onEdit, onDelete }: {
 
 // ─── Fee Structure Modal ──────────────────────────────────────────────────────
 
-const CLASS_LEVELS = [
-  'CRECHE',
-  'NURSERY_1', 'NURSERY_2', 'KG_1', 'KG_2',
-  'YEAR_1', 'YEAR_2', 'YEAR_3', 'YEAR_4', 'YEAR_5', 'YEAR_6', 'YEAR_7', 'YEAR_8',
-  'BASIC_1', 'BASIC_2', 'BASIC_3', 'BASIC_4', 'BASIC_5', 'BASIC_6',
-  'JHS_1', 'JHS_2', 'JHS_3',
-];
-
 function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
   isOpen: boolean;
   structure: FeeStructure | null;
@@ -537,15 +541,30 @@ function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const [levelOptions, setLevelOptions] = useState<FeeLevelMeta[]>([]);
+  const [levelsLoading, setLevelsLoading] = useState(false);
   const [form, setForm] = useState({
     name: structure?.name ?? '',
     amount: structure?.amount?.toString() ?? '',
     category: (structure?.category ?? 'TUITION') as FeeCategory,
     notes: structure?.notes ?? '',
-    classLevel: structure?.classLevel ?? '',
+    isRequired: structure?.isRequired !== false,
+    schoolWide: !structure?.classLevel && !structure,
+    selectedLevels: structure?.classLevel ? [structure.classLevel] : [] as string[],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setLevelsLoading(true);
+    const token = getToken();
+    fetch(`${API}/fees/meta`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setLevelOptions(d.levels ?? []))
+      .catch(() => setLevelOptions([]))
+      .finally(() => setLevelsLoading(false));
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -555,29 +574,60 @@ function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
         amount: structure?.amount?.toString() ?? '',
         category: (structure?.category ?? 'TUITION') as FeeCategory,
         notes: structure?.notes ?? '',
-        classLevel: structure?.classLevel ?? '',
+        isRequired: structure?.isRequired !== false,
+        schoolWide: !structure?.classLevel && !structure,
+        selectedLevels: structure?.classLevel ? [structure.classLevel] : [],
       });
       setError('');
     });
   }, [isOpen, structure]);
 
+  const toggleLevel = (level: string) => {
+    setForm((f) => {
+      const has = f.selectedLevels.includes(level);
+      return {
+        ...f,
+        schoolWide: false,
+        selectedLevels: has
+          ? f.selectedLevels.filter((l) => l !== level)
+          : [...f.selectedLevels, level],
+      };
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!structure && !form.schoolWide && form.selectedLevels.length === 0) {
+      setError('Select at least one class level, or choose school-wide.');
+      return;
+    }
     setSaving(true); setError('');
     const token = getToken();
     const method = structure ? 'PUT' : 'POST';
     const url = structure ? `${API}/fees/structures/${structure.id}` : `${API}/fees/structures`;
+    const body = structure
+      ? {
+          name: form.name,
+          amount: form.amount,
+          classLevel: form.schoolWide ? null : form.selectedLevels[0] ?? null,
+          termId,
+          category: form.category,
+          notes: form.notes.trim() || null,
+          isRequired: form.isRequired,
+        }
+      : {
+          name: form.name,
+          amount: form.amount,
+          classLevels: form.schoolWide ? [] : form.selectedLevels,
+          termId,
+          category: form.category,
+          notes: form.notes.trim() || null,
+          isRequired: form.isRequired,
+        };
     const res = await fetch(url, {
       method,
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: form.name,
-        amount: form.amount,
-        classLevel: form.classLevel || null,
-        termId,
-        category: form.category,
-        notes: form.notes.trim() || null,
-      }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
     setSaving(false);
@@ -594,14 +644,48 @@ function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
           <select
             className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
             value={form.category}
-            onChange={(e) => setForm({ ...form, category: e.target.value as FeeCategory })}
+            onChange={(e) => {
+              const category = e.target.value as FeeCategory;
+              setForm({
+                ...form,
+                category,
+                isRequired: category === 'TUITION' ? true : form.isRequired,
+              });
+            }}
           >
             <option value="TUITION">{FEE_CATEGORY_LABEL.TUITION}</option>
             <option value="UNIFORM">{FEE_CATEGORY_LABEL.UNIFORM}</option>
             <option value="OTHER">{FEE_CATEGORY_LABEL.OTHER}</option>
           </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Payment type *</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, isRequired: true })}
+              className={`flex-1 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                form.isRequired
+                  ? 'bg-primary-50 border-primary-200 text-primary-800'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Required
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, isRequired: false })}
+              className={`flex-1 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                !form.isRequired
+                  ? 'bg-amber-50 border-amber-200 text-amber-900'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Optional
+            </button>
+          </div>
           <p className="text-xs text-gray-500 mt-1">
-            Use <strong>Other fee</strong> for robotics, maintenance, music, graduation, PTA, etc.
+            Required fees count toward a student&apos;s balance and payment status. Optional fees (e.g. clubs) can be paid separately.
           </p>
         </div>
         <div>
@@ -621,26 +705,87 @@ function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Applies to class level</label>
-          <select
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-            value={form.classLevel} onChange={(e) => setForm({ ...form, classLevel: e.target.value })}
-          >
-            <option value="">All classes (school-wide)</option>
-            {CLASS_LEVELS.map((l) => (
-              <option key={l} value={l}>{classLevelLabels[l] ?? l}</option>
-            ))}
-          </select>
-          <p className="text-xs text-gray-500 mt-1">
-            Pick one level for class-specific fees, or leave as all classes for items like maintenance.
-          </p>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            {structure ? 'Class level' : 'Applies to class levels'}
+          </label>
+          {levelsLoading ? (
+            <p className="text-sm text-gray-500 flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading classes…
+            </p>
+          ) : levelOptions.length === 0 ? (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+              No classes found. Add classes first, or use school-wide below.
+            </p>
+          ) : structure ? (
+            <select
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+              value={form.schoolWide ? '' : form.selectedLevels[0] ?? ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                setForm({
+                  ...form,
+                  schoolWide: !v,
+                  selectedLevels: v ? [v] : [],
+                });
+              }}
+            >
+              <option value="">All classes (school-wide)</option>
+              {levelOptions.map((opt) => (
+                <option key={opt.level} value={opt.level}>
+                  {classLevelLabels[opt.level] ?? opt.level}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-100 rounded-xl p-3">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 rounded border-gray-300"
+                  checked={form.schoolWide}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      schoolWide: e.target.checked,
+                      selectedLevels: e.target.checked ? [] : form.selectedLevels,
+                    })
+                  }
+                />
+                <span className="text-sm font-medium text-gray-800">All classes (school-wide)</span>
+              </label>
+              {!form.schoolWide &&
+                levelOptions.map((opt) => (
+                  <label key={opt.level} className="flex items-start gap-2 cursor-pointer py-1">
+                    <input
+                      type="checkbox"
+                      className="mt-1 rounded border-gray-300"
+                      checked={form.selectedLevels.includes(opt.level)}
+                      onChange={() => toggleLevel(opt.level)}
+                    />
+                    <span className="text-sm">
+                      <span className="font-semibold text-gray-900">
+                        {classLevelLabels[opt.level] ?? opt.level}
+                      </span>
+                      <span className="block text-xs text-gray-500">
+                        {opt.classes.map((c) => c.name).join(', ')}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+            </div>
+          )}
+          {!structure && !form.schoolWide && form.selectedLevels.length > 1 && (
+            <p className="text-xs text-primary-700 mt-1 font-medium">
+              Creates one fee item per selected level ({form.selectedLevels.length} total).
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
           <input
             type="text"
             className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-            placeholder="e.g. KG1–JHS, graduands only…"
+            placeholder="e.g. Graduands only…"
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
           />
@@ -649,7 +794,7 @@ function FeeStructureModal({ isOpen, structure, termId, onClose, onSaved }: {
           <Button variant="ghost" type="button" onClick={onClose}>Cancel</Button>
           <Button variant="primary" type="submit" disabled={saving}>
             {saving && <Loader2 size={14} className="animate-spin mr-1" />}
-            {structure ? 'Save Changes' : 'Create'}
+            {structure ? 'Save Changes' : form.selectedLevels.length > 1 ? `Create ${form.selectedLevels.length} items` : 'Create'}
           </Button>
         </div>
       </form>

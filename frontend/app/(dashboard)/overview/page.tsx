@@ -11,8 +11,6 @@ import {
   TrendingDown,
   Check,
   Clock,
-  CalendarDays,
-  ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 import { cookies } from "next/headers";
@@ -20,6 +18,8 @@ import Link from "next/link";
 import { DropdownMenu } from "@/components/ui";
 import OverviewRoleGate from "./OverviewRoleGate";
 import { pageTitle } from "@/lib/theme";
+import QuickNotesPanel, { QuickNotesFooterLink } from "./QuickNotesPanel";
+import UpcomingEventsPanel, { type UpcomingEventItem } from "./UpcomingEventsPanel";
 
 export const metadata = { title: pageTitle('Overview') };
 
@@ -50,12 +50,12 @@ type OverviewStats = {
     }[];
   };
   staff: { total: number; active: number; inactive: number };
-  upcomingEvents: {
+  upcomingEvents: UpcomingEventItem[];
+  quickNotes: {
     id: string;
-    title: string;
-    date: string;
-    type: 'assessment' | 'exam' | 'term';
-    subtitle: string;
+    text: string;
+    href?: string;
+    tone: 'info' | 'warning' | 'success';
   }[];
 };
 
@@ -66,37 +66,6 @@ function formatDate(value: string): string {
     year: 'numeric',
   }).format(new Date(value));
 }
-
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(value));
-}
-
-const EVENT_STYLES: Record<
-  OverviewStats['upcomingEvents'][number]['type'],
-  { icon: LucideIcon; iconClass: string; iconBg: string }
-> = {
-  assessment: {
-    icon: ClipboardCheck,
-    iconClass: 'text-purple-700',
-    iconBg: 'bg-purple-50 border-purple-100',
-  },
-  exam: {
-    icon: ClipboardCheck,
-    iconClass: 'text-purple-700',
-    iconBg: 'bg-purple-50 border-purple-100',
-  },
-  term: {
-    icon: CalendarDays,
-    iconClass: 'text-emerald-700',
-    iconBg: 'bg-emerald-50 border-emerald-100',
-  },
-};
 
 function formatInt(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
@@ -131,6 +100,7 @@ export default async function DashboardPage() {
   const feesCollectionRate = stats?.fees.collectionRate ?? 0;
   const recentPayments = stats?.fees.recentPayments ?? [];
   const upcomingEvents = stats?.upcomingEvents ?? [];
+  const quickNotes = stats?.quickNotes ?? [];
   const attendanceDays = stats?.attendanceWeekly.days ?? [];
   const weekOverWeekChange = stats?.attendanceWeekly.weekOverWeekChange ?? null;
   const staffValue = stats ? `${formatInt(stats.staff.total)}` : "—";
@@ -434,51 +404,7 @@ export default async function DashboardPage() {
         </div>
 
         <div className="bg-white border border-gray-200 shadow-sm shadow-gray-200/50 rounded-2xl p-5 lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-gray-900">Upcoming Events</h3>
-            <Link href="/results" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
-              View All <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-          <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 overflow-hidden">
-            {upcomingEvents.length === 0 ? (
-              <p className="text-xs text-gray-500 px-4 py-6">No upcoming events scheduled.</p>
-            ) : (
-              upcomingEvents.map((e) => {
-              const style = EVENT_STYLES[e.type];
-              const Icon = style.icon;
-              return (
-                <div
-                  key={e.id}
-                  className="flex items-center justify-between gap-4 px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className={[
-                        "w-9 h-9 rounded-xl border flex items-center justify-center shrink-0",
-                        style.iconBg,
-                      ].join(" ")}
-                    >
-                      <Icon className={["w-4.5 h-4.5", style.iconClass].join(" ")} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-extrabold text-gray-900 truncate">
-                        {e.title}
-                      </p>
-                      <p className="text-[11px] font-medium text-gray-500 truncate">
-                        {e.subtitle}
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="text-[11px] font-semibold text-gray-500 shrink-0">
-                    {formatDateTime(e.date)}
-                  </p>
-                </div>
-              );
-              })
-            )}
-          </div>
+          <UpcomingEventsPanel initialEvents={upcomingEvents} isAdmin />
         </div>
 
         <div className="bg-white border border-gray-200 shadow-sm shadow-gray-200/50 rounded-2xl p-5">
@@ -491,14 +417,13 @@ export default async function DashboardPage() {
               buttonClassName="p-2 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition-colors"
               items={[
                 { label: 'Create Announcement', href: '/announcements' },
-                { label: 'Open Timetable', href: '/timetable' },
-                { label: 'Dashboard Settings', href: '/settings' },
+                { label: 'Open Attendance', href: '/attendance' },
+                { label: 'Open Fees', href: '/fees' },
               ]}
             />
           </div>
-          <p className="text-xs font-semibold text-gray-500">
-            This panel is a placeholder (same style as your reference dashboard). We can hook it to announcements, reminders, or approvals.
-          </p>
+          <QuickNotesPanel notes={quickNotes} />
+          <QuickNotesFooterLink />
         </div>
       </div>
     </div>
