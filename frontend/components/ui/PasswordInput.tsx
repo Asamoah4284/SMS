@@ -58,7 +58,7 @@ export function PasswordInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={cn(
-            'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all disabled:opacity-60 disabled:cursor-not-allowed',
+            'w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-950 placeholder:text-gray-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all disabled:opacity-60 disabled:cursor-not-allowed',
             icon ? 'pl-10' : undefined,
             // Space for the eye icon button
             'pr-12',
