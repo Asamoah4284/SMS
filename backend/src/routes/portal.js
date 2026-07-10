@@ -1,34 +1,28 @@
 const { Router } = require('express');
-const crypto = require('crypto');
 const prisma = require('../config/db');
 const { authenticateParent, parentPhoneVariants, parentHasAccessToStudent } = require('../middleware/parentPortalAuth');
 const { getStudentFeeLinesForTerm } = require('../utils/studentFeeLines');
 const { computeClassPositionByTerm } = require('../utils/classRanking');
-const { finalizePaystackIntentByReference } = require('../services/paystackFinalize');
 const {
-  finalizeBookPaystackIntentByReference,
+  finalizeFeeMoolreIntentByReference,
+  markIntentFailed,
+} = require('../services/paystackFinalize');
+const {
+  finalizeBookMoolreIntentByReference,
+  markBookIntentFailed,
 } = require('../services/bookPaystackFinalize');
 const { getStudentBookLines } = require('../utils/studentBooks');
 const { applyPlatformFee } = require('../utils/commission');
+const {
+  billingEmailFromStudent,
+  generateBookPaymentReference,
+  generateFeePaymentReference,
+  initializeMoolreEmbedLink,
+} = require('../services/moolreEmbedPayment');
+const { isMoolrePaymentsConfigured } = require('../services/moolreAuth');
+const { checkMoolrePaymentStatus } = require('../services/moolrePaymentStatus');
 
 const router = Router();
-
-/**
- * Paystack validates the `email` field strictly; placeholder domains like `*.local` are rejected.
- * Use the parent’s real address when it looks valid, else a safe system address.
- */
-function paystackCustomerEmail(parentUserEmail, schoolStudentId, reference) {
-  const raw = parentUserEmail && String(parentUserEmail).trim();
-  if (raw && /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(raw)) {
-    return raw;
-  }
-  const id = String(schoolStudentId || 'ward')
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]/g, '')
-    .slice(0, 32) || 'ward';
-  const ref = String(reference).replace(/[^a-z0-9]/gi, '').slice(0, 12) || 'ref';
-  return `edutrack.ward.${id}.${ref}@example.com`;
-}
 
 // ─────────────────────────────────────────────────────────────────
 // GET /portal/child/:studentId
@@ -190,15 +184,14 @@ router.get('/child/:studentId', authenticateParent, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────
-// POST /portal/paystack/initialize
+// POST /portal/fees/moolre/initialize
 // Body: { studentId, amount?: GHS, callbackUrl?, feeStructureIds?: string[] }
-// If feeStructureIds is set, payment applies only to those fee lines (e.g. tuition vs feeding vs other).
+// Legacy alias: POST /portal/paystack/initialize
 // ─────────────────────────────────────────────────────────────────
 
-router.post('/paystack/initialize', authenticateParent, async (req, res) => {
+async function initializeFeeMoolrePayment(req, res) {
   try {
-    const secret = process.env.PAYSTACK_SECRET_KEY;
-    if (!secret) {
+    if (!isMoolrePaymentsConfigured()) {
       return res.status(503).json({ error: 'Online payments are not configured on this server' });
     }
 
@@ -220,7 +213,6 @@ router.post('/paystack/initialize', authenticateParent, async (req, res) => {
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
     const hasAccess = parentHasAccessToStudent(student, phoneVariants);
-
     if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
 
     const currentTerm = await prisma.term.findFirst({ where: { isCurrent: true } });
@@ -274,7 +266,8 @@ router.post('/paystack/initialize', authenticateParent, async (req, res) => {
       const ok =
         callbackUrl.startsWith('edutracksms://') ||
         callbackUrl.startsWith('exp://') ||
-        callbackUrl.startsWith('http://localhost');
+        callbackUrl.startsWith('http://localhost') ||
+        callbackUrl.startsWith('http://127.0.0.1');
       if (!ok) {
         return res.status(400).json({ error: 'callbackUrl is not allowed' });
       }
@@ -290,9 +283,16 @@ router.post('/paystack/initialize', authenticateParent, async (req, res) => {
       return res.status(400).json({ error: 'Amount too small after conversion' });
     }
 
-    const reference = `EDU_${crypto.randomBytes(10).toString('hex')}`;
+    const reference = generateFeePaymentReference();
+    const parentPhone = student.parent?.user?.phone || student.parentPhone || req.parentPhone;
+    const email = billingEmailFromStudent(
+      schoolStudentId,
+      reference,
+      student.parent?.user?.email,
+      parentPhone
+    );
 
-    const intent = await prisma.paystackIntent.create({
+    await prisma.paystackIntent.create({
       data: {
         reference,
         amountGhs: feeBreakdown.grossGhs,
@@ -306,81 +306,57 @@ router.post('/paystack/initialize', authenticateParent, async (req, res) => {
       },
     });
 
-    const email = paystackCustomerEmail(
-      student.parent?.user?.email,
-      schoolStudentId,
-      reference
-    );
-
-    const paystackRes = await fetch('https://api.paystack.co/transaction/initialize', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${secret}`,
-        'Content-Type': 'application/json',
+    const moolre = await initializeMoolreEmbedLink({
+      amount: feeBreakdown.grossGhs,
+      email,
+      externalref: reference,
+      metadata: {
+        type: 'fees',
+        studentSchoolId: schoolStudentId,
+        termId: currentTerm.id,
       },
-      body: JSON.stringify({
-        email,
-        amount: amountPesewas,
-        currency: 'GHS',
-        reference,
-        callback_url: callbackUrl || undefined,
-        metadata: {
-          studentSchoolId: schoolStudentId,
-          termId: currentTerm.id,
-          intentId: intent.id,
-        },
-      }),
     });
 
-    const paystackJson = await paystackRes.json();
-    if (!paystackJson.status || !paystackJson.data?.authorization_url) {
+    if (!moolre.ok || !moolre.authorization_url) {
       await prisma.paystackIntent.update({
         where: { reference },
         data: { status: 'FAILED' },
       });
-      console.error('Paystack initialize failed:', paystackJson);
       return res.status(502).json({
-        error: paystackJson.message || 'Could not start payment with Paystack',
+        error: moolre.error || 'Could not start payment with Moolre',
       });
     }
 
-    await prisma.paystackIntent.update({
-      where: { reference },
-      data: { paystackAccessCode: paystackJson.data.access_code || null },
-    });
-
     return res.json({
-      authorizationUrl: paystackJson.data.authorization_url,
+      authorizationUrl: moolre.authorization_url,
       reference,
       schoolAmountGhs: feeBreakdown.schoolAmountGhs,
       platformFeeGhs: feeBreakdown.platformFeeGhs,
       grossAmountGhs: feeBreakdown.grossGhs,
       commissionRatePercent: feeBreakdown.commissionRatePercent,
       currency: 'GHS',
+      provider: 'moolre',
     });
   } catch (error) {
-    console.error('POST /portal/paystack/initialize error:', error);
+    console.error('POST /portal/fees/moolre/initialize error:', error);
     res.status(500).json({ error: 'Failed to initialize payment' });
   }
-});
+}
 
-// ─────────────────────────────────────────────────────────────────
-// GET /portal/paystack/verify/:reference  (optional — after redirect)
-// ─────────────────────────────────────────────────────────────────
+router.post('/fees/moolre/initialize', authenticateParent, initializeFeeMoolrePayment);
+// Backward-compatible alias (app may still call paystack path during rollout)
+router.post('/paystack/initialize', authenticateParent, initializeFeeMoolrePayment);
 
-router.get('/paystack/verify/:reference', authenticateParent, async (req, res) => {
+async function verifyFeeMoolrePayment(req, res) {
   try {
-    const secret = process.env.PAYSTACK_SECRET_KEY;
-    if (!secret) {
+    if (!isMoolrePaymentsConfigured()) {
       return res.status(503).json({ error: 'Online payments are not configured' });
     }
 
     const { reference } = req.params;
     const intent = await prisma.paystackIntent.findUnique({
       where: { reference },
-      include: { student: { select: { studentId: true } } },
     });
-
     if (!intent) return res.status(404).json({ error: 'Payment not found' });
 
     const phoneVariants = parentPhoneVariants(req.parentPhone);
@@ -396,31 +372,38 @@ router.get('/paystack/verify/:reference', authenticateParent, async (req, res) =
     if (intent.status === 'SUCCESS') {
       return res.json({ status: 'SUCCESS', reference });
     }
+    if (intent.status === 'FAILED') {
+      return res.json({ status: 'FAILED', reference });
+    }
 
-    const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-      headers: { Authorization: `Bearer ${secret}` },
+    const status = await checkMoolrePaymentStatus(reference);
+    if (status.isPaid) {
+      const amountGhs = Number(status.data?.amount ?? status.data?.Amount ?? intent.amountGhs);
+      const finalize = await finalizeFeeMoolreIntentByReference(reference, amountGhs);
+      if (!finalize.ok && finalize.reason === 'AMOUNT_MISMATCH') {
+        return res.status(400).json({ error: 'Amount verification failed' });
+      }
+      return res.json({ status: 'SUCCESS', reference });
+    }
+
+    if (status.txStatusNum === 2) {
+      await markIntentFailed(reference);
+      return res.json({ status: 'FAILED', reference });
+    }
+
+    return res.json({
+      status: intent.status,
+      reference,
+      moolreStatus: status.message || 'pending',
     });
-    const verifyJson = await verifyRes.json();
-    if (!verifyJson.status || verifyJson.data?.status !== 'success') {
-      return res.json({
-        status: intent.status,
-        reference,
-        paystackStatus: verifyJson.data?.status || verifyJson.message,
-      });
-    }
-
-    const amount = verifyJson.data.amount;
-    const finalize = await finalizePaystackIntentByReference(reference, Number(amount));
-    if (!finalize.ok && finalize.reason === 'AMOUNT_MISMATCH') {
-      return res.status(400).json({ error: 'Amount verification failed' });
-    }
-
-    return res.json({ status: 'SUCCESS', reference });
   } catch (error) {
-    console.error('GET /portal/paystack/verify error:', error);
+    console.error('GET /portal/fees/moolre/verify error:', error);
     res.status(500).json({ error: 'Verification failed' });
   }
-});
+}
+
+router.get('/fees/moolre/verify/:reference', authenticateParent, verifyFeeMoolrePayment);
+router.get('/paystack/verify/:reference', authenticateParent, verifyFeeMoolrePayment);
 
 // ─────────────────────────────────────────────────────────────────
 // GET /portal/child/:studentId/books
@@ -458,14 +441,14 @@ router.get('/child/:studentId/books', authenticateParent, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────
-// POST /portal/books/paystack/initialize
+// POST /portal/books/moolre/initialize
 // Body: { studentId, bookIds?: string[], amount?: GHS, callbackUrl? }
+// Legacy alias: POST /portal/books/paystack/initialize
 // ─────────────────────────────────────────────────────────────────
 
-router.post('/books/paystack/initialize', authenticateParent, async (req, res) => {
+async function initializeBookMoolrePayment(req, res) {
   try {
-    const secret = process.env.PAYSTACK_SECRET_KEY;
-    if (!secret) {
+    if (!isMoolrePaymentsConfigured()) {
       return res.status(503).json({ error: 'Online payments are not configured on this server' });
     }
 
@@ -531,7 +514,8 @@ router.post('/books/paystack/initialize', authenticateParent, async (req, res) =
       const ok =
         callbackUrl.startsWith('edutracksms://') ||
         callbackUrl.startsWith('exp://') ||
-        callbackUrl.startsWith('http://localhost');
+        callbackUrl.startsWith('http://localhost') ||
+        callbackUrl.startsWith('http://127.0.0.1');
       if (!ok) {
         return res.status(400).json({ error: 'callbackUrl is not allowed' });
       }
@@ -543,7 +527,14 @@ router.post('/books/paystack/initialize', authenticateParent, async (req, res) =
       return res.status(400).json({ error: 'Amount too small after conversion' });
     }
 
-    const reference = `EDB_${crypto.randomBytes(10).toString('hex')}`;
+    const reference = generateBookPaymentReference();
+    const parentPhone = student.parent?.user?.phone || student.parentPhone || req.parentPhone;
+    const email = billingEmailFromStudent(
+      schoolStudentId,
+      reference,
+      student.parent?.user?.email,
+      parentPhone
+    );
 
     await prisma.bookPaystackIntent.create({
       data: {
@@ -559,75 +550,58 @@ router.post('/books/paystack/initialize', authenticateParent, async (req, res) =
       },
     });
 
-    const email = paystackCustomerEmail(
-      student.parent?.user?.email,
-      schoolStudentId,
-      reference
-    );
-
-    const paystackRes = await fetch('https://api.paystack.co/transaction/initialize', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${secret}`,
-        'Content-Type': 'application/json',
+    const moolre = await initializeMoolreEmbedLink({
+      amount: bookBreakdown.grossGhs,
+      email,
+      externalref: reference,
+      metadata: {
+        type: 'books',
+        studentSchoolId: schoolStudentId,
+        termId: currentTerm.id,
       },
-      body: JSON.stringify({
-        email,
-        amount: amountPesewas,
-        currency: 'GHS',
-        reference,
-        callback_url: callbackUrl || undefined,
-        metadata: {
-          type: 'books',
-          studentSchoolId: schoolStudentId,
-          termId: currentTerm.id,
-        },
-      }),
+      // Always use backend success page so the WebView can postMessage + poll verify.
+      // App deep links (exp://) are stored on the intent but not sent to Moolre as redirect.
     });
 
-    const paystackJson = await paystackRes.json();
-    if (!paystackJson.status || !paystackJson.data?.authorization_url) {
+    if (!moolre.ok || !moolre.authorization_url) {
       await prisma.bookPaystackIntent.update({
         where: { reference },
         data: { status: 'FAILED' },
       });
       return res.status(502).json({
-        error: paystackJson.message || 'Could not start payment with Paystack',
+        error: moolre.error || 'Could not start payment with Moolre',
       });
     }
 
-    await prisma.bookPaystackIntent.update({
-      where: { reference },
-      data: { paystackAccessCode: paystackJson.data.access_code || null },
-    });
-
     return res.json({
-      authorizationUrl: paystackJson.data.authorization_url,
+      authorizationUrl: moolre.authorization_url,
       reference,
       schoolAmountGhs: bookBreakdown.schoolAmountGhs,
       platformFeeGhs: bookBreakdown.platformFeeGhs,
       grossAmountGhs: bookBreakdown.grossGhs,
       commissionRatePercent: bookBreakdown.commissionRatePercent,
       currency: 'GHS',
+      provider: 'moolre',
     });
   } catch (error) {
-    console.error('POST /portal/books/paystack/initialize error:', error);
+    console.error('POST /portal/books/moolre/initialize error:', error);
     res.status(500).json({ error: 'Failed to initialize payment' });
   }
-});
+}
 
-// GET /portal/books/paystack/verify/:reference
-router.get('/books/paystack/verify/:reference', authenticateParent, async (req, res) => {
+router.post('/books/moolre/initialize', authenticateParent, initializeBookMoolrePayment);
+// Backward-compatible alias (app may still call paystack path during rollout)
+router.post('/books/paystack/initialize', authenticateParent, initializeBookMoolrePayment);
+
+async function verifyBookMoolrePayment(req, res) {
   try {
-    const secret = process.env.PAYSTACK_SECRET_KEY;
-    if (!secret) {
+    if (!isMoolrePaymentsConfigured()) {
       return res.status(503).json({ error: 'Online payments are not configured' });
     }
 
     const { reference } = req.params;
     const intent = await prisma.bookPaystackIntent.findUnique({
       where: { reference },
-      include: { student: { select: { studentId: true } } },
     });
     if (!intent) return res.status(404).json({ error: 'Payment not found' });
 
@@ -644,31 +618,39 @@ router.get('/books/paystack/verify/:reference', authenticateParent, async (req, 
     if (intent.status === 'SUCCESS') {
       return res.json({ status: 'SUCCESS', reference });
     }
-
-    const verifyRes = await fetch(
-      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
-      { headers: { Authorization: `Bearer ${secret}` } }
-    );
-    const verifyJson = await verifyRes.json();
-    if (!verifyJson.status || verifyJson.data?.status !== 'success') {
-      return res.json({
-        status: intent.status,
-        reference,
-        paystackStatus: verifyJson.data?.status || verifyJson.message,
-      });
+    if (intent.status === 'FAILED') {
+      return res.json({ status: 'FAILED', reference });
     }
 
-    const finalize = await finalizeBookPaystackIntentByReference(reference, Number(verifyJson.data.amount));
-    if (!finalize.ok && finalize.reason === 'AMOUNT_MISMATCH') {
-      return res.status(400).json({ error: 'Amount verification failed' });
+    // Single status check (app polls every ~2.5s; avoid long retry loops here)
+    const status = await checkMoolrePaymentStatus(reference);
+    if (status.isPaid) {
+      const amountGhs = Number(status.data?.amount ?? status.data?.Amount ?? intent.amountGhs);
+      const finalize = await finalizeBookMoolreIntentByReference(reference, amountGhs);
+      if (!finalize.ok && finalize.reason === 'AMOUNT_MISMATCH') {
+        return res.status(400).json({ error: 'Amount verification failed' });
+      }
+      return res.json({ status: 'SUCCESS', reference });
     }
 
-    return res.json({ status: 'SUCCESS', reference });
+    if (status.txStatusNum === 2) {
+      await markBookIntentFailed(reference);
+      return res.json({ status: 'FAILED', reference });
+    }
+
+    return res.json({
+      status: intent.status,
+      reference,
+      moolreStatus: status.message || 'pending',
+    });
   } catch (error) {
-    console.error('GET /portal/books/paystack/verify error:', error);
+    console.error('GET /portal/books/moolre/verify error:', error);
     res.status(500).json({ error: 'Verification failed' });
   }
-});
+}
+
+router.get('/books/moolre/verify/:reference', authenticateParent, verifyBookMoolrePayment);
+router.get('/books/paystack/verify/:reference', authenticateParent, verifyBookMoolrePayment);
 
 // GET /portal/announcements
 router.get('/announcements', authenticateParent, async (req, res) => {

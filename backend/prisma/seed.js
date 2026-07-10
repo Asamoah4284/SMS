@@ -34,7 +34,48 @@ const bcrypt = require('bcryptjs');
 const { ensureStudentPortal } = require('../src/utils/studentPortal');
 const { classLevelToCode, formatStudentId } = require('../src/utils/studentId');
 
-const prisma = new PrismaClient();
+/** Larger pool + longer timeout for remote DBs (Render) during long seed runs. */
+function resolvedSeedDatabaseUrl() {
+  const urlString = process.env.DATABASE_URL;
+  if (!urlString) return undefined;
+  try {
+    const u = new URL(urlString);
+    u.searchParams.set(
+      'connection_limit',
+      process.env.DATABASE_CONNECTION_LIMIT || '10'
+    );
+    u.searchParams.set(
+      'pool_timeout',
+      process.env.DATABASE_POOL_TIMEOUT || '60'
+    );
+    // Prefer direct connection when available; pgbouncer can starve small pools
+    if (!u.searchParams.has('connect_timeout')) {
+      u.searchParams.set('connect_timeout', '15');
+    }
+    return u.toString();
+  } catch {
+    return urlString;
+  }
+}
+
+const prisma = new PrismaClient({
+  datasources: { db: { url: resolvedSeedDatabaseUrl() } },
+  log: ['error', 'warn'],
+});
+
+/** Retry once on Prisma pool timeout (P2024). */
+async function withPoolRetry(fn, label = 'query') {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err?.code === 'P2024') {
+      console.warn(`  ⚠ Pool timeout on ${label} — waiting 3s and retrying…`);
+      await new Promise((r) => setTimeout(r, 3000));
+      return fn();
+    }
+    throw err;
+  }
+}
 
 /** Demo seed student IDs use ENIS-* so they never collide with DASE school imports. */
 const SEED_ID_PREFIX = 'ENIS';
@@ -843,67 +884,110 @@ async function seedStudents(classes) {
     });
 
     const created = [];
+
+    // One query per class instead of findFirst per student (avoids pool exhaustion on remote DB)
+    const existingInClass = await withPoolRetry(
+      () =>
+        prisma.student.findMany({
+          where: { classId: cls.id },
+          select: {
+            id: true,
+            studentId: true,
+            firstName: true,
+            lastName: true,
+            dateOfBirth: true,
+            gender: true,
+            address: true,
+            parentName: true,
+            parentPhone: true,
+            classId: true,
+            isActive: true,
+          },
+        }),
+      `students in ${className}`
+    );
+    const byName = new Map(
+      existingInClass.map((st) => [
+        `${st.firstName}\0${st.lastName}`.toLowerCase(),
+        st,
+      ])
+    );
+
     for (let i = 0; i < roster.length; i++) {
       const s = roster[i];
+      const nameKey = `${s.firstName}\0${s.lastName}`.toLowerCase();
 
       // Idempotent: same name already in this class → reuse (do not renumber DASE imports)
-      const existing = await prisma.student.findFirst({
-        where: {
-          classId: cls.id,
-          firstName: { equals: s.firstName, mode: 'insensitive' },
-          lastName: { equals: s.lastName, mode: 'insensitive' },
-        },
-      });
+      const existing = byName.get(nameKey);
       if (existing) {
         created.push({ ...existing, _globalIdx: globalIdx++ });
         continue;
       }
 
-      const studentId = await nextSeedStudentId(prisma, cls, i + 1);
+      const studentId = await withPoolRetry(
+        () => nextSeedStudentId(prisma, cls, i + 1),
+        `nextId ${className}`
+      );
 
       let student;
       try {
-        student = await prisma.student.create({
-          data: {
-            studentId,
-            firstName:   s.firstName,
-            lastName:    s.lastName,
-            dateOfBirth: new Date(s.dob),
-            gender:      s.gender,
-            address:     s.address,
-            parentName:  s.parentName,
-            parentPhone: s.parentPhone,
-            classId:     cls.id,
-            isActive:    true,
-          },
-        });
+        student = await withPoolRetry(
+          () =>
+            prisma.student.create({
+              data: {
+                studentId,
+                firstName:   s.firstName,
+                lastName:    s.lastName,
+                dateOfBirth: new Date(s.dob),
+                gender:      s.gender,
+                address:     s.address,
+                parentName:  s.parentName,
+                parentPhone: s.parentPhone,
+                classId:     cls.id,
+                isActive:    true,
+              },
+            }),
+          `create ${s.firstName} ${s.lastName}`
+        );
       } catch (err) {
         if (err?.code === 'P2002' && err?.meta?.target?.includes?.('studentId')) {
           // ID taken — bump to next free ENIS id and retry once
-          const retryId = await nextSeedStudentId(prisma, cls, i + 1, true);
-          student = await prisma.student.create({
-            data: {
-              studentId:   retryId,
-              firstName:   s.firstName,
-              lastName:    s.lastName,
-              dateOfBirth: new Date(s.dob),
-              gender:      s.gender,
-              address:     s.address,
-              parentName:  s.parentName,
-              parentPhone: s.parentPhone,
-              classId:     cls.id,
-              isActive:    true,
-            },
-          });
+          const retryId = await withPoolRetry(
+            () => nextSeedStudentId(prisma, cls, i + 1, true),
+            `retryId ${className}`
+          );
+          student = await withPoolRetry(
+            () =>
+              prisma.student.create({
+                data: {
+                  studentId:   retryId,
+                  firstName:   s.firstName,
+                  lastName:    s.lastName,
+                  dateOfBirth: new Date(s.dob),
+                  gender:      s.gender,
+                  address:     s.address,
+                  parentName:  s.parentName,
+                  parentPhone: s.parentPhone,
+                  classId:     cls.id,
+                  isActive:    true,
+                },
+              }),
+            `recreate ${s.firstName} ${s.lastName}`
+          );
         } else if (err?.code === 'P2002') {
-          const again = await prisma.student.findFirst({
-            where: {
-              classId: cls.id,
-              firstName: { equals: s.firstName, mode: 'insensitive' },
-              lastName: { equals: s.lastName, mode: 'insensitive' },
-            },
-          });
+          const again = await withPoolRetry(
+            () =>
+              prisma.student.findFirst({
+                where: {
+                  classId: cls.id,
+                  firstName: { equals: s.firstName, mode: 'insensitive' },
+                  lastName: { equals: s.lastName, mode: 'insensitive' },
+                },
+              }),
+            `find again ${s.firstName}`
+          );
           if (again) {
+            byName.set(nameKey, again);
             created.push({ ...again, _globalIdx: globalIdx++ });
             continue;
           }
@@ -912,6 +996,7 @@ async function seedStudents(classes) {
           throw err;
         }
       }
+      byName.set(nameKey, student);
       created.push({ ...student, _globalIdx: globalIdx++ });
     }
 

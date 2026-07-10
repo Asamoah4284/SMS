@@ -8,12 +8,19 @@ function computeStatus(amountDue, totalPaid) {
 }
 
 /**
- * Record one Paystack settlement: split `amountGhs` across fee lines (in order) inside a transaction.
+ * Record one online fee settlement: split `amountGhs` across fee lines (in order) inside a transaction.
  * @param {import('@prisma/client').PrismaClient} tx
- * @param {{ studentId: string, termId: string, amountGhs: number, receiptReference: string, restrictToFeeStructureIds?: string[] | null }} params
+ * @param {{ studentId: string, termId: string, amountGhs: number, receiptReference: string, restrictToFeeStructureIds?: string[] | null, paymentMethod?: string }} params
  */
 async function allocatePaystackAmountToFeeLines(tx, params) {
-  const { studentId, termId, amountGhs, receiptReference, restrictToFeeStructureIds } = params;
+  const {
+    studentId,
+    termId,
+    amountGhs,
+    receiptReference,
+    restrictToFeeStructureIds,
+    paymentMethod = 'moolre',
+  } = params;
 
   const student = await tx.student.findUnique({
     where: { id: studentId },
@@ -72,7 +79,7 @@ async function allocatePaystackAmountToFeeLines(tx, params) {
         termId,
         amountPaid: chunk,
         paymentStatus,
-        paymentMethod: 'paystack',
+        paymentMethod,
         receiptNumber: receiptReference,
         paidAt: new Date(),
       },

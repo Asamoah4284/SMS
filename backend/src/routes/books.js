@@ -5,6 +5,7 @@ const multer = require('multer');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 const { getStudentBookLines } = require('../utils/studentBooks');
+const { notifyBookPaymentReceived } = require('../services/inAppNotifications');
 
 const router = Router();
 router.use(authenticate);
@@ -395,6 +396,21 @@ router.post('/payments/manual', authorize('ADMIN'), async (req, res, next) => {
         paidAt: new Date(),
       },
     });
+
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: { firstName: true, lastName: true },
+    });
+    const studentName = student
+      ? `${student.firstName} ${student.lastName}`.trim()
+      : 'A student';
+    notifyBookPaymentReceived({
+      studentName,
+      amountGhs: amount,
+      method: paymentMethod || 'cash',
+      excludeUserId: req.user?.id,
+    }).catch((err) => console.error('Book payment notification failed:', err.message));
+
     res.status(201).json(payment);
   } catch (err) {
     next(err);

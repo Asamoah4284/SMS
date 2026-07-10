@@ -1,12 +1,9 @@
 const crypto = require('crypto');
 const { finalizePaystackIntentByReference, markIntentFailed } = require('../services/paystackFinalize');
-const {
-  finalizeBookPaystackIntentByReference,
-  markBookIntentFailed,
-} = require('../services/bookPaystackFinalize');
 
 /**
- * Express handler — mount with express.raw({ type: 'application/json' }) so req.body is a Buffer for HMAC.
+ * Express handler — fee payments only (books use Moolre).
+ * Mount with express.raw({ type: 'application/json' }) so req.body is a Buffer for HMAC.
  */
 async function paystackWebhookHandler(req, res) {
   const secret = process.env.PAYSTACK_SECRET_KEY;
@@ -48,19 +45,12 @@ async function paystackWebhookHandler(req, res) {
       if (!result.ok && result.reason === 'AMOUNT_MISMATCH') {
         return res.status(400).json({ received: true, error: result.reason });
       }
-      if (!result.ok && result.reason === 'UNKNOWN_REFERENCE') {
-        const bookResult = await finalizeBookPaystackIntentByReference(reference, Number(amount));
-        if (!bookResult.ok && bookResult.reason === 'AMOUNT_MISMATCH') {
-          return res.status(400).json({ received: true, error: bookResult.reason });
-        }
-      }
     }
 
     if (event.event === 'charge.failed') {
       const ref = event.data?.reference;
       if (ref) {
         await markIntentFailed(ref);
-        await markBookIntentFailed(ref);
       }
     }
 

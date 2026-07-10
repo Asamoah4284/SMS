@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 const { totalDueFromPayments, AMOUNT_EPS } = require('../utils/feeAccounting');
+const { notifyFeePaymentReceived } = require('../services/inAppNotifications');
 
 const router = Router();
 router.use(authenticate);
@@ -444,6 +445,20 @@ router.post('/payments', authorize('ADMIN'), async (req, res) => {
     if (!('payment' in result) || !result.payment) {
       return res.status(500).json({ message: 'Failed to record payment' });
     }
+
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: { firstName: true, lastName: true },
+    });
+    const studentName = student
+      ? `${student.firstName} ${student.lastName}`.trim()
+      : 'A student';
+    notifyFeePaymentReceived({
+      studentName,
+      amountGhs: raw,
+      method: paymentMethod || 'manual',
+      excludeUserId: req.user?.id,
+    }).catch((err) => console.error('Fee payment notification failed:', err.message));
 
     res.status(201).json({ message: 'Payment recorded', payment: result.payment });
   } catch (err) {

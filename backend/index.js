@@ -1,12 +1,14 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
-const paystackSk = process.env.PAYSTACK_SECRET_KEY;
-if (paystackSk && String(paystackSk).trim()) {
-  const mode = String(paystackSk).startsWith('sk_live') ? 'live' : 'test';
-  console.log(`Paystack: enabled (${mode} key loaded from .env)`);
+const { isMoolrePaymentsConfigured } = require('./src/services/moolreAuth');
+
+if (isMoolrePaymentsConfigured()) {
+  console.log('Moolre (fees + books): enabled (username + public key + account loaded from .env)');
 } else {
-  console.warn('Paystack: PAYSTACK_SECRET_KEY missing — parent app “Pay with Paystack” will return 503 until set. Restart server after editing .env.');
+  console.warn(
+    'Moolre (fees + books): MOOLRE_USERNAME / MOOLRE_PUBLIC_KEY / MOOLRE_ACCOUNT_NUMBER missing — online payments will return 503 until set.'
+  );
 }
 
 const express = require('express');
@@ -14,6 +16,10 @@ const cors = require('cors');
 
 const routes = require('./src/routes');
 const { paystackWebhookHandler } = require('./src/routes/paystackWebhook');
+const {
+  moolreWebhookHandler,
+  moolrePaymentSuccessHandler,
+} = require('./src/routes/moolreWebhook');
 const { errorHandler } = require('./src/middleware/errorHandler');
 const prisma = require('./src/config/db');
 
@@ -68,6 +74,14 @@ app.post('/api/v1/webhooks/paystack', express.raw({ type: 'application/json' }),
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Moolre payments — fees + books (JSON body)
+app.post('/api/v1/webhooks/moolre', (req, res, next) => {
+  Promise.resolve(moolreWebhookHandler(req, res)).catch(next);
+});
+app.get('/api/v1/webhooks/moolre/payment-success', (req, res, next) => {
+  Promise.resolve(moolrePaymentSuccessHandler(req, res)).catch(next);
+});
 
 // Static file serving for uploads
 app.use('/uploads', express.static('uploads'));

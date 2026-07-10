@@ -33,6 +33,32 @@ router.put('/read-all', async (req, res, next) => {
   }
 });
 
+// GET /:id - single notification (marks as read)
+router.get('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.notification.findUnique({ where: { id } });
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Notification not found' });
+    }
+    if (existing.userId !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const notification = existing.isRead
+      ? existing
+      : await prisma.notification.update({
+          where: { id },
+          data: { isRead: true },
+        });
+
+    res.json(notification);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PUT /:id/read - mark read
 router.put('/:id/read', async (req, res, next) => {
   try {

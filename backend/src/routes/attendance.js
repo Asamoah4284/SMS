@@ -28,6 +28,8 @@ function formatDateFriendly(date) {
   });
 }
 
+const VALID_STATUSES = new Set(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']);
+
 // ─── GET /attendance/students ─────────────────────────────────────────────────
 // Query: ?classId=&date=YYYY-MM-DD
 // Returns each student with their attendance status for that date.
@@ -150,15 +152,41 @@ router.post('/students/mark', async (req, res) => {
     const studentMap = {};
     cls.students.forEach((s) => { studentMap[s.id] = s; });
 
+    const seen = new Set();
+    for (const r of records) {
+      if (!r?.studentId) {
+        return res.status(400).json({ message: 'Each record must include a studentId' });
+      }
+      if (seen.has(r.studentId)) {
+        return res.status(400).json({ message: 'Duplicate student in attendance records' });
+      }
+      seen.add(r.studentId);
+      if (!studentMap[r.studentId]) {
+        return res.status(400).json({ message: 'One or more students do not belong to this class' });
+      }
+      if (!r.status || !VALID_STATUSES.has(r.status)) {
+        return res.status(400).json({
+          message: 'Every student needs a valid status (Present, Absent, Late, or Excused)',
+        });
+      }
+    }
+
     // Upsert each attendance record
-    const upserts = records.map((r) =>
-      prisma.attendance.upsert({
-        where: { studentId_date: { studentId: r.studentId, date: dateObj } },
-        create: { studentId: r.studentId, date: dateObj, status: r.status, note: r.note || null, termId: term.id },
-        update: { status: r.status, note: r.note || null },
-      })
-    );
-    await prisma.$transaction(upserts);
+    await prisma.$transaction(async (tx) => {
+      for (const r of records) {
+        await tx.attendance.upsert({
+          where: { studentId_date: { studentId: r.studentId, date: dateObj } },
+          create: {
+            studentId: r.studentId,
+            date: dateObj,
+            status: r.status,
+            note: r.note || null,
+            termId: term.id,
+          },
+          update: { status: r.status, note: r.note || null },
+        });
+      }
+    });
 
     // Send SMS to parents of ABSENT students (fire-and-forget — don't block response)
     const absentRecords = records.filter((r) => r.status === 'ABSENT');
@@ -200,7 +228,17 @@ router.post('/students/mark', async (req, res) => {
     });
   } catch (err) {
     console.error('POST /attendance/students/mark', err);
-    res.status(500).json({ message: 'Failed to mark attendance' });
+    if (err.code === 'P2003') {
+      return res.status(400).json({ message: 'Invalid student or term reference. Refresh and try again.' });
+    }
+    if (err.code === 'P2028') {
+      return res.status(503).json({ message: 'Database is busy. Please try again in a moment.' });
+    }
+    res.status(500).json({
+      message: err.message?.includes('connect')
+        ? 'Could not reach the database. Check your connection and try again.'
+        : 'Failed to mark attendance. Please try again.',
+    });
   }
 });
 

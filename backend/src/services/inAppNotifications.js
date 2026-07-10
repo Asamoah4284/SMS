@@ -80,10 +80,54 @@ async function notifyLeaveRequestProcessed({ userId, status, adminNote }) {
   });
 }
 
+function formatGhs(amount) {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return '0.00';
+  return n.toFixed(2);
+}
+
+/**
+ * Notify staff when school fees are paid (online or manual).
+ */
+async function notifyFeePaymentReceived({
+  studentName,
+  amountGhs,
+  method,
+  excludeUserId,
+}) {
+  const via = method ? ` via ${method}` : '';
+  return notifyUsersByRole(['ADMIN', 'TEACHER'], {
+    title: 'School fees payment',
+    message: `${studentName || 'A student'} paid GH₵${formatGhs(amountGhs)}${via}.`,
+    type: 'FEE_PAYMENT',
+    excludeUserId,
+  });
+}
+
+/**
+ * Notify staff when a book payment is received (online or manual).
+ */
+async function notifyBookPaymentReceived({
+  studentName,
+  amountGhs,
+  method,
+  excludeUserId,
+}) {
+  const via = method ? ` via ${method}` : '';
+  return notifyUsersByRole(['ADMIN', 'TEACHER'], {
+    title: 'Book payment',
+    message: `${studentName || 'A student'} paid GH₵${formatGhs(amountGhs)} for books${via}.`,
+    type: 'BOOK_PAYMENT',
+    excludeUserId,
+  });
+}
+
 module.exports = {
   createNotification,
   notifyUsersByRole,
   notifyAnnouncement,
   notifyLeaveRequestSubmitted,
   notifyLeaveRequestProcessed,
+  notifyFeePaymentReceived,
+  notifyBookPaymentReceived,
 };
