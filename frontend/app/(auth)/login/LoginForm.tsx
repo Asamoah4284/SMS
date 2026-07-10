@@ -62,7 +62,7 @@ export default function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       {error && (
         <Alert
           type="error"
@@ -79,40 +79,33 @@ export default function LoginForm() {
         icon={<User className="w-4 h-4" />}
         value={identifier}
         onChange={(e) => setIdentifier(e.target.value)}
+        autoComplete="username"
       />
 
-      <PasswordInput
-        label="Password"
-        placeholder="••••••••"
-        icon={<Lock className="w-4 h-4" />}
-        value={password}
-        onChange={(value) => setPassword(value)}
-        error={invalidCreds ? 'Incorrect password' : undefined}
-        helperText={invalidCreds ? 'Tip: check Caps Lock or use “Show password”.' : undefined}
-      />
+      <div>
+        <div className="mb-1.5 flex items-center justify-between gap-3">
+          <label className="text-sm font-semibold text-gray-700">Password</label>
+          <Link
+            href="/forgot-password"
+            className="text-xs font-medium text-primary-600 transition-colors hover:text-primary-700 hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
+        <PasswordInput
+          placeholder="Enter your password"
+          icon={<Lock className="w-4 h-4" />}
+          value={password}
+          onChange={(value) => setPassword(value)}
+          error={invalidCreds ? 'Incorrect password' : undefined}
+          helperText={invalidCreds ? 'Tip: check Caps Lock or use “Show password”.' : undefined}
+          autoComplete="current-password"
+        />
+      </div>
 
-      <Button
-        type="submit"
-        loading={loading}
-        className="w-full mt-1"
-      >
+      <Button type="submit" loading={loading} size="lg" className="w-full">
         Sign In
       </Button>
-
-      <div className="flex flex-col gap-2.5 pt-2 text-center text-sm">
-        <Link
-          href="/forgot-password"
-          className="text-primary-600 hover:underline font-medium"
-        >
-          Forgot password?
-        </Link>
-        <p className="text-gray-500">
-          New teacher?{' '}
-          <Link href="/invite" className="text-primary-600 hover:underline font-medium">
-            Use invitation code
-          </Link>
-        </p>
-      </div>
     </form>
   );
 }
