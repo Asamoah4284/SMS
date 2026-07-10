@@ -21,6 +21,7 @@ const {
 } = require('../services/moolreEmbedPayment');
 const { isMoolrePaymentsConfigured } = require('../services/moolreAuth');
 const { checkMoolrePaymentStatus } = require('../services/moolrePaymentStatus');
+const { fetchReportCardData } = require('../services/reportCardData');
 
 const router = Router();
 
@@ -180,6 +181,37 @@ router.get('/child/:studentId', authenticateParent, async (req, res) => {
   } catch (error) {
     console.error('GET /portal/child error:', error);
     res.status(500).json({ error: 'Failed to fetch child data' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// GET /portal/child/:studentId/reportcard/:termId
+// Parent report card (published results only)
+// ─────────────────────────────────────────────────────────────────
+
+router.get('/child/:studentId/reportcard/:termId', authenticateParent, async (req, res) => {
+  try {
+    const { studentId: schoolStudentId, termId } = req.params;
+    const phoneVariants = parentPhoneVariants(req.parentPhone);
+
+    const student = await prisma.student.findUnique({
+      where: { studentId: schoolStudentId },
+      include: { parent: { include: { user: { select: { phone: true } } } } },
+    });
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    const hasAccess = parentHasAccessToStudent(student, phoneVariants);
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+    const result = await fetchReportCardData(student.id, termId, { requirePublished: true });
+    if (!result.ok) {
+      return res.status(result.status).json({ error: result.message });
+    }
+
+    res.json(result.data);
+  } catch (error) {
+    console.error('GET /portal/child/:studentId/reportcard/:termId', error);
+    res.status(500).json({ error: 'Failed to fetch report card' });
   }
 });
 
@@ -672,6 +704,37 @@ router.get('/announcements', authenticateParent, async (req, res) => {
   } catch (error) {
     console.error('GET /portal/announcements error:', error);
     res.status(500).json({ error: 'Failed to fetch announcements' });
+  }
+});
+
+// GET /portal/events — upcoming school events for parent app
+router.get('/events', authenticateParent, async (req, res) => {
+  try {
+    const now = new Date();
+    const events = await prisma.schoolEvent.findMany({
+      where: { eventDate: { gte: now } },
+      orderBy: { eventDate: 'asc' },
+      take: 20,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        location: true,
+        eventDate: true,
+      },
+    });
+    res.json(
+      events.map((e) => ({
+        id: e.id,
+        title: e.title,
+        description: e.description,
+        location: e.location,
+        eventDate: e.eventDate.toISOString(),
+      }))
+    );
+  } catch (error) {
+    console.error('GET /portal/events error:', error);
+    res.status(500).json({ error: 'Failed to fetch events' });
   }
 });
 

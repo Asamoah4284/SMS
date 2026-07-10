@@ -61,4 +61,34 @@ async function sendAnnouncementPush({ title, content, targetAudience }) {
   return { sent, total: valid.length, errors: errors.length };
 }
 
-module.exports = { sendAnnouncementPush };
+/**
+ * Push notification for a new school calendar event (all registered parent devices).
+ */
+async function sendSchoolEventPush({ title, body, eventId, eventDate }) {
+  const tokens = await prisma.pushToken.findMany({ select: { token: true } });
+  const valid = tokens.map((t) => t.token).filter((t) => Expo.isExpoPushToken(t));
+  if (valid.length === 0) return { sent: 0, skipped: 'no-tokens' };
+
+  const messages = valid.map((pushToken) => ({
+    to: pushToken,
+    sound: 'default',
+    title: title || 'Upcoming school event',
+    body: body?.length > 180 ? `${body.slice(0, 177)}...` : body,
+    data: { type: 'school_event', eventId, eventDate },
+    channelId: 'announcements',
+  }));
+
+  const chunks = expo.chunkPushNotifications(messages);
+  let sent = 0;
+  for (const chunk of chunks) {
+    try {
+      const receipts = await expo.sendPushNotificationsAsync(chunk);
+      sent += receipts.filter((r) => r.status === 'ok').length;
+    } catch (err) {
+      console.error('Expo school event push error:', err);
+    }
+  }
+  return { sent, total: valid.length };
+}
+
+module.exports = { sendAnnouncementPush, sendSchoolEventPush };

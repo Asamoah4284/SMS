@@ -60,6 +60,7 @@ model User {
   studentProfile     StudentProfile?
   permissionRequests PermissionRequest[]
   announcements      Announcement[]
+  schoolEvents       SchoolEvent[]
   notifications      Notification[]
   digitalMaterials   DigitalMaterial[]
   payoutRequests     PayoutRequest[]
@@ -484,6 +485,8 @@ model TermRemarks {
   id                String    @id @default(cuid())
   teacherRemarks    String?
   headmasterRemarks String?
+  conduct           String?
+  interest          String?
   nextTermBegins    DateTime?
 
   studentId String                                                                                                              
@@ -511,6 +514,7 @@ model FeeStructure {
   name       String      // "Basic 1-3 Fees" / "Robotics" / "Uniform"
   amount     Float       // GHS
   category   FeeCategory @default(TUITION)
+  isRequired Boolean     @default(true)
   notes      String?     // e.g. "KG1–JHS" — display only
   classLevel ClassLevel?
 
@@ -604,6 +608,21 @@ model Announcement {
   createdAt      DateTime       @default(now())
 
   @@map("announcements")
+}
+
+model SchoolEvent {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  eventDate   DateTime
+  location    String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventDate])
+  @@map("school_events")
 }
 
 /// Expo push tokens for parent app (FCM on Android, APNs on iOS via Expo/EAS)

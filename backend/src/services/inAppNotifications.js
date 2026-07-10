@@ -207,6 +207,18 @@ async function notifyStudentDeleted({ studentName, studentId, className }) {
   });
 }
 
+/**
+ * Notify all teachers and admins when admin schedules a school event.
+ */
+async function notifySchoolEvent({ title, message, excludeUserId }) {
+  return notifyUsersByRole(['ADMIN', 'TEACHER'], {
+    title: title || 'Upcoming school event',
+    message,
+    type: 'SCHOOL_EVENT',
+    excludeUserId,
+  });
+}
+
 module.exports = {
   createNotification,
   notifyUsersByRole,
@@ -220,4 +232,5 @@ module.exports = {
   notifyResultsPublished,
   notifyPayoutRequestedInApp,
   notifyStudentDeleted,
+  notifySchoolEvent,
 };

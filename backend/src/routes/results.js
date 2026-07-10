@@ -3,6 +3,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 const { ensureOnlineExamsSyncedForClass } = require('../services/onlineExamAssessmentSync');
 const { notifyResultsPublished } = require('../services/inAppNotifications');
+const { fetchReportCardData } = require('../services/reportCardData');
 
 const router = Router();
 router.use(authenticate);
@@ -641,6 +642,8 @@ router.get('/:classId/:termId', async (req, res) => {
       const rem = remarksMap[data.student.id];
       data.teacherRemarks = rem?.teacherRemarks ?? null;
       data.headmasterRemarks = rem?.headmasterRemarks ?? null;
+      data.conduct = rem?.conduct ?? null;
+      data.interest = rem?.interest ?? null;
       data.nextTermBegins = rem?.nextTermBegins ?? null;
     });
 
@@ -692,7 +695,7 @@ router.put('/remarks/:studentId/:termId', async (req, res) => {
     if (req.user.role === 'PARENT') return res.status(403).json({ message: 'Access denied' });
 
     const { studentId, termId } = req.params;
-    const { teacherRemarks, headmasterRemarks, nextTermBegins, classId } = req.body;
+    const { teacherRemarks, headmasterRemarks, conduct, interest, nextTermBegins, classId } = req.body;
 
     // Get classId from student if not provided
     let resolvedClassId = classId;
@@ -704,10 +707,14 @@ router.put('/remarks/:studentId/:termId', async (req, res) => {
     const data = {};
     if (req.user.role === 'TEACHER') {
       if (teacherRemarks !== undefined) data.teacherRemarks = teacherRemarks;
+      if (conduct !== undefined) data.conduct = conduct;
+      if (interest !== undefined) data.interest = interest;
     } else {
       // Admin can update both
       if (teacherRemarks !== undefined) data.teacherRemarks = teacherRemarks;
       if (headmasterRemarks !== undefined) data.headmasterRemarks = headmasterRemarks;
+      if (conduct !== undefined) data.conduct = conduct;
+      if (interest !== undefined) data.interest = interest;
       if (nextTermBegins !== undefined) data.nextTermBegins = nextTermBegins ? new Date(nextTermBegins) : null;
     }
 
@@ -785,103 +792,16 @@ router.get('/reportcard/:studentId/:termId', async (req, res) => {
   try {
     const { studentId, termId } = req.params;
 
-    // Parent: only their own child
     if (req.user.role === 'PARENT') {
       const parent = await prisma.parent.findFirst({
         where: { userId: req.user.id, children: { some: { id: studentId } } },
       });
       if (!parent) return res.status(403).json({ message: 'Access denied' });
-
-      // Check published
-      const student = await prisma.student.findUnique({ where: { id: studentId }, select: { classId: true } });
-      const termResult = await prisma.termResult.findUnique({
-        where: { classId_termId: { classId: student.classId, termId } },
-      });
-      if (!termResult?.isPublished) return res.status(403).json({ message: 'Results not yet published' });
     }
 
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      include: {
-        class: {
-          include: { classTeacher: { include: { user: { select: { firstName: true, lastName: true } } } } },
-        },
-        parent: { include: { user: { select: { firstName: true, lastName: true, phone: true } } } },
-      },
-    });
-    if (!student) return res.status(404).json({ message: 'Student not found' });
-
-    const term = await prisma.term.findUnique({ where: { id: termId } });
-    if (!term) return res.status(404).json({ message: 'Term not found' });
-
-    const results = await prisma.result.findMany({
-      where: { studentId, termId },
-      include: { subject: { select: { id: true, name: true, code: true } } },
-      orderBy: { subject: { name: 'asc' } },
-    });
-
-    const remarks = await prisma.termRemarks.findUnique({
-      where: { studentId_termId: { studentId, termId } },
-    });
-
-    // Attendance summary for the term
-    const attendance = await prisma.attendance.groupBy({
-      by: ['status'],
-      where: { studentId, termId },
-      _count: { status: true },
-    });
-    const attSummary = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 };
-    attendance.forEach((a) => { attSummary[a.status] = a._count.status; });
-
-    // Total students in class (for reference)
-    const classSize = await prisma.student.count({ where: { classId: student.classId, isActive: true } });
-
-    // Compute average + JHS aggregate
-    const scores = results.map((r) => r.totalScore).filter((s) => s !== null);
-    const average = scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100) / 100 : null;
-    const isJHS = student.class?.level?.startsWith('JHS');
-    let aggregate = null;
-    if (isJHS) {
-      const positions = results.map((r) => r.position).filter((p) => p !== null).sort((a, b) => a - b);
-      aggregate = positions.slice(0, 6).reduce((s, p) => s + p, 0);
-    }
-
-    const isPromoted = results.some((r) => r.isPromoted);
-
-    res.json({
-      student: {
-        id: student.id,
-        studentId: student.studentId,
-        name: `${student.firstName} ${student.lastName}`,
-        gender: student.gender,
-        className: student.class?.name,
-        classTeacher: student.class?.classTeacher
-          ? `${student.class.classTeacher.user.firstName} ${student.class.classTeacher.user.lastName}`
-          : null,
-        parentName: student.parent
-          ? `${student.parent.user.firstName} ${student.parent.user.lastName}`
-          : student.parentName,
-        classSize,
-      },
-      term: { id: term.id, name: term.name, year: term.year },
-      results: results.map((r) => ({
-        subjectId: r.subjectId,
-        subjectName: r.subject.name,
-        subjectCode: r.subject.code,
-        totalScore: r.totalScore,
-        grade: r.grade,
-        position: r.position,
-        remarks: r.remarks,
-      })),
-      average,
-      aggregate,
-      isPromoted,
-      attendance: attSummary,
-      totalDays: Object.values(attSummary).reduce((a, b) => a + b, 0),
-      teacherRemarks: remarks?.teacherRemarks ?? null,
-      headmasterRemarks: remarks?.headmasterRemarks ?? null,
-      nextTermBegins: remarks?.nextTermBegins ?? null,
-    });
+    const result = await fetchReportCardData(studentId, termId, { requirePublished: req.user.role === 'PARENT' });
+    if (!result.ok) return res.status(result.status).json({ message: result.message });
+    res.json(result.data);
   } catch (err) {
     console.error('GET /results/reportcard/:studentId/:termId', err);
     res.status(500).json({ message: 'Failed to fetch report card' });
@@ -915,86 +835,14 @@ router.get('/reportcard/class/:classId/term/:termId', async (req, res) => {
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
 
-    const studentIds = students.map((s) => s.id);
-
-    const [allResults, allRemarks, allAttendance] = await Promise.all([
-      prisma.result.findMany({
-        where: { studentId: { in: studentIds }, termId },
-        include: { subject: { select: { id: true, name: true, code: true } } },
-      }),
-      prisma.termRemarks.findMany({
-        where: { studentId: { in: studentIds }, termId },
-      }),
-      prisma.attendance.groupBy({
-        by: ['studentId', 'status'],
-        where: { studentId: { in: studentIds }, termId },
-        _count: { status: true },
-      }),
-    ]);
-
-    // Index by studentId
-    const resultsByStudent = {};
-    allResults.forEach((r) => {
-      if (!resultsByStudent[r.studentId]) resultsByStudent[r.studentId] = [];
-      resultsByStudent[r.studentId].push(r);
-    });
-
-    const remarksByStudent = {};
-    allRemarks.forEach((r) => { remarksByStudent[r.studentId] = r; });
-
-    const attByStudent = {};
-    allAttendance.forEach((a) => {
-      if (!attByStudent[a.studentId]) attByStudent[a.studentId] = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 };
-      attByStudent[a.studentId][a.status] = a._count.status;
-    });
-
-    const classSize = students.length;
-    const isJHS = cls.level?.startsWith('JHS');
-
-    const cards = students.map((st) => {
-      const results = resultsByStudent[st.id] ?? [];
-      const remarks = remarksByStudent[st.id];
-      const att = attByStudent[st.id] ?? { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 };
-
-      const scores = results.map((r) => r.totalScore).filter((s) => s !== null);
-      const average = scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100) / 100 : null;
-
-      let aggregate = null;
-      if (isJHS) {
-        const positions = results.map((r) => r.position).filter((p) => p !== null).sort((a, b) => a - b);
-        aggregate = positions.slice(0, 6).reduce((s, p) => s + p, 0);
-      }
-
-      return {
-        student: {
-          id: st.id,
-          studentId: st.studentId,
-          name: `${st.firstName} ${st.lastName}`,
-          gender: st.gender,
-          parentName: st.parent
-            ? `${st.parent.user.firstName} ${st.parent.user.lastName}`
-            : st.parentName,
-          classSize,
-        },
-        results: results.map((r) => ({
-          subjectId: r.subjectId,
-          subjectName: r.subject.name,
-          subjectCode: r.subject.code,
-          totalScore: r.totalScore,
-          grade: r.grade,
-          position: r.position,
-          remarks: r.remarks,
-        })),
-        average,
-        aggregate,
-        isPromoted: results.some((r) => r.isPromoted),
-        attendance: att,
-        totalDays: Object.values(att).reduce((a, b) => a + b, 0),
-        teacherRemarks: remarks?.teacherRemarks ?? null,
-        headmasterRemarks: remarks?.headmasterRemarks ?? null,
-        nextTermBegins: remarks?.nextTermBegins ?? null,
-      };
-    });
+    const cards = (
+      await Promise.all(
+        students.map(async (st) => {
+          const result = await fetchReportCardData(st.id, termId);
+          return result.ok ? result.data : null;
+        })
+      )
+    ).filter(Boolean);
 
     res.json({
       class: {
@@ -1005,7 +853,15 @@ router.get('/reportcard/class/:classId/term/:termId', async (req, res) => {
           ? `${cls.classTeacher.user.firstName} ${cls.classTeacher.user.lastName}`
           : null,
       },
-      term: term ? { id: term.id, name: term.name, year: term.year } : null,
+      term: term
+        ? {
+            id: term.id,
+            name: term.name,
+            year: term.year,
+            academicYear: `${term.year}/${term.year + 1}`,
+            vacationDate: term.endDate,
+          }
+        : null,
       isPublished: termResult?.isPublished ?? false,
       cards,
     });

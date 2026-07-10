@@ -35,26 +35,91 @@ router.get('/structures', async (req, res) => {
   }
 });
 
+// ─── GET /fees/meta ───────────────────────────────────────────────────────────
+// Distinct class levels that exist in the school (for fee item forms)
+router.get('/meta', authorize('ADMIN'), async (req, res) => {
+  try {
+    const classes = await prisma.class.findMany({
+      select: { id: true, name: true, level: true, section: true },
+      orderBy: [{ level: 'asc' }, { name: 'asc' }],
+    });
+    const byLevel = new Map();
+    for (const c of classes) {
+      if (!byLevel.has(c.level)) {
+        byLevel.set(c.level, { level: c.level, classes: [] });
+      }
+      const label = c.section?.trim() ? `${c.name} (${c.section})` : c.name;
+      byLevel.get(c.level).classes.push({ id: c.id, name: label });
+    }
+    res.json({ levels: [...byLevel.values()] });
+  } catch (err) {
+    console.error('GET /fees/meta', err);
+    res.status(500).json({ message: 'Failed to fetch fee metadata' });
+  }
+});
+
 // ─── POST /fees/structures ────────────────────────────────────────────────────
 const FEE_CATEGORIES = ['TUITION', 'UNIFORM', 'OTHER'];
 
+function parseIsRequired(value, category) {
+  if (value === undefined || value === null) return category === 'TUITION';
+  return Boolean(value);
+}
+
 router.post('/structures', authorize('ADMIN'), async (req, res) => {
   try {
-    const { name, amount, classLevel, termId, category, notes } = req.body;
-    if (!name || !amount) return res.status(400).json({ message: 'name and amount are required' });
+    const {
+      name,
+      amount,
+      classLevel,
+      classLevels,
+      termId,
+      category,
+      notes,
+      isRequired,
+    } = req.body;
+    if (!name || amount === undefined || amount === null || amount === '') {
+      return res.status(400).json({ message: 'name and amount are required' });
+    }
     const cat = FEE_CATEGORIES.includes(category) ? category : 'TUITION';
+    const required = parseIsRequired(isRequired, cat);
 
-    const structure = await prisma.feeStructure.create({
-      data: {
-        name,
-        amount: parseFloat(amount),
-        category: cat,
-        notes: typeof notes === 'string' && notes.trim() ? notes.trim() : null,
-        classLevel: classLevel || null,
-        termId: termId || null,
-      },
+    let levels = [];
+    if (Array.isArray(classLevels)) {
+      levels = [...new Set(classLevels.filter(Boolean))];
+    } else if (classLevel) {
+      levels = [classLevel];
+    }
+
+    const base = {
+      name,
+      amount: parseFloat(amount),
+      category: cat,
+      isRequired: required,
+      notes: typeof notes === 'string' && notes.trim() ? notes.trim() : null,
+      termId: termId || null,
+    };
+
+    if (levels.length === 0) {
+      const structure = await prisma.feeStructure.create({
+        data: { ...base, classLevel: null },
+      });
+      return res.status(201).json({ message: 'Fee structure created', structure, structures: [structure] });
+    }
+
+    const structures = await prisma.$transaction(
+      levels.map((level) =>
+        prisma.feeStructure.create({
+          data: { ...base, classLevel: level },
+        })
+      )
+    );
+
+    res.status(201).json({
+      message: `Created ${structures.length} fee item${structures.length === 1 ? '' : 's'}`,
+      structures,
+      structure: structures[0],
     });
-    res.status(201).json({ message: 'Fee structure created', structure });
   } catch (err) {
     console.error('POST /fees/structures', err);
     res.status(500).json({ message: 'Failed to create fee structure' });
@@ -64,7 +129,7 @@ router.post('/structures', authorize('ADMIN'), async (req, res) => {
 // ─── PUT /fees/structures/:id ─────────────────────────────────────────────────
 router.put('/structures/:id', authorize('ADMIN'), async (req, res) => {
   try {
-    const { name, amount, classLevel, termId, category, notes } = req.body;
+    const { name, amount, classLevel, termId, category, notes, isRequired } = req.body;
     const data = {
       ...(name !== undefined && { name }),
       ...(amount !== undefined && { amount: parseFloat(amount) }),
@@ -72,6 +137,7 @@ router.put('/structures/:id', authorize('ADMIN'), async (req, res) => {
       ...(termId !== undefined && { termId: termId || null }),
       ...(category !== undefined && FEE_CATEGORIES.includes(category) && { category }),
       ...(notes !== undefined && { notes: typeof notes === 'string' && notes.trim() ? notes.trim() : null }),
+      ...(isRequired !== undefined && { isRequired: Boolean(isRequired) }),
     };
     const structure = await prisma.feeStructure.update({
       where: { id: req.params.id },
@@ -131,6 +197,7 @@ router.get('/overview', authorize('ADMIN'), async (req, res) => {
     const supplementarySumForLevel = (level) =>
       supplementaryRows
         .filter((f) => f.classLevel === null || f.classLevel === level)
+        .filter((f) => f.isRequired !== false)
         .reduce((sum, f) => sum + f.amount, 0);
 
     // Get all payments for this term, grouped by student class
@@ -254,7 +321,9 @@ router.get('/class/:classId', authorize('ADMIN'), async (req, res) => {
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     });
 
-    const supplementaryTotal = supplementaryFees.reduce((sum, f) => sum + f.amount, 0);
+    const supplementaryTotal = supplementaryFees
+      .filter((f) => f.isRequired !== false)
+      .reduce((sum, f) => sum + f.amount, 0);
 
     // All active students in class
     const students = await prisma.student.findMany({
@@ -329,6 +398,7 @@ router.get('/class/:classId', authorize('ADMIN'), async (req, res) => {
         amount: f.amount,
         category: f.category,
         notes: f.notes,
+        isRequired: f.isRequired !== false,
       })),
       totalExpectedPerStudent,
       students: result,

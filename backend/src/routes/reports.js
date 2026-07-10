@@ -56,7 +56,7 @@ async function computeTermFeeCollection(termId) {
 }
 
 async function fetchUpcomingEvents(now, currentTermId) {
-  const [assessments, exams, terms] = await Promise.all([
+  const [assessments, exams, terms, schoolEvents] = await Promise.all([
     prisma.assessment.findMany({
       where: {
         date: { not: null, gte: now },
@@ -87,6 +87,11 @@ async function fetchUpcomingEvents(now, currentTermId) {
       orderBy: { endDate: 'asc' },
       take: 3,
     }),
+    prisma.schoolEvent.findMany({
+      where: { eventDate: { gte: now } },
+      orderBy: { eventDate: 'asc' },
+      take: 10,
+    }),
   ]);
 
   const events = [
@@ -111,11 +116,172 @@ async function fetchUpcomingEvents(now, currentTermId) {
       type: 'term',
       subtitle: 'Academic term',
     })),
+    ...schoolEvents.map((e) => ({
+      id: e.id,
+      title: e.title,
+      date: e.eventDate.toISOString(),
+      type: 'event',
+      subtitle: [e.location, e.description?.slice(0, 60)].filter(Boolean).join(' · ') || 'School event',
+      description: e.description,
+      location: e.location,
+      isCustom: true,
+    })),
   ];
 
   return events
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .slice(0, 5);
+    .slice(0, 8);
+}
+
+async function fetchQuickNotesForUser(userId, role, ctx) {
+  const { now, currentTermId, pendingFeesCount, attendanceTotalMarked, activeStudents } = ctx;
+  const notes = [];
+  const push = (note) => {
+    if (notes.length < 6) notes.push(note);
+  };
+
+  if (role === 'ADMIN') {
+    const [pendingLeaves, unpublishedClasses, latestAnnouncement, nextEvent] = await Promise.all([
+      prisma.permissionRequest.count({ where: { status: 'PENDING' } }),
+      currentTermId
+        ? prisma.termResult.count({ where: { termId: currentTermId, isPublished: false } })
+        : Promise.resolve(0),
+      prisma.announcement.findFirst({
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, title: true, createdAt: true },
+      }),
+      prisma.schoolEvent.findFirst({
+        where: { eventDate: { gte: now } },
+        orderBy: { eventDate: 'asc' },
+        select: { title: true, eventDate: true },
+      }),
+    ]);
+
+    if (pendingLeaves > 0) {
+      push({
+        id: 'pending-leaves',
+        text: `${pendingLeaves} teacher leave request${pendingLeaves === 1 ? '' : 's'} awaiting approval`,
+        href: '/leaves',
+        tone: 'warning',
+      });
+    }
+    if (unpublishedClasses > 0) {
+      push({
+        id: 'unpublished-results',
+        text: `${unpublishedClasses} class${unpublishedClasses === 1 ? '' : 'es'} with unpublished results`,
+        href: '/results',
+        tone: 'warning',
+      });
+    }
+    if (pendingFeesCount > 0) {
+      push({
+        id: 'pending-fees',
+        text: `${pendingFeesCount} student fee record${pendingFeesCount === 1 ? '' : 's'} still pending`,
+        href: '/fees',
+        tone: 'info',
+      });
+    }
+    const isWeekday = now.getDay() >= 1 && now.getDay() <= 5;
+    if (isWeekday && activeStudents > 0 && attendanceTotalMarked === 0) {
+      push({
+        id: 'attendance-missing',
+        text: 'No attendance marked for today yet',
+        href: '/attendance',
+        tone: 'warning',
+      });
+    }
+    if (latestAnnouncement) {
+      push({
+        id: `announcement-${latestAnnouncement.id}`,
+        text: `Latest announcement: “${latestAnnouncement.title}”`,
+        href: '/announcements',
+        tone: 'info',
+      });
+    }
+    if (nextEvent) {
+      const when = new Date(nextEvent.eventDate).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+      });
+      push({
+        id: 'next-event',
+        text: `Next event: ${nextEvent.title} (${when})`,
+        href: '/overview',
+        tone: 'success',
+      });
+    }
+  } else if (role === 'TEACHER') {
+    const teacher = await prisma.teacher.findUnique({
+      where: { userId },
+      select: {
+        classTeacherOf: { select: { id: true, name: true } },
+      },
+    });
+    const classId = teacher?.classTeacherOf?.id;
+    if (classId && currentTermId) {
+      const [termResult, todayAttendance] = await Promise.all([
+        prisma.termResult.findUnique({
+          where: { classId_termId: { classId, termId: currentTermId } },
+          select: { isPublished: true },
+        }),
+        prisma.attendance.count({
+          where: { classId, termId: currentTermId, date: ctx.today },
+        }),
+      ]);
+      if (termResult && !termResult.isPublished) {
+        push({
+          id: 'class-results-draft',
+          text: `${teacher.classTeacherOf.name} results are not published yet`,
+          href: `/results/${classId}`,
+          tone: 'warning',
+        });
+      }
+      const classStudents = await prisma.student.count({ where: { classId, isActive: true } });
+      const isWeekday = now.getDay() >= 1 && now.getDay() <= 5;
+      if (isWeekday && classStudents > 0 && todayAttendance === 0) {
+        push({
+          id: 'class-attendance',
+          text: `Mark attendance for ${teacher.classTeacherOf.name} today`,
+          href: '/attendance',
+          tone: 'warning',
+        });
+      }
+    }
+    const myPendingLeave = await prisma.permissionRequest.count({
+      where: { userId, status: 'PENDING' },
+    });
+    if (myPendingLeave > 0) {
+      push({
+        id: 'my-leave',
+        text: 'Your leave request is pending admin approval',
+        href: '/leaves',
+        tone: 'info',
+      });
+    }
+    const latestAnnouncement = await prisma.announcement.findFirst({
+      where: { targetAudience: { in: ['ALL', 'TEACHERS'] } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, title: true },
+    });
+    if (latestAnnouncement) {
+      push({
+        id: `announcement-${latestAnnouncement.id}`,
+        text: `School notice: “${latestAnnouncement.title}”`,
+        href: '/announcements',
+        tone: 'info',
+      });
+    }
+  }
+
+  if (notes.length === 0) {
+    push({
+      id: 'all-clear',
+      text: 'You are all caught up — no urgent items right now.',
+      tone: 'success',
+    });
+  }
+
+  return notes;
 }
 
 function dateKey(d) {
@@ -307,6 +473,15 @@ router.get('/overview', async (req, res) => {
     const totalMarked = presentCount + absentCount + excusedCount;
     const attendanceRate = totalMarked > 0 ? Math.round((presentCount / totalMarked) * 100) : 0;
 
+    const quickNotes = await fetchQuickNotesForUser(req.user.id, req.user.role, {
+      now,
+      today,
+      currentTermId: currentTerm?.id ?? null,
+      pendingFeesCount,
+      attendanceTotalMarked: totalMarked,
+      activeStudents,
+    });
+
     res.json({
       students: {
         total: totalStudents,
@@ -339,6 +514,7 @@ router.get('/overview', async (req, res) => {
         inactive: inactiveTeachers,
       },
       upcomingEvents,
+      quickNotes,
     });
   } catch (error) {
     console.error('Reports overview error:', error);
@@ -414,6 +590,15 @@ router.get('/my-class', async (req, res) => {
         }).then((r) => r.length)
       : 0;
 
+    const quickNotes = await fetchQuickNotesForUser(req.user.id, 'TEACHER', {
+      now: new Date(),
+      today,
+      currentTermId: currentTerm?.id ?? null,
+      pendingFeesCount: 0,
+      attendanceTotalMarked: totalMarked,
+      activeStudents: students.length,
+    });
+
     res.json({
       classTeacherOf: {
         id: classId,
@@ -435,6 +620,7 @@ router.get('/my-class', async (req, res) => {
           isPublished: termResult?.isPublished ?? false,
         },
       },
+      quickNotes,
     });
   } catch (err) {
     console.error('GET /reports/my-class', err);

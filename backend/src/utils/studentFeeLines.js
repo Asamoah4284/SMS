@@ -44,21 +44,24 @@ async function getStudentFeeLinesForTerm(prisma, studentInternalId, termId) {
     const lineDue = s.amount;
     const paid = paidByStructure[s.id] || 0;
     const remaining = Math.max(0, lineDue - paid);
+    const required = s.isRequired !== false;
     return {
       feeStructureId: s.id,
       name: s.name,
       category: s.category,
+      isRequired: required,
       lineDue,
       paid,
       remaining,
     };
   });
 
-  const totalDue = lines.reduce((a, l) => a + l.lineDue, 0);
+  const totalDue = lines.filter((l) => l.isRequired).reduce((a, l) => a + l.lineDue, 0);
+  const totalDueAll = lines.reduce((a, l) => a + l.lineDue, 0);
   const totalPaid = lines.reduce((a, l) => a + l.paid, 0);
-  const balance = lines.reduce((a, l) => a + l.remaining, 0);
+  const balance = lines.filter((l) => l.isRequired).reduce((a, l) => a + l.remaining, 0);
 
-  return { lines, totalDue, totalPaid, balance };
+  return { lines, totalDue, totalDueAll, totalPaid, balance };
 }
 
 module.exports = { getStudentFeeLinesForTerm };
