@@ -693,7 +693,7 @@ function ResultsTab({ resultData, isPublished, userRole, canEditRemarks, onPromo
                     </Button>
                   )}
                   <Link
-                    href={`/results/${st.student.id}/reportcard?termId=${selectedTermId}`}
+                    href={`/results/reportcard/${st.student.id}?termId=${selectedTermId}`}
                     target="_blank"
                     className="text-sm text-primary-600 hover:underline ml-auto"
                   >
