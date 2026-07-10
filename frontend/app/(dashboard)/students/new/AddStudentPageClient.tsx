@@ -172,9 +172,9 @@ export default function AddStudentPageClient() {
       if (!res.ok) throw new Error(data?.message || "Failed to add student");
 
       const portal = data.portal;
-      if (portal?.studentId && portal?.defaultPin) {
+      if (portal?.studentId) {
         window.alert(
-          `Student added successfully.\n\nStudent portal login:\nStudent ID: ${portal.studentId}\nPIN: ${portal.defaultPin}\n\nShare these with the student. They can sign in at /student/login`
+          `Student added successfully.\n\nStudent portal login:\nStudent ID: ${portal.studentId}\n\nShare this with the student. They can sign in at /student/login`
         );
       }
 
