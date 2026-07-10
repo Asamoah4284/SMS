@@ -312,7 +312,7 @@ export default function UpcomingEventsPanel({
         )}
       </div>
 
-      <Modal open={modalOpen} onClose={closeModal} title={editing ? 'Edit event' : 'Add school event'}>
+      <Modal isOpen={modalOpen} onClose={closeModal} title={editing ? 'Edit event' : 'Add school event'}>
         <div className="space-y-4">
           {error ? <Alert type="error" message={error} dismissible={false} /> : null}
           {!editing ? (
