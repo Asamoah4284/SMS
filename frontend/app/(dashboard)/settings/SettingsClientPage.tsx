@@ -147,6 +147,7 @@ function SettingsClientPageInner() {
 
         {/* School Config Tab (admin only) */}
         {activeTab === 'school' && isAdmin && (
+          <>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-fade-in">
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <div>
@@ -225,7 +226,7 @@ function SettingsClientPageInner() {
                 onSaved={() => { setTermModal(null); fetchTerms(); }}
               />
             )}
-            </div>
+          </>
         )}
       </div>
     </div>
