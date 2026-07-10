@@ -106,7 +106,8 @@ type Tab = 'overview' | 'attendance' | 'results' | 'fees';
 
 export default function StudentDetail({ studentId }: { studentId: string }) {
   const router = useRouter();
-  const { isAdmin } = useUser();
+  const { isAdmin, isTeacher } = useUser();
+  const canEditStudent = isAdmin || isTeacher;
   const [student, setStudent] = useState<StudentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -207,19 +208,21 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
         <Link href="/students" className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium">
           ← Back to Students
         </Link>
-        {isAdmin && (
+        {canEditStudent && (
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="primary" size="sm" onClick={() => setEditModal(true)}>
               <Pencil className="w-4 h-4" /> Edit student
             </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="!text-danger-700 !border-danger-200 hover:!bg-danger-50"
-              onClick={() => { setDeleteError(''); setDeleteOpen(true); }}
-            >
-              <Trash2 className="w-4 h-4" /> Delete
-            </Button>
+            {isAdmin && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="!text-danger-700 !border-danger-200 hover:!bg-danger-50"
+                onClick={() => { setDeleteError(''); setDeleteOpen(true); }}
+              >
+                <Trash2 className="w-4 h-4" /> Delete
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -263,7 +266,7 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
                     </span>
                   </div>
                 </div>
-                {isAdmin && (
+                {canEditStudent && (
                   <Button variant="primary" size="sm" onClick={() => setEditModal(true)} className="shrink-0">
                     <Pencil className="w-4 h-4" /> Edit
                   </Button>
@@ -404,6 +407,7 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
           age={age}
           onRefresh={fetchStudent}
           onEdit={() => setEditModal(true)}
+          canEdit={canEditStudent}
           isAdmin={isAdmin}
         />
       )}
@@ -421,11 +425,12 @@ export default function StudentDetail({ studentId }: { studentId: string }) {
         />
       )}
 
-      {isAdmin && (
+      {canEditStudent && (
         <Modal isOpen={editModal} onClose={() => setEditModal(false)} title="Edit student" size="lg">
           <StudentEditForm
             student={student}
             parentLinked={parentLinked}
+            isAdmin={isAdmin}
             onSaved={() => { setEditModal(false); fetchStudent(); }}
             onCancel={() => setEditModal(false)}
           />
@@ -507,11 +512,13 @@ async function uploadStudentDocuments(
 function StudentEditForm({
   student,
   parentLinked,
+  isAdmin,
   onSaved,
   onCancel,
 }: {
   student: StudentData;
   parentLinked: boolean;
+  isAdmin: boolean;
   onSaved: () => void;
   onCancel: () => void;
 }) {
@@ -578,8 +585,7 @@ function StudentEditForm({
           gender,
           dateOfBirth: dateOfBirth || null,
           address,
-          classId: classId || null,
-          isActive,
+          ...(isAdmin ? { classId: classId || null, isActive } : {}),
           ...(!parentLinked ? { parentName, parentPhone } : {}),
           parent2Name: parent2Name || null,
           parent2Phone: parent2Phone || null,
@@ -640,17 +646,28 @@ function StudentEditForm({
         </div>
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
-          <select
-            value={classId}
-            onChange={(e) => setClassId(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">— No class —</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <p className="text-xs text-gray-500 mt-1">Changing class updates register numbers (student ID) for that class.</p>
+          {isAdmin ? (
+            <>
+              <select
+                value={classId}
+                onChange={(e) => setClassId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="">— No class —</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Changing class updates register numbers (student ID) for that class.</p>
+            </>
+          ) : (
+            <input
+              type="text"
+              value={student.class?.name ?? '—'}
+              disabled
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-500"
+            />
+          )}
         </div>
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
@@ -760,15 +777,17 @@ function StudentEditForm({
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-gray-700">
-        <input
-          type="checkbox"
-          checked={isActive}
-          onChange={(e) => setIsActive(e.target.checked)}
-          className="rounded border-gray-300"
-        />
-        Student is active
-      </label>
+      {isAdmin && (
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+            className="rounded border-gray-300"
+          />
+          Student is active
+        </label>
+      )}
 
       <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>Cancel</Button>
@@ -817,7 +836,7 @@ function SectionEditButton({ onClick, label = 'Edit' }: { onClick: () => void; l
 }
 
 function OverviewTab({
-  student, parentName, parentPhone, parent2Name, parent2Phone, parentLinked, age, onRefresh, onEdit, isAdmin,
+  student, parentName, parentPhone, parent2Name, parent2Phone, parentLinked, age, onRefresh, onEdit, canEdit, isAdmin,
 }: {
   student: StudentData;
   parentName: string | null | undefined;
@@ -828,6 +847,7 @@ function OverviewTab({
   age: number | null;
   onRefresh: () => void;
   onEdit: () => void;
+  canEdit: boolean;
   isAdmin: boolean;
 }) {
   return (
@@ -838,7 +858,7 @@ function OverviewTab({
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             <GraduationCap className="w-4 h-4 text-gray-400" /> Personal Details
           </h3>
-          {isAdmin && <SectionEditButton onClick={onEdit} />}
+          {canEdit && <SectionEditButton onClick={onEdit} />}
         </div>
         <dl className="space-y-3">
           {student.dateOfBirth && (
@@ -883,7 +903,7 @@ function OverviewTab({
                 <CheckCircle2 className="w-3 h-3" /> Parent portal
               </span>
             )}
-            {isAdmin && <SectionEditButton onClick={onEdit} label={parentName || parent2Name ? 'Edit' : 'Add'} />}
+            {canEdit && <SectionEditButton onClick={onEdit} label={parentName || parent2Name ? 'Edit' : 'Add'} />}
           </div>
         </div>
         {parentName || parentPhone || parent2Name || parent2Phone ? (
@@ -975,7 +995,7 @@ function OverviewTab({
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-gray-400" /> Child photo & documents
           </h3>
-          {isAdmin && <SectionEditButton onClick={onEdit} label="Edit photos" />}
+          {canEdit && <SectionEditButton onClick={onEdit} label="Edit photos" />}
         </div>
         <div className="flex flex-col sm:flex-row gap-8">
           <div>

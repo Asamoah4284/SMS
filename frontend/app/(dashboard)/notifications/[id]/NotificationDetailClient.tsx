@@ -34,6 +34,9 @@ function relatedHref(type: string): string | null {
   if (type === 'LEAVE_REQUEST' || type === 'LEAVE_UPDATE') return '/leaves';
   if (type === 'FEE_PAYMENT') return '/fees';
   if (type === 'BOOK_PAYMENT') return '/library';
+  if (type === 'RESULTS_PUBLISHED') return '/results';
+  if (type === 'STUDENT_ENROLLED' || type === 'STUDENT_DELETED') return '/students';
+  if (type === 'PAYOUT_REQUEST') return '/payments';
   return null;
 }
 
@@ -42,6 +45,9 @@ function relatedLabel(type: string): string {
   if (type === 'LEAVE_REQUEST' || type === 'LEAVE_UPDATE') return 'Open leave requests';
   if (type === 'FEE_PAYMENT') return 'Open fees';
   if (type === 'BOOK_PAYMENT') return 'Open library';
+  if (type === 'RESULTS_PUBLISHED') return 'Open results';
+  if (type === 'STUDENT_ENROLLED' || type === 'STUDENT_DELETED') return 'Open students';
+  if (type === 'PAYOUT_REQUEST') return 'Open payments';
   return 'Open related page';
 }
 
@@ -56,6 +62,14 @@ function typeMeta(type: string) {
       return { label: 'School fees', icon: GraduationCap, variant: 'success' as const };
     case 'BOOK_PAYMENT':
       return { label: 'Book payment', icon: BookOpen, variant: 'success' as const };
+    case 'RESULTS_PUBLISHED':
+      return { label: 'Results', icon: GraduationCap, variant: 'info' as const };
+    case 'STUDENT_ENROLLED':
+      return { label: 'New student', icon: GraduationCap, variant: 'info' as const };
+    case 'STUDENT_DELETED':
+      return { label: 'Student removed', icon: GraduationCap, variant: 'warning' as const };
+    case 'PAYOUT_REQUEST':
+      return { label: 'Payout', icon: Bell, variant: 'warning' as const };
     default:
       return { label: 'Notification', icon: Bell, variant: 'default' as const };
   }

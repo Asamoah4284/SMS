@@ -4,6 +4,7 @@ const prisma = require('../config/db');
 const { getWalletBalance, debitSchoolWallet } = require('../services/schoolWallet');
 const { FEE_COMMISSION_RATE, BOOK_COMMISSION_RATE } = require('../utils/commission');
 const { sendSMS, templates } = require('../services/sms');
+const { notifyPayoutRequestedInApp } = require('../services/inAppNotifications');
 
 const router = Router();
 
@@ -189,6 +190,13 @@ router.post('/payout', async (req, res, next) => {
     });
 
     void notifyPayoutRequested(payout, requester, amount, note);
+    notifyPayoutRequestedInApp({
+      requesterName: requester
+        ? `${requester.firstName || ''} ${requester.lastName || ''}`.trim() || 'Admin'
+        : 'Admin',
+      amountGhs: amount,
+      payoutId: payout.id,
+    }).catch((err) => console.error('Payout in-app notification failed:', err.message));
 
     const availableBalanceGhs = await getWalletBalance();
 

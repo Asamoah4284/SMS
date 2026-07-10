@@ -16,9 +16,49 @@ const {
   resolveSecondaryGuardian,
 } = require('../utils/studentGuardian');
 const { syncStudentGuardians } = require('../services/parentAccount');
+const {
+  notifyStudentEnrolled,
+  notifyStudentDeleted,
+} = require('../services/inAppNotifications');
 
 const router = Router();
 router.use(authenticate);
+
+async function getTeacherAccess(userId) {
+  return prisma.teacher.findUnique({
+    where: { userId },
+    include: {
+      classTeacherOf: { select: { id: true, name: true } },
+      subjectTeachers: { select: { classId: true } },
+    },
+  });
+}
+
+/** Teachers may edit students in classes they teach (class or subject teacher). */
+async function assertCanEditStudent(req, student) {
+  if (req.user.role === 'ADMIN') return { ok: true };
+  if (req.user.role !== 'TEACHER') {
+    return { ok: false, status: 403, message: 'Forbidden' };
+  }
+
+  const teacher = await getTeacherAccess(req.user.id);
+  if (!teacher) {
+    return { ok: false, status: 404, message: 'Teacher profile not found' };
+  }
+
+  const allowedClassIds = new Set(teacher.subjectTeachers.map((st) => st.classId));
+  if (teacher.classTeacherOf) allowedClassIds.add(teacher.classTeacherOf.id);
+
+  if (!student.classId || !allowedClassIds.has(student.classId)) {
+    return {
+      ok: false,
+      status: 403,
+      message: 'You can only edit students in your assigned classes',
+    };
+  }
+
+  return { ok: true, teacher };
+}
 
 const uploadDir = path.join(__dirname, '../../uploads');
 const studentDocUpload = multer({
@@ -248,6 +288,13 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
         loginPath: '/student/login',
       },
     });
+
+    notifyStudentEnrolled({
+      studentName: `${refreshed.firstName} ${refreshed.lastName}`.trim(),
+      className: refreshed.class?.name,
+      classId: refreshed.classId,
+      excludeUserId: req.user.id,
+    }).catch((err) => console.error('Student enrolled notification failed:', err.message));
   } catch (err) {
     console.error('POST /students', err);
     res.status(500).json({ message: 'Failed to create student' });
@@ -342,7 +389,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // ─── POST /students/:id/upload — child photo & insurance card (multipart) ───
-router.post('/:id/upload', authorize('ADMIN'), (req, res) => {
+router.post('/:id/upload', authorize('ADMIN', 'TEACHER'), (req, res) => {
   studentDocUpload.fields([
     { name: 'photo', maxCount: 1 },
     { name: 'healthInsuranceCard', maxCount: 1 },
@@ -353,6 +400,9 @@ router.post('/:id/upload', authorize('ADMIN'), (req, res) => {
     try {
       const existing = await prisma.student.findUnique({ where: { id: req.params.id } });
       if (!existing) return res.status(404).json({ message: 'Student not found' });
+
+      const gate = await assertCanEditStudent(req, existing);
+      if (!gate.ok) return res.status(gate.status).json({ message: gate.message });
 
       const files = req.files || {};
       const data = {};
@@ -383,7 +433,7 @@ router.post('/:id/upload', authorize('ADMIN'), (req, res) => {
 });
 
 // ─── PUT /students/:id ───────────────────────────────────────────────────────
-router.put('/:id', authorize('ADMIN'), async (req, res) => {
+router.put('/:id', authorize('ADMIN', 'TEACHER'), async (req, res) => {
   try {
     const {
       firstName,
@@ -404,6 +454,16 @@ router.put('/:id', authorize('ADMIN'), async (req, res) => {
 
     const existing = await prisma.student.findUnique({ where: { id: req.params.id } });
     if (!existing) return res.status(404).json({ message: 'Student not found' });
+
+    const gate = await assertCanEditStudent(req, existing);
+    if (!gate.ok) return res.status(gate.status).json({ message: gate.message });
+
+    const isTeacher = req.user.role === 'TEACHER';
+    if (isTeacher && (classId !== undefined || isActive !== undefined)) {
+      return res.status(403).json({
+        message: 'Only administrators can change class assignment or active status',
+      });
+    }
 
     const fullFirst =
       firstName !== undefined
@@ -471,6 +531,10 @@ router.delete('/:id', authorize('ADMIN'), async (req, res) => {
     });
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
+    const classMeta = student.classId
+      ? await prisma.class.findUnique({ where: { id: student.classId }, select: { name: true } })
+      : null;
+
     await prisma.$transaction(async (tx) => {
       await tx.attendance.deleteMany({ where: { studentId: id } });
       await tx.result.deleteMany({ where: { studentId: id } });
@@ -493,6 +557,12 @@ router.delete('/:id', authorize('ADMIN'), async (req, res) => {
         name: `${student.firstName} ${student.lastName}`,
       },
     });
+
+    notifyStudentDeleted({
+      studentName: `${student.firstName} ${student.lastName}`.trim(),
+      studentId: student.studentId,
+      className: classMeta?.name,
+    }).catch((err) => console.error('Student deleted notification failed:', err.message));
   } catch (err) {
     console.error('DELETE /students/:id', err);
     res.status(500).json({ message: 'Failed to delete student' });

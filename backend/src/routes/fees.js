@@ -448,7 +448,7 @@ router.post('/payments', authorize('ADMIN'), async (req, res) => {
 
     const student = await prisma.student.findUnique({
       where: { id: studentId },
-      select: { firstName: true, lastName: true },
+      select: { firstName: true, lastName: true, classId: true },
     });
     const studentName = student
       ? `${student.firstName} ${student.lastName}`.trim()
@@ -457,6 +457,7 @@ router.post('/payments', authorize('ADMIN'), async (req, res) => {
       studentName,
       amountGhs: raw,
       method: paymentMethod || 'manual',
+      classId: student?.classId,
       excludeUserId: req.user?.id,
     }).catch((err) => console.error('Fee payment notification failed:', err.message));
 

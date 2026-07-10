@@ -16,6 +16,7 @@ function DashboardHeader({ onMenuClick }: { onMenuClick: () => void }) {
   const initials = `${first.charAt(0)}${last.charAt(0)}`.trim().toUpperCase() || 'AD';
   const displayName = user ? `${first} ${last}`.trim() || 'Account' : 'Loading…';
   const roleLabel = user?.role === 'ADMIN' ? 'Administrator' : user?.role === 'TEACHER' ? 'Teacher' : 'User';
+  const staffId = user?.teacherProfile?.staffId;
 
   return (
     <header className="bg-white border-b border-gray-200 h-16 md:h-20 flex items-center justify-between px-4 md:px-8 shrink-0 z-10 w-full relative">
@@ -28,6 +29,12 @@ function DashboardHeader({ onMenuClick }: { onMenuClick: () => void }) {
         >
           <Menu className="w-5 h-5" />
         </button>
+        {user?.role === 'TEACHER' && staffId && (
+          <div className="hidden sm:flex items-center gap-2 rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5">
+            <span className="text-xs font-medium text-gray-500">Staff ID</span>
+            <span className="text-xs font-mono font-semibold text-gray-800">{staffId}</span>
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-6">
         <NotificationBell />

@@ -16,7 +16,7 @@ async function finalizeBookPaystackIntentByReference(reference, amountPesewas, o
   const intent = await prisma.bookPaystackIntent.findUnique({
     where: { reference },
     include: {
-      student: { select: { firstName: true, lastName: true, studentId: true } },
+      student: { select: { firstName: true, lastName: true, studentId: true, classId: true } },
     },
   });
 
@@ -116,6 +116,7 @@ async function finalizeBookPaystackIntentByReference(reference, amountPesewas, o
       studentName,
       amountGhs: schoolAmountGhs,
       method: methodLabel,
+      classId: intent.student?.classId,
     }).catch((err) => console.error('Book payment notification failed:', err.message));
   }
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Alert, Button, Modal, PageHeader, AdminOnly } from '@/components/ui';
+import { Alert, Button, Modal, PageHeader } from '@/components/ui';
 import { useUser } from '@/lib/UserContext';
 import { getApiBase, parseApiError } from '@/lib/apiBase';
 import { Calendar, Plus, Edit2, Trash2, Loader2, Save, User, Sliders, Settings, Lock, Moon, Bell } from 'lucide-react';
@@ -27,9 +27,12 @@ const PREF_KEYS = {
 
 function SettingsClientPageInner() {
   const searchParams = useSearchParams();
+  const { isAdmin } = useUser();
   const tabParam = searchParams.get('tab');
   const initialTab =
-    tabParam === 'preferences' || tabParam === 'school' ? tabParam : 'account';
+    tabParam === 'preferences' || (tabParam === 'school' && isAdmin)
+      ? tabParam
+      : 'account';
 
   const [activeTab, setActiveTab] = useState<'account' | 'preferences' | 'school'>(initialTab);
   const [terms, setTerms] = useState<Term[]>([]);
@@ -54,10 +57,20 @@ function SettingsClientPageInner() {
   }, []);
 
   useEffect(() => {
-    if (tabParam === 'account' || tabParam === 'preferences' || tabParam === 'school') {
+    if (tabParam === 'account' || tabParam === 'preferences') {
       setActiveTab(tabParam);
+    } else if (tabParam === 'school' && isAdmin) {
+      setActiveTab('school');
+    } else if (tabParam === 'school' && !isAdmin) {
+      setActiveTab('account');
     }
-  }, [tabParam]);
+  }, [tabParam, isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin && activeTab === 'school') {
+      setActiveTab('account');
+    }
+  }, [isAdmin, activeTab]);
 
   useEffect(() => {
     if (activeTab === 'school') {
@@ -88,53 +101,41 @@ function SettingsClientPageInner() {
   };
 
   const tabs = [
-    { id: 'account', label: 'Account Settings', icon: User },
-    { id: 'preferences', label: 'App Preferences', icon: Sliders },
-    { id: 'school', label: 'School Config', icon: Settings, adminOnly: true },
-  ] as const;
+    { id: 'account' as const, label: 'Account Settings', icon: User },
+    { id: 'preferences' as const, label: 'App Preferences', icon: Sliders },
+    ...(isAdmin
+      ? [{ id: 'school' as const, label: 'School Config', icon: Settings, adminOnly: true as const }]
+      : []),
+  ];
 
   return (
     <div className="p-4 sm:p-6 md:p-8 animate-fade-in space-y-6">
       <PageHeader
         title="Settings"
-        subtitle="Manage your account, preferences, and school configuration"
+        subtitle={
+          isAdmin
+            ? 'Manage your account, preferences, and school configuration'
+            : 'Manage your account and app preferences'
+        }
       />
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-gray-100 pb-px">
-        {tabs.map(tab => {
-          if ('adminOnly' in tab && tab.adminOnly) {
-            return (
-              <AdminOnly key={tab.id}>
-                <button
-                  onClick={() => setActiveTab(tab.id as 'account' | 'preferences' | 'school')}
-                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-xl transition-colors ${
-                    activeTab === tab.id
-                      ? 'bg-primary-50 text-primary-700 border-b-2 border-primary-600'
-                      : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  <tab.icon size={16} />
-                  {tab.label}
-                </button>
-              </AdminOnly>
-            );
-          }
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as 'account' | 'preferences' | 'school')}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-xl transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-primary-50 text-primary-700 border-b-2 border-primary-600'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              <tab.icon size={16} />
-              {tab.label}
-            </button>
-          );
-        })}
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-xl transition-colors ${
+              activeTab === tab.id
+                ? 'bg-primary-50 text-primary-700 border-b-2 border-primary-600'
+                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+            }`}
+          >
+            <tab.icon size={16} />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <div className="mt-6">
@@ -144,9 +145,8 @@ function SettingsClientPageInner() {
         {/* App Preferences Tab */}
         {activeTab === 'preferences' && <PreferencesTab />}
 
-        {/* School Config Tab */}
-        {activeTab === 'school' && (
-          <AdminOnly>
+        {/* School Config Tab (admin only) */}
+        {activeTab === 'school' && isAdmin && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-fade-in">
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <div>
@@ -225,7 +225,7 @@ function SettingsClientPageInner() {
                 onSaved={() => { setTermModal(null); fetchTerms(); }}
               />
             )}
-          </AdminOnly>
+            </div>
         )}
       </div>
     </div>
@@ -241,7 +241,8 @@ export default function SettingsClientPage() {
 }
 
 function AccountSettingsTab() {
-  const { user, refresh } = useUser();
+  const { user, refresh, isTeacher } = useUser();
+  const staffId = user?.teacherProfile?.staffId;
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -342,6 +343,18 @@ function AccountSettingsTab() {
         <form onSubmit={handleProfileSubmit} className="space-y-3 pt-2">
           {profileError && <Alert type="error" message={profileError} onDismiss={() => setProfileError('')} />}
           {profileMessage && <Alert type="success" message={profileMessage} onDismiss={() => setProfileMessage('')} />}
+          {isTeacher && staffId && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Staff ID</label>
+              <input
+                type="text"
+                value={staffId}
+                disabled
+                className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm bg-gray-50 text-gray-700 font-mono"
+              />
+              <p className="text-xs text-gray-500 mt-1">Use this with your password to sign in.</p>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>

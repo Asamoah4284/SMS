@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { authenticate, authorize } = require('../middleware/auth');
 const prisma = require('../config/db');
 const { ensureOnlineExamsSyncedForClass } = require('../services/onlineExamAssessmentSync');
+const { notifyResultsPublished } = require('../services/inAppNotifications');
 
 const router = Router();
 router.use(authenticate);
@@ -739,6 +740,19 @@ router.post('/publish/:classId/:termId', authorize('ADMIN'), async (req, res) =>
       where: { classId_termId: { classId, termId } },
       data: { isPublished: true, publishedAt: new Date(), publishedBy: req.user.id },
     });
+
+    const [cls, term] = await Promise.all([
+      prisma.class.findUnique({ where: { id: classId }, select: { name: true } }),
+      prisma.term.findUnique({ where: { id: termId }, select: { name: true, year: true } }),
+    ]);
+    const termLabel = term ? `${term.name} ${term.year}` : 'the term';
+
+    notifyResultsPublished({
+      className: cls?.name,
+      termName: termLabel,
+      classId,
+      excludeUserId: req.user.id,
+    }).catch((err) => console.error('Results published notification failed:', err.message));
 
     res.json({ message: 'Results published', termResult: updated });
   } catch (err) {

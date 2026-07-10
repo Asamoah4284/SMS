@@ -15,7 +15,7 @@ async function finalizePaystackIntentByReference(reference, amountPesewas, opts 
   const intent = await prisma.paystackIntent.findUnique({
     where: { reference },
     include: {
-      student: { select: { firstName: true, lastName: true, studentId: true } },
+      student: { select: { firstName: true, lastName: true, studentId: true, classId: true } },
     },
   });
 
@@ -76,6 +76,7 @@ async function finalizePaystackIntentByReference(reference, amountPesewas, opts 
       studentName,
       amountGhs,
       method: methodLabel,
+      classId: intent.student?.classId,
     }).catch((err) => console.error('Fee payment notification failed:', err.message));
   }
 

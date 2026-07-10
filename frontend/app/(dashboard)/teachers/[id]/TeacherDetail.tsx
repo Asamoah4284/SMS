@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Alert } from '@/components/ui';
+import { useUser } from '@/lib/UserContext';
 import {
   GraduationCap, Hash, Phone, Mail, BookOpen, Users,
   CalendarCheck, Clock, CheckCircle2, XCircle, AlertTriangle,
@@ -86,6 +87,8 @@ const DAY_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function TeacherDetail({ teacherId }: { teacherId: string }) {
+  const { user, isAdmin } = useUser();
+  const isOwnProfile = user?.teacherProfile?.id === teacherId;
   const [teacher, setTeacher] = useState<TeacherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -131,8 +134,11 @@ export default function TeacherDetail({ teacherId }: { teacherId: string }) {
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
       {/* Back */}
-      <Link href="/teachers" className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium">
-        ← Back to Teachers
+      <Link
+        href={isOwnProfile && !isAdmin ? '/settings?tab=account' : '/teachers'}
+        className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium"
+      >
+        ← {isOwnProfile && !isAdmin ? 'Back to profile settings' : 'Back to Teachers'}
       </Link>
 
       {/* Profile header */}

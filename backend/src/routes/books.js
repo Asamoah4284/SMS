@@ -399,7 +399,7 @@ router.post('/payments/manual', authorize('ADMIN'), async (req, res, next) => {
 
     const student = await prisma.student.findUnique({
       where: { id: studentId },
-      select: { firstName: true, lastName: true },
+      select: { firstName: true, lastName: true, classId: true },
     });
     const studentName = student
       ? `${student.firstName} ${student.lastName}`.trim()
@@ -408,6 +408,7 @@ router.post('/payments/manual', authorize('ADMIN'), async (req, res, next) => {
       studentName,
       amountGhs: amount,
       method: paymentMethod || 'cash',
+      classId: student?.classId,
       excludeUserId: req.user?.id,
     }).catch((err) => console.error('Book payment notification failed:', err.message));
 

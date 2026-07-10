@@ -32,6 +32,41 @@ async function notifyUsersByRole(roles, { title, message, type, excludeUserId })
 }
 
 /**
+ * Notify users assigned to a class (class teacher + subject teachers) and all admins.
+ */
+async function notifyClassStaff(classId, { title, message, type, excludeUserId }) {
+  const userIds = new Set();
+
+  const admins = await prisma.user.findMany({
+    where: { role: 'ADMIN', isActive: true },
+    select: { id: true },
+  });
+  admins.forEach((a) => userIds.add(a.id));
+
+  if (classId) {
+    const cls = await prisma.class.findUnique({
+      where: { id: classId },
+      select: {
+        classTeacher: { select: { userId: true } },
+        subjectTeachers: { select: { teacher: { select: { userId: true } } } },
+      },
+    });
+    if (cls?.classTeacher?.userId) userIds.add(cls.classTeacher.userId);
+    cls?.subjectTeachers?.forEach((st) => {
+      if (st.teacher?.userId) userIds.add(st.teacher.userId);
+    });
+  }
+
+  if (excludeUserId) userIds.delete(excludeUserId);
+  if (userIds.size === 0) return 0;
+
+  await prisma.notification.createMany({
+    data: [...userIds].map((userId) => ({ userId, title, message, type })),
+  });
+  return userIds.size;
+}
+
+/**
  * Notify staff when a school announcement is published.
  */
 async function notifyAnnouncement({ title, content, targetAudience, authorId }) {
@@ -93,10 +128,11 @@ async function notifyFeePaymentReceived({
   studentName,
   amountGhs,
   method,
+  classId,
   excludeUserId,
 }) {
   const via = method ? ` via ${method}` : '';
-  return notifyUsersByRole(['ADMIN', 'TEACHER'], {
+  return notifyClassStaff(classId, {
     title: 'School fees payment',
     message: `${studentName || 'A student'} paid GH₵${formatGhs(amountGhs)}${via}.`,
     type: 'FEE_PAYMENT',
@@ -111,10 +147,11 @@ async function notifyBookPaymentReceived({
   studentName,
   amountGhs,
   method,
+  classId,
   excludeUserId,
 }) {
   const via = method ? ` via ${method}` : '';
-  return notifyUsersByRole(['ADMIN', 'TEACHER'], {
+  return notifyClassStaff(classId, {
     title: 'Book payment',
     message: `${studentName || 'A student'} paid GH₵${formatGhs(amountGhs)} for books${via}.`,
     type: 'BOOK_PAYMENT',
@@ -122,12 +159,65 @@ async function notifyBookPaymentReceived({
   });
 }
 
+/**
+ * Notify admins when a new student is enrolled.
+ */
+async function notifyStudentEnrolled({ studentName, className, classId, excludeUserId }) {
+  const where = className ? ` in ${className}` : '';
+  return notifyClassStaff(classId, {
+    title: 'New student enrolled',
+    message: `${studentName || 'A student'} was added${where}.`,
+    type: 'STUDENT_ENROLLED',
+    excludeUserId,
+  });
+}
+
+/**
+ * Notify class staff when term results are published for parents.
+ */
+async function notifyResultsPublished({ className, termName, classId, excludeUserId }) {
+  return notifyClassStaff(classId, {
+    title: 'Results published',
+    message: `${className || 'Class'} results for ${termName || 'the term'} are now visible to parents.`,
+    type: 'RESULTS_PUBLISHED',
+    excludeUserId,
+  });
+}
+
+/**
+ * Notify admins when a payout is requested from the school wallet.
+ */
+async function notifyPayoutRequestedInApp({ requesterName, amountGhs, payoutId }) {
+  return notifyUsersByRole(['ADMIN'], {
+    title: 'Payout request',
+    message: `${requesterName || 'An admin'} requested GH₵${formatGhs(amountGhs)} (ref ${payoutId}).`,
+    type: 'PAYOUT_REQUEST',
+  });
+}
+
+/**
+ * Notify admins when a student record is permanently deleted.
+ */
+async function notifyStudentDeleted({ studentName, studentId, className }) {
+  const cls = className ? ` from ${className}` : '';
+  return notifyUsersByRole(['ADMIN'], {
+    title: 'Student removed',
+    message: `${studentName || 'A student'} (${studentId || '—'}) was deleted${cls}.`,
+    type: 'STUDENT_DELETED',
+  });
+}
+
 module.exports = {
   createNotification,
   notifyUsersByRole,
+  notifyClassStaff,
   notifyAnnouncement,
   notifyLeaveRequestSubmitted,
   notifyLeaveRequestProcessed,
   notifyFeePaymentReceived,
   notifyBookPaymentReceived,
+  notifyStudentEnrolled,
+  notifyResultsPublished,
+  notifyPayoutRequestedInApp,
+  notifyStudentDeleted,
 };
