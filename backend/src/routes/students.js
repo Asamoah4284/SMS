@@ -205,7 +205,7 @@ router.post('/', authorize('ADMIN', 'TEACHER'), async (req, res) => {
     }
 
     if (!classId) {
-      return res.status(400).json({ message: 'Class is required (used to generate student ID, e.g. DASE-Y1-001).' });
+      return res.status(400).json({ message: 'Class is required (used to generate student ID, e.g. ELM-Y1-001).' });
     }
 
     // Validate classId if provided

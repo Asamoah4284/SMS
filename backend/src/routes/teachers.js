@@ -145,7 +145,7 @@ router.post('/bulk-import', authorize('ADMIN'), async (req, res) => {
           data: { staffId, phone, inviteCode, codeExpiry, createdBy: adminId },
         });
 
-        const smsText = `[${process.env.SCHOOL_ABBREVIATION || 'DASE'}] Welcome ${row.firstName.trim()}! Staff ID: ${staffId} | Code: ${inviteCode} | ${process.env.FRONTEND_URL}/invite`;
+        const smsText = `[${process.env.SCHOOL_ABBREVIATION || 'ELMAX'}] Welcome ${row.firstName.trim()}! Staff ID: ${staffId} | Code: ${inviteCode} | ${process.env.FRONTEND_URL}/invite`;
         await sendSMS(formatPhoneE164(phone), smsText).catch(() => null);
 
         results.imported++;

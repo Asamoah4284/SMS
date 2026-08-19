@@ -1,4 +1,4 @@
-const DEFAULT_PREFIX = 'DASE';
+const DEFAULT_PREFIX = 'ELM';
 
 /** Class segment in student IDs, e.g. N1, Y3, KG2 */
 const LEVEL_CODES = {

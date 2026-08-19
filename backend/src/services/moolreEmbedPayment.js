@@ -8,7 +8,7 @@ const MOOLRE_EMBED_URL = 'https://api.moolre.com/embed/link';
 function billingEmailFromPhone(phone) {
   const digits = String(phone || '').replace(/\D/g, '');
   if (digits.length < 7) return null;
-  return `${digits}@phone.deacons.edu.gh`;
+  return `${digits}@phone.elmax.edu.gh`;
 }
 
 function billingEmailFromStudent(schoolStudentId, reference, parentEmail, parentPhone) {
@@ -23,7 +23,7 @@ function billingEmailFromStudent(schoolStudentId, reference, parentEmail, parent
     .replace(/[^a-z0-9._-]/g, '')
     .slice(0, 32) || 'ward';
   const ref = String(reference).replace(/[^a-z0-9]/gi, '').slice(0, 12) || 'ref';
-  return `pay.${id}.${ref}@phone.deacons.edu.gh`;
+  return `pay.${id}.${ref}@phone.elmax.edu.gh`;
 }
 
 function generateBookPaymentReference() {

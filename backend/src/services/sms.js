@@ -6,7 +6,7 @@
 const MOOLRE_API_URL = 'https://api.moolre.com/open/sms/send';
 
 function smsBrand() {
-  return process.env.SCHOOL_ABBREVIATION || process.env.MOOLRE_SENDER_ID || 'DASE';
+  return process.env.SCHOOL_ABBREVIATION || process.env.MOOLRE_SENDER_ID || 'ELMAX';
 }
 
 async function parseResponseBody(response) {

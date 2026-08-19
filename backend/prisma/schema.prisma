@@ -239,7 +239,7 @@ enum Gender {
 model Class {
   id          String     @id @default(cuid())
   name        String     // display name e.g. "Class 3"
-  classNumber Int        @unique // used in student IDs e.g. DASE-7-001
+  classNumber Int        @unique // used in student IDs e.g. ELM-7-001
   level       ClassLevel
   section     String?    // "A", "B"
 

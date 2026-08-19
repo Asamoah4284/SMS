@@ -1,7 +1,7 @@
 {
   "name": "sms-backend",
   "version": "1.0.0",
-  "description": "DEACONS SMS — School Management System API",
+  "description": "ELMAX SMS — School Management System API",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -32,6 +32,7 @@
     "db:generate": "prisma generate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.117.1",
     "@prisma/client": "^6.19.2",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
