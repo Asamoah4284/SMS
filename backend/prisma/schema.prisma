@@ -930,3 +930,29 @@ model PayoutRequest {
 
   @@map("payout_requests")
 }
+
+// ─────────────────────────────────────────
+// EDUCATIONAL GAMES (parent portal co-op matches)
+// ─────────────────────────────────────────
+
+model GameMatch {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  gameType        String
+  status          String   @default("WAITING")
+  hostStudentId   String
+  guestStudentId  String?
+  hostName        String
+  guestName       String?
+  seed            Json
+  state           Json
+  turn            String   @default("HOST")
+  winnerStudentId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([hostStudentId])
+  @@index([guestStudentId])
+  @@index([status])
+  @@map("game_matches")
+}

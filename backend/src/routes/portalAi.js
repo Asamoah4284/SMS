@@ -5,8 +5,32 @@ const { authenticateParent, parentPhoneVariants, parentHasAccessToStudent } = re
 
 const router = Router();
 const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const IMAGE_TYPE_ALIASES = {
+  'image/jpg': 'image/jpeg',
+  'image/pjpeg': 'image/jpeg',
+};
 
-const SYSTEM_PROMPT = `You are a friendly, encouraging educational assistant for a school student. Your name is EduBot.
+function normalizeImageMediaType(mediaType) {
+  const raw = String(mediaType || '').toLowerCase().trim();
+  return IMAGE_TYPE_ALIASES[raw] || raw;
+}
+
+function supportWhatsAppDisplay(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('0') && digits.length === 10) {
+    return `+233 ${digits.slice(1, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+  }
+  return phone;
+}
+
+function buildSystemPrompt() {
+  const whatsapp = supportWhatsAppDisplay(process.env.SUPPORT_WHATSAPP);
+  const supportLine = whatsapp
+    ? `8. If they need a human (fees, login, school office, or something you cannot help with), tell them they can WhatsApp support at ${whatsapp}. Do not invent other phone numbers.`
+    : '8. If they need a human (fees, login, school office), tell them to contact the school office. Do not invent phone numbers.';
+
+  return `You are a friendly, encouraging educational assistant for a school student. Your name is EduBot.
 
 IMPORTANT RULES:
 1. You have access to the student's class information, subjects, grades, timetable, and attendance. Use this context to personalize your help.
@@ -27,7 +51,9 @@ IMPORTANT RULES:
    - Explain things in simpler terms
 5. Be warm, patient, and age-appropriate in your responses.
 6. Keep responses concise but helpful. Use simple language.
-7. If asked about something outside academics, you can have a brief friendly chat but gently redirect to educational topics.`;
+7. If asked about something outside academics, you can have a brief friendly chat but gently redirect to educational topics.
+${supportLine}`;
+}
 
 async function getStudentContext(studentId) {
   const student = await prisma.student.findUnique({
@@ -38,8 +64,8 @@ async function getStudentContext(studentId) {
           classTeacher: {
             include: { user: { select: { firstName: true, lastName: true } } },
           },
-          subjects: {
-            include: { subject: true },
+          subjectTeachers: {
+            include: { subject: { select: { name: true } } },
           },
         },
       },
@@ -64,7 +90,11 @@ async function getStudentContext(studentId) {
   const present = student.attendances.filter(a => a.status === 'PRESENT' || a.status === 'LATE').length;
   const attendanceRate = total > 0 ? Math.round((present / total) * 100) : null;
 
-  const subjects = student.class?.subjects?.map(cs => cs.subject.name) || [];
+  const subjects = [...new Set(
+    (student.class?.subjectTeachers || [])
+      .map((st) => st.subject?.name)
+      .filter(Boolean)
+  )];
 
   const recentGrades = student.results.slice(0, 20).map(r => ({
     subject: r.subject.name,
@@ -147,8 +177,13 @@ STUDENT CONTEXT:
       ? images
           .filter((img) => img && typeof img === 'object')
           .slice(0, 3)
-          .filter((img) => SUPPORTED_IMAGE_TYPES.has(img.mediaType) && typeof img.base64 === 'string')
-          .map((img) => ({ mediaType: img.mediaType, base64: img.base64 }))
+          .map((img) => ({
+            mediaType: normalizeImageMediaType(img.mediaType),
+            base64: typeof img.base64 === 'string'
+              ? img.base64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '')
+              : '',
+          }))
+          .filter((img) => SUPPORTED_IMAGE_TYPES.has(img.mediaType) && img.base64.length > 0)
       : [];
 
     const chatMessages = messages.slice(-20).map((m, idx, arr) => {
@@ -177,9 +212,9 @@ STUDENT CONTEXT:
     });
 
     const response = await anthropic.messages.create({
-      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
+      model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5',
       max_tokens: 1024,
-      system: SYSTEM_PROMPT + '\n\n' + contextBlock,
+      system: buildSystemPrompt() + '\n\n' + contextBlock,
       messages: chatMessages,
     });
 
@@ -187,12 +222,15 @@ STUDENT CONTEXT:
 
     res.json({ reply });
   } catch (error) {
-    console.error('POST /portal/ai/chat error:', error);
+    console.error('POST /portal/ai/chat error:', error?.status || '', error?.message || error);
     if (error?.status === 401) {
       return res.status(503).json({ error: 'AI service authentication failed' });
     }
     if (error?.status === 404) {
       return res.status(503).json({ error: 'Configured AI model is unavailable for this API key' });
+    }
+    if (error?.status === 429) {
+      return res.status(429).json({ error: 'The AI assistant is busy. Please try again in a moment.' });
     }
     res.status(500).json({ error: 'Failed to get AI response' });
   }

@@ -20,6 +20,7 @@ router.get('/config', (req, res) => {
       phone: school.phone,
       email: school.email,
       logo: school.logo,
+      supportWhatsapp: school.supportWhatsapp || '',
     },
   });
 });

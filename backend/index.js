@@ -11,6 +11,12 @@ if (isMoolrePaymentsConfigured()) {
   );
 }
 
+if (process.env.ANTHROPIC_API_KEY) {
+  console.log(`AI assistant: enabled (${process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5'})`);
+} else {
+  console.warn('AI assistant: ANTHROPIC_API_KEY missing — Study Assistant will return 503 until set.');
+}
+
 const express = require('express');
 const cors = require('cors');
 

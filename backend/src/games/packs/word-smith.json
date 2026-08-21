@@ -1,0 +1,272 @@
+{
+  "howToAdd": "Copy any round below and change letters + words. letters = the tiles (usually 7). words = every answer that should count. A letter may be used only as often as it appears in letters. Words must be 3 letters or longer. Save the file — the API reloads it by itself.",
+  "rounds": [
+    {
+      "letters": "TEACHER",
+      "words": [
+        "ACE", "ACT", "ARC", "ARE", "ART", "ATE", "CAR", "CAT", "EAR", "EAT", "ERA", "HAT", "HER", "RAT", "TAR", "TEA", "TEE", "THE",
+        "ACHE", "ACRE", "ARCH", "CARE", "CART", "CHAR", "CHAT", "EACH", "ETCH", "HARE", "HATE", "HEAR", "HEAT", "HERE", "RACE", "RATE", "TEAR", "TECH", "TREE",
+        "CATER", "CHART", "CHEAT", "CHEER", "CRATE", "EARTH", "EATER", "HEART", "REACH", "REACT", "TEACH", "THERE", "THREE", "TRACE",
+        "CREATE", "HEATER", "REHEAT",
+        "CHEATER", "TEACHER"
+      ]
+    },
+    {
+      "letters": "FRIENDS",
+      "words": [
+        "DEN", "DIE", "DIN", "END", "FED", "FIN", "FIR", "INS", "RED", "RID", "SIN", "SIR",
+        "DENS", "DIES", "DINE", "DIRE", "ENDS", "FIND", "FINE", "FINS", "FIRE", "RIDE", "RIND", "RISE", "SEND", "SIDE", "SIRE",
+        "DINER", "DRIES", "FINDS", "FINED", "FINER", "FIRES", "FRIED", "FRIES", "RIDES", "RISEN", "SIRED",
+        "DINERS", "FINDER", "FRIEND",
+        "FRIENDS"
+      ]
+    },
+    {
+      "letters": "ANIMALS",
+      "words": [
+        "AIL", "AIM", "LAM", "MAN", "NIL", "SIN",
+        "AILS", "AIMS", "ALAS", "LAIN", "LIMA", "MAIL", "MAIN", "NAIL", "SAIL", "SLAM", "SLIM",
+        "ALIAS", "MAILS", "MAINS", "MANIA", "NAILS", "NASAL", "SLAIN", "SNAIL",
+        "ANIMAL", "SALAMI",
+        "ANIMALS"
+      ]
+    },
+    {
+      "letters": "PARENTS",
+      "words": [
+        "ANT", "APE", "ARE", "ART", "ATE", "EAR", "EAT", "ERA", "NAP", "NET", "PAN", "PAT", "PEA", "PEN", "PET", "RAN", "RAP", "RAT", "SAT", "SEA", "SET", "SPA", "TAN", "TAP", "TAR", "TEA", "TEN",
+        "ANTS", "APES", "EARS", "EAST", "EATS", "NAPS", "NEAR", "NEAT", "NEST", "NETS", "PANE", "PANS", "PANT", "PART", "PAST", "PATS", "PEAR", "PEAS", "PENS", "PEST", "PETS", "RAPS", "RATE", "RATS", "REAP", "RENT", "REST", "SANE", "SEAT", "SENT", "SNAP", "SPAN", "SPAT", "STAR", "STEP", "TAPE", "TAPS", "TEAR", "TEAS", "TENS", "TRAP",
+        "EARNS", "NEARS", "PANES", "PANTS", "PARTS", "PASTE", "PEARS", "RATES", "REAPS", "RENTS", "SNARE", "SPARE", "SPEAR", "SPENT", "STARE", "STERN", "STRAP", "TAPES", "TEARS", "TRAPS",
+        "PARENT", "ENTRAP",
+        "PARENTS"
+      ]
+    },
+    {
+      "letters": "SCHOOLS",
+      "words": [
+        "COO", "COS", "LOO", "SOL",
+        "COOL", "COOS", "LOCH", "LOCO", "LOOS", "LOSS", "SHOO", "SOLO",
+        "COOLS",
+        "SCHOOL",
+        "SCHOOLS"
+      ]
+    },
+    {
+      "letters": "PENCILS",
+      "words": [
+        "ICE", "LIE", "LIP", "NIL", "NIP", "PEN", "PIE", "PIN", "SIN", "SIP",
+        "CLIP", "ICES", "ISLE", "LICE", "LIES", "LINE", "LIPS", "NICE", "NIPS", "PENS", "PIES", "PILE", "PINE", "PINS", "SINE", "SLIP", "SPIN",
+        "CLIPS", "LINES", "PILES", "PINES", "SINCE", "SLICE", "SNIP", "SPICE", "SPINE",
+        "PENCIL", "SPLICE",
+        "PENCILS"
+      ]
+    },
+    {
+      "letters": "RAINBOW",
+      "words": [
+        "AIR", "BAN", "BAR", "BIN", "BOA", "BOW", "BRA", "ION", "NAB", "NOR", "NOW", "OAR", "ORB", "OWN", "RAN", "RAW", "RIB", "ROB", "ROW", "WAR", "WIN", "WON",
+        "BARN", "BOAR", "BORN", "BROW", "IRON", "RAIN", "WARN", "WORN",
+        "BARON", "BRAIN", "BROWN", "ROBIN",
+        "RAINBOW"
+      ]
+    },
+    {
+      "letters": "LIBRARY",
+      "words": [
+        "AIL", "AIR", "BAR", "BAY", "BRA", "LAB", "LAY", "RAY", "RIB",
+        "AIRY", "BAIL", "BRAY", "LAIR", "LIAR", "RAIL",
+        "BRIAR", "LIBRA",
+        "LIBRARY"
+      ]
+    },
+    {
+      "letters": "STUDENT",
+      "words": [
+        "DEN", "DUE", "DUN", "END", "NET", "NUT", "SET", "SUE", "SUN", "TEN", "USE",
+        "DENS", "DENT", "DUES", "DUET", "DUNE", "DUST", "ENDS", "NEST", "NETS", "NUDE", "NUTS", "SEND", "SENT", "STUD", "STUN", "SUED", "TEND", "TENS", "TUNE",
+        "DENTS", "DUETS", "DUNES", "STUNT", "TENDS", "TUNED", "TUNES",
+        "STUDENT", "STUNTED"
+      ]
+    },
+    {
+      "letters": "GARDENS",
+      "words": [
+        "AGE", "AND", "ARE", "DEN", "EAR", "END", "ERA", "GAS", "NAG", "RAG", "RAN", "RED", "SAD", "SAG", "SEA",
+        "AGES", "DARE", "DARN", "DEAN", "DEAR", "DENS", "DRAG", "EARS", "ENDS", "GEAR", "NEAR", "RAGE", "RANG", "READ", "SAGE", "SAND", "SANE", "SANG", "SNAG",
+        "ANGER", "DARES", "DEANS", "DEARS", "GRADE", "GRAND", "GEARS", "NEAR", "RAGES", "RANGE", "READS",
+        "ANGERS", "DANGER", "GARDEN", "GRADES", "GRANDS", "RANGED",
+        "DANGERS", "GARDENS"
+      ]
+    },
+    {
+      "letters": "LETTERS",
+      "words": [
+        "EEL", "ELS", "LEE", "LET", "SEE", "SET", "TEE",
+        "EELS", "ELSE", "LEER", "LEES", "LEST", "LETS", "REEL", "REST", "SEER", "TEES", "TREE",
+        "LEERS", "REELS", "RESET", "STEEL", "STEER", "TERSE", "TREES",
+        "LETTER", "SETTER", "SETTLE", "STREET", "TESTER",
+        "LETTERS", "SETTLER"
+      ]
+    },
+    {
+      "letters": "BROTHER",
+      "words": [
+        "BET", "BRO", "HER", "HOE", "HOT", "ORB", "ORE", "ROB", "ROT", "THE", "TOE",
+        "BORE", "BOTH", "HERB", "HERO", "ROBE", "TORE",
+        "BERTH", "BROTH", "OTHER",
+        "BOTHER",
+        "BROTHER"
+      ]
+    },
+    {
+      "letters": "GARDENS",
+      "words": [
+        "AGE", "AND", "ARE", "DEN", "EAR", "END", "ERA", "GAS", "NAG", "RAG", "RAN", "RED", "SAD", "SAG", "SEA",
+        "AGES", "DARE", "DARN", "DEAN", "DEAR", "DENS", "DRAG", "EARS", "ENDS", "GEAR", "NEAR", "RAGE", "RANG", "READ", "SAGE", "SAND", "SANE", "SANG", "SNAG",
+        "ANGER", "DARES", "DEANS", "DEARS", "GRADE", "GRAND", "RAGES", "RANGE", "READS",
+        "ANGERS", "DANGER", "GARDEN", "GRADES", "GRANDS", "RANGED",
+        "DANGERS", "GARDENS"
+      ]
+    },
+    {
+      "letters": "PLAYERS",
+      "words": [
+        "APE", "ARE", "AYE", "EAR", "EAT", "ERA", "LAP", "LAY", "LEA", "PAL", "PAY", "PEA", "PLY", "PRY", "RAP", "RAY", "REP", "RYE", "SAY", "SEA", "SPA", "SPY", "YAP", "YEA", "YES",
+        "APES", "EARS", "EASY", "ERAS", "LAPS", "LAYS", "LEAP", "LYRE", "PALE", "PALS", "PARE", "PAYS", "PEAL", "PEAR", "PEAS", "PLAY", "PLEA", "PRAY", "PREY", "RAYS", "REAL", "REAP", "RELY", "REPS", "SALE", "SEAL", "SEAR", "SLAY", "SPAR", "SPAY", "SPRY", "YAPS", "YEAR", "YEPS",
+        "APERY", "EARLY", "LAYER", "LEAPS", "LYRES", "PALES", "PARES", "PARSE", "PEALS", "PEARS", "PLAYS", "PLEAS", "PRAYS", "PREYS", "REALS", "REAPS", "RELAX", "RELAY", "REPLY", "SALEP", "SLAYER", "SPARE", "SPEAR",
+        "PLAYER", "REPLAY", "SPARELY",
+        "PLAYERS", "REPLASY"
+      ]
+    },
+    {
+      "letters": "MARKETS",
+      "words": [
+        "ARE", "ARK", "ARM", "ART", "ATE", "EAR", "EAT", "ERA", "MAR", "MAT", "RAM", "RAT", "REM", "SAT", "SEA", "SET", "TAR", "TEA",
+        "ARMS", "ARTS", "EARS", "EAST", "EATS", "MAKE", "MARE", "MARK", "MARS", "MASK", "MAST", "MATE", "MEAT", "RATE", "REAM", "REST", "SAME", "SEAR", "SEAT", "STAR", "STEM", "TAKE", "TAME", "TASK", "TEAM", "TEAR", "TERM", "TRAM",
+        "ARETS", "ARMET", "KARTS", "MAKER", "MAKES", "MARES", "MARKS", "MASTER", "MATER", "MATES", "MEATS", "RAKES", "RATES", "REAMS", "SKATE", "STARE", "STEAK", "STEAR", "TAMER", "TAMES", "TEARS", "TERMS", "TRAMS",
+        "MARKET", "MASTER", "REMAKE", "STREAM",
+        "MARKETS"
+      ]
+    },
+    {
+      "letters": "PLANETS",
+      "words": [
+        "ANT", "APE", "ATE", "EAT", "LET", "NAP", "NET", "PAN", "PAT", "PEA", "PEN", "PET", "SAT", "SEA", "SET", "SPA", "TAN", "TAP", "TEA", "TEN",
+        "ANTS", "APES", "EAST", "EATS", "LAPS", "LATE", "LEAP", "LENS", "LEST", "LETS", "NAPE", "NAPS", "NEST", "NETS", "PALE", "PALS", "PANE", "PANS", "PANT", "PAST", "PATS", "PEAL", "PEAS", "PENS", "PEST", "PETS", "PLAN", "PLAT", "PLEA", "SALE", "SANE", "SEAL", "SEAT", "SENT", "SLAP", "SLAT", "SNAP", "SPAN", "SPAT", "STEP", "TALE", "TAPE", "TAPS", "TEAL", "TEAS", "TENS",
+        "LEAPS", "LEAST", "PALES", "PANES", "PANTS", "PASTE", "PEALS", "PLANS", "PLANT", "PLATE", "PLEAS", "SLATE", "SNAPE", "SPENT", "STALE", "STAPLE", "TALES", "TAPES", "TEALS",
+        "PLANES", "PLANTS", "PLATES", "STAPLE",
+        "PLANETS"
+      ]
+    },
+    {
+      "letters": "FLOWERS",
+      "words": [
+        "FEW", "FOE", "FOR", "LOW", "ORE", "OWE", "OWL", "ROE", "ROW", "SEW", "WOE",
+        "FLOW", "FOES", "FORE", "FOWL", "FROE", "LORE", "LOSE", "LOWE", "LOWS", "ORES", "OWES", "OWLS", "ROES", "ROLE", "ROSE", "ROWS", "SELF", "SLEW", "SLOW", "SORE", "WOLF", "WORE",
+        "FLOWS", "FORES", "FOWLS", "LOWER", "LOWES", "ROLES", "ROWEL", "SWORE", "WOLFS", "WORSE",
+        "FLOWER", "FLOWES", "FOWLER", "LOWERS", "REFOWS", "ROWELS", "WOLFERS",
+        "FLOWERS", "REFOWLS"
+      ]
+    },
+    {
+      "letters": "BASKETS",
+      "words": [
+        "ASK", "ATE", "BAT", "BET", "EAT", "SAT", "SEA", "SET", "SKI", "TAB", "TEA",
+        "AKES", "BASE", "BASK", "BASS", "BAST", "BATE", "BATS", "BEAK", "BEAST", "BEAT", "BEST", "BETS", "EAST", "EATS", "KATS", "SAKE", "SATE", "SEAS", "SEAT", "SETS", "SKAT", "SKET", "STAB", "TAKE", "TASK", "TEAS",
+        "ASKET", "BASSET", "BASTE", "BASKET", "BEAKS", "BEAST", "BEATS", "SEATS", "SKATE", "SKIES", "STABS", "STAKE", "STEAK", "TAKES", "TASKS",
+        "BASKET", "BASKETS", "BASSETT",
+        "BASKETS"
+      ]
+    },
+    {
+      "letters": "TRAINED",
+      "words": [
+        "AID", "AIM", "AIR", "AND", "ANT", "ARE", "ART", "ATE", "DEN", "DIE", "DIN", "EAR", "EAT", "END", "ERA", "IRE", "NAD", "NIT", "RAD", "RAN", "RAT", "RED", "RID", "TAD", "TAN", "TAR", "TEA", "TEN", "TIE", "TIN",
+        "AIRED", "ANTE", "ANTS", "ARID", "DARE", "DARN", "DART", "DATE", "DEAN", "DEAR", "DENT", "DIET", "DINE", "DIRE", "DIRT", "EARN", "EARS", "EDIT", "ENDS", "IDEA", "IRATE", "NADIR", "NEAR", "NEAT", "NERD", "NIDE", "RANT", "RATE", "READ", "REIN", "REND", "RENT", "RIDE", "RIND", "RIOT", "TARN", "TART", "TEAR", "TEND", "TERN", "TIDE", "TIER", "TINE", "TIRE", "TRAD", "TRAIN", "TREAD", "TREND", "TRIAD", "TRIED",
+        "AIDERN", "ANTIER", "DETAIN", "DINNER", "DIRTEN", "EARNED", "ENDART", "INDENT", "NADIRT", "NITRATED", "RANTED", "RETAIN", "RINDED", "TINDER", "TIRADE", "TRAINED",
+        "DETAIN", "RETAIN", "TINDER", "TIRADE",
+        "TRAINED"
+      ]
+    },
+    {
+      "letters": "EXPLORE",
+      "words": [
+        "EEL", "LOP", "ORE", "PER", "POE", "PRO", "REP", "REX", "ROE", "LEX",
+        "EXPO", "LEER", "LOPE", "LORE", "ORLE", "PEEL", "PEER", "PELO", "POLE", "PORE", "PREE", "REEL", "ROLE", "ROPE",
+        "ELOPE", "EXPEL", "LEPER", "LOPER", "PLORE", "POLER", "PROLE", "REPEL",
+        "EXPLOR", "LEPROE", "PLOREE",
+        "EXPLORE"
+      ]
+    },
+    {
+      "letters": "CORNERS",
+      "words": [
+        "CON", "COR", "COS", "EON", "ERR", "NOR", "ONE", "ORE", "REC", "ROE", "RON", "SEN", "SON",
+        "CERO", "CONE", "CONS", "CORE", "CORN", "COSE", "CRES", "ERRS", "ONCE", "ONES", "ORES", "RECS", "ROES", "ROSE", "SORE",
+        "CENSOR", "CORERS", "CORNERS", "CROSNE", "ONCERS", "SCORER",
+        "CORNER", "CORNERS", "RECONS",
+        "CORNERS"
+      ]
+    },
+    {
+      "letters": "HARVEST",
+      "words": [
+        "ARE", "ART", "ATE", "EAR", "EAT", "ERA", "HAS", "HAT", "HER", "HET", "RAT", "REV", "SAT", "SEA", "SET", "SHE", "TAR", "TEA", "THE",
+        "ARES", "ARTS", "EARS", "EAST", "EATS", "HARE", "HART", "HAST", "HATE", "HATS", "HEAR", "HEAT", "HERS", "RATE", "RAVE", "REVS", "SATE", "SEAR", "SEAT", "SHAT", "STAR", "TARS", "TEAS", "VASE", "VEST",
+        "AVERT", "EARTH", "HARES", "HARTE", "HATES", "HEART", "HEATS", "HOVERS", "RAVES", "RATES", "SHAVE", "STARE", "STAVE", "SWEAR", "TARES", "TEARS", "VERSH",
+        "HAVERS", "HOVERS", "SHAVER", "STARVE", "SWEART",
+        "HARVEST"
+      ]
+    },
+    {
+      "letters": "PICTURE",
+      "words": [
+        "CUP", "CUR", "CUT", "ICE", "IRE", "PER", "PET", "PIE", "PIT", "RIP", "RUE", "RUT", "TIC", "TIE", "TIP", "TUP",
+        "CITE", "CURE", "CURT", "CUTE", "EPIC", "ETUI", "PICE", "PIER", "PURE", "RICE", "RIPE", "RITE", "TIER", "TIRE", "TRIP", "TRUE",
+        "CIRET", "CUPIT", "CURET", "CUTER", "ERUCT", "PRICE", "TRICE", "TRIPE",
+        "PICTUR", "PRETUI",
+        "PICTURE"
+      ]
+    },
+    {
+      "letters": "LANTERNS",
+      "words": [
+        "ANT", "ARE", "ART", "ATE", "EAR", "EAT", "ERA", "LET", "NET", "RAN", "RAT", "SEA", "SET", "TAN", "TAR", "TEA", "TEN",
+        "ANTS", "ARES", "ARTS", "EARN", "EARS", "EAST", "EATS", "LENS", "LEST", "LETS", "NEST", "NETS", "RENT", "REST", "SALE", "SANE", "SEAL", "SEAT", "SENT", "SLAT", "SNAP", "STAR", "TALE", "TANS", "TARN", "TEAL", "TEAR", "TEAS", "TENS",
+        "ASTERN", "LANNER", "LATENS", "RENTAL", "SALTER", "SLANTE", "STANNE", "STERNAL", "TANNER",
+        "LANTERN", "TENNALS",
+        "LANTERNS"
+      ]
+    },
+    {
+      "letters": "MOTHERS",
+      "words": [
+        "HER", "HOE", "HOT", "MET", "ORE", "ROT", "SET", "SHE", "THE", "TOE",
+        "HERO", "HERS", "HOES", "HOME", "HOSE", "HOST", "MORE", "MORT", "MOTH", "ORES", "REST", "ROSE", "ROTE", "SHOE", "SHOT", "SOME", "SORE", "STEM", "TERM", "TOES", "TORE",
+        "HOMER", "HOMES", "HORSE", "HOSTE", "MORES", "MOTHS", "ROSET", "SHOER", "SHORE", "SMORE", "STORE", "TERMS", "THOSE",
+        "HEROMS", "HOMERS", "MOTHERS", "SMOTHER",
+        "MOTHERS", "SMOTHER"
+      ]
+    },
+    {
+      "letters": "STAPLER",
+      "words": [
+        "APE", "ARE", "ART", "ATE", "EAR", "EAT", "ERA", "LAP", "LET", "PAL", "PAR", "PAT", "PEA", "PER", "PET", "RAP", "RAT", "SET", "SPA", "TAP", "TAR", "TEA",
+        "APES", "ARTS", "EARS", "EAST", "EATS", "LAPS", "LASE", "LAST", "LATE", "LEAP", "LEST", "LETS", "PALE", "PALS", "PARE", "PART", "PAST", "PATE", "PEAL", "PEAR", "PEAS", "PELT", "PEST", "PETS", "PLAT", "PLEA", "RAPS", "RATE", "REAL", "REAP", "REST", "SALE", "SEAL", "SEAR", "SEAT", "SLAP", "SLAT", "SPAR", "SPAT", "STAR", "STEP", "TALE", "TAPE", "TAPS", "TEAL", "TEAR", "TEAS",
+        "ALERT", "APERS", "APRES", "LEAPS", "PALES", "PARES", "PARSE", "PASTE", "PEALS", "PEARS", "PELTS", "PLATE", "PLEAS", "RATES", "REALS", "REAPS", "SALEP", "SLATE", "SPARE", "SPEAR", "STALE", "STAPLE", "TALES", "TAPES", "TEARS",
+        "PLATER", "PRATES", "STAPLE",
+        "PLATERS", "STAPLER"
+      ]
+    },
+    {
+      "letters": "COUNTER",
+      "words": [
+        "CON", "COT", "CUE", "CUR", "CUT", "EON", "NET", "NOR", "NOT", "ONE", "ORE", "OUR", "OUT", "REC", "ROE", "ROT", "RUE", "RUT", "TEN", "TOE", "TON", "TUN",
+        "CENT", "CERO", "CONE", "CORE", "CORN", "COTE", "COUR", "CURT", "CUTE", "ONCE", "RENT", "ROTE", "ROUE", "RUNE", "TONE", "TORE", "TORN", "TRUE", "TUNE", "TURN",
+        "CONER", "CORNU", "COUNT", "COURT", "CRONE", "CRUET", "OUTER", "RECON", "ROUET", "TRONE", "TUNER",
+        "CONURE", "COUNTER", "RECOUNT", "TROUNCE",
+        "COUNTER", "RECOUNT", "TROUNCE"
+      ]
+    }
+  ]
+}

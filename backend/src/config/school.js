@@ -11,6 +11,7 @@ const school = {
   phone:    process.env.SCHOOL_PHONE    || '',
   email:    process.env.SCHOOL_EMAIL    || '',
   logo:     process.env.SCHOOL_LOGO     || '/logo.png',
+  supportWhatsapp: process.env.SUPPORT_WHATSAPP || '',
 };
 
 module.exports = school;
