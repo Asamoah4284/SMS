@@ -64,6 +64,7 @@ model User {
   notifications      Notification[]
   digitalMaterials   DigitalMaterial[]
   payoutRequests     PayoutRequest[]
+  uploadedLessonNotes LessonNote[] @relation("LessonNoteUploader")
 
   @@map("users")
 }
@@ -251,11 +252,29 @@ model Class {
   timetables      Timetable[]
   assessments     Assessment[]
   digitalMaterials DigitalMaterial[]
+  lessonNotes      LessonNote[]
   bookAssignments BookAssignment[]
   onlineExams     OnlineExam[]
 
   @@unique([level, section])
   @@map("classes")
+}
+
+model LessonNote {
+  id         String   @id @default(cuid())
+  title      String
+  fileName   String
+  filePath   String
+  fileType   String
+  fileSize   Int
+  classId    String
+  class      Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  uploaderId String
+  uploader   User     @relation("LessonNoteUploader", fields: [uploaderId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([classId, createdAt])
+  @@map("lesson_notes")
 }
 
 enum ClassLevel {

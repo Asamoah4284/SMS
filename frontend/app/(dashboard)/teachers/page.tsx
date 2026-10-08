@@ -18,6 +18,10 @@ interface Teacher {
   staffId: string;
   qualification: string | null;
   subjectCount: number;
+  invitation?: {
+    createdAt: string;
+    codeExpiry: string;
+  };
   classTeacherOf: { id: string; name: string; studentCount: number } | null;
   user: {
     firstName: string;
@@ -108,7 +112,7 @@ export default function TeachersPage() {
       });
       if (!res.ok) throw new Error('Failed to load teachers');
       const data = await res.json();
-      setTeachers(data.teachers);
+      setTeachers([...(data.teachers ?? []), ...(data.pendingInvitations ?? [])]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load teachers');
     } finally {
@@ -281,10 +285,11 @@ function TeacherRow({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () =>
   const fullName = `${teacher.user.firstName} ${teacher.user.lastName}`.trim();
   const initials = `${teacher.user.firstName[0] ?? ''}${teacher.user.lastName[0] ?? ''}`.toUpperCase();
   const className = formatClassName(teacher.classTeacherOf?.name);
+  const teacherHref = teacher.invitation ? '/teachers' : `/teachers/${teacher.id}`;
 
   return (
     <div className="group grid grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto_auto] gap-4 items-center px-5 py-4 hover:bg-primary-50/30 transition-colors">
-      <Link href={`/teachers/${teacher.id}`} className="flex items-center gap-3 min-w-0">
+      <Link href={teacherHref} className="flex items-center gap-3 min-w-0">
         <div className={`w-10 h-10 rounded-xl border flex items-center justify-center font-bold text-sm shrink-0 ${avatarColor(fullName)}`}>
           {initials}
         </div>
@@ -298,19 +303,19 @@ function TeacherRow({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () =>
         </div>
       </Link>
 
-      <Link href={`/teachers/${teacher.id}`} className="flex items-center gap-1.5 min-w-0">
+      <Link href={teacherHref} className="flex items-center gap-1.5 min-w-0">
         <span className="inline-flex items-center gap-1 rounded-lg bg-gray-50 border border-gray-100 px-2 py-1 text-xs font-mono font-semibold text-gray-700 truncate">
           <Hash className="w-3 h-3 text-gray-400 shrink-0" />
           {teacher.staffId}
         </span>
       </Link>
 
-      <Link href={`/teachers/${teacher.id}`} className="flex items-center gap-1.5 text-sm text-gray-600 min-w-0">
+      <Link href={teacherHref} className="flex items-center gap-1.5 text-sm text-gray-600 min-w-0">
         <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
         <span className="truncate tabular-nums">{teacher.user.phone}</span>
       </Link>
 
-      <Link href={`/teachers/${teacher.id}`} className="min-w-0">
+      <Link href={teacherHref} className="min-w-0">
         {className ? (
           <span className="inline-flex items-center rounded-lg bg-indigo-50 text-indigo-800 border border-indigo-100 px-2.5 py-1 text-xs font-semibold truncate max-w-full">
             {className}
@@ -320,7 +325,7 @@ function TeacherRow({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () =>
         )}
       </Link>
 
-      <Link href={`/teachers/${teacher.id}`} className="min-w-0">
+      <Link href={teacherHref} className="min-w-0">
         {teacher.subjectCount > 0 ? (
           <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-100 px-2.5 py-1 text-xs font-semibold">
             <BookOpen className="w-3 h-3" />
@@ -340,14 +345,14 @@ function TeacherRow({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () =>
         ) : (
           <Badge variant="warning">
             <Clock className="w-3 h-3 mr-1" />
-            Pending
+            {teacher.invitation ? 'Invited' : 'Pending'}
           </Badge>
         )}
       </div>
 
       <div className="flex items-center gap-1">
         <Link
-          href={`/teachers/${teacher.id}`}
+          href={teacherHref}
           className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-all"
           title="View profile"
         >
@@ -390,6 +395,8 @@ function TeacherDeleteButton({
     }
   };
 
+  if (teacher.invitation) return null;
+
   return (
     <>
       <button
@@ -421,11 +428,12 @@ function TeacherCard({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () =
   const fullName = `${teacher.user.firstName} ${teacher.user.lastName}`.trim();
   const initials = `${teacher.user.firstName[0] ?? ''}${teacher.user.lastName[0] ?? ''}`.toUpperCase();
   const className = formatClassName(teacher.classTeacherOf?.name);
+  const teacherHref = teacher.invitation ? '/teachers' : `/teachers/${teacher.id}`;
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
       <div className="h-1 bg-gradient-to-r from-primary-500 to-indigo-500" />
-      <Link href={`/teachers/${teacher.id}`} className="block p-4">
+      <Link href={teacherHref} className="block p-4">
         <div className="flex items-start gap-3">
           <div className={`w-12 h-12 rounded-xl border flex items-center justify-center text-base font-bold shrink-0 ${avatarColor(fullName)}`}>
             {initials}
@@ -440,7 +448,7 @@ function TeacherCard({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () =
               {teacher.user.isActive ? (
                 <Badge variant="success">Active</Badge>
               ) : (
-                <Badge variant="warning">Pending</Badge>
+                <Badge variant="warning">{teacher.invitation ? 'Invited' : 'Pending'}</Badge>
               )}
             </div>
 
@@ -467,7 +475,7 @@ function TeacherCard({ teacher, onDeleted }: { teacher: Teacher; onDeleted: () =
       <div className="flex items-center justify-between gap-2 border-t border-gray-50 px-4 py-3 bg-gray-50/50">
         <TeacherDeleteButton teacher={teacher} onDeleted={onDeleted} />
         <Link
-          href={`/teachers/${teacher.id}`}
+          href={teacherHref}
           className="inline-flex items-center gap-1 rounded-lg bg-primary-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-primary-700 transition-colors"
         >
           View profile

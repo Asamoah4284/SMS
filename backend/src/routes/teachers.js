@@ -33,7 +33,8 @@ function isValidPhoneGH(phone) {
 
 router.get('/', async (req, res) => {
   try {
-    const teachers = await prisma.teacher.findMany({
+    const [teachers, invitations] = await Promise.all([
+      prisma.teacher.findMany({
       include: {
         user: {
           select: {
@@ -56,7 +57,33 @@ router.get('/', async (req, res) => {
         },
       },
       orderBy: { user: { firstName: 'asc' } },
-    });
+      }),
+      prisma.teacherInvitation.findMany({
+        where: { accepted: false },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          staffId: true,
+          phone: true,
+          firstName: true,
+          lastName: true,
+          classId: true,
+          codeExpiry: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    const classIds = invitations
+      .map((invitation) => invitation.classId)
+      .filter(Boolean);
+    const classes = classIds.length
+      ? await prisma.class.findMany({
+          where: { id: { in: classIds } },
+          select: { id: true, name: true, _count: { select: { students: true } } },
+        })
+      : [];
+    const classById = new Map(classes.map((cls) => [cls.id, cls]));
 
     res.json({
       teachers: teachers.map((t) => ({
@@ -79,6 +106,29 @@ router.get('/', async (req, res) => {
           isActive: t.user.isActive,
         },
       })),
+      pendingInvitations: invitations.map((invitation) => {
+      const cls = invitation.classId ? classById.get(invitation.classId) : null;
+      return {
+        id: invitation.id,
+        staffId: invitation.staffId,
+        qualification: null,
+        subjectCount: 0,
+        classTeacherOf: cls
+          ? { id: cls.id, name: cls.name, studentCount: cls._count.students }
+          : null,
+        invitation: {
+          createdAt: invitation.createdAt,
+          codeExpiry: invitation.codeExpiry,
+        },
+        user: {
+          firstName: invitation.firstName,
+          lastName: invitation.lastName,
+          phone: invitation.phone,
+          email: null,
+          isActive: false,
+        },
+      };
+      }),
     });
   } catch (error) {
     console.error('Get teachers error:', error);

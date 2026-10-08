@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api/v1';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://api.deaconsfoundations/api/v1';
 
 type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: unknown;

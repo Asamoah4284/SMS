@@ -100,15 +100,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setUser(fullUser);
         setNeedsTeachingSetup(Boolean(data.needsTeachingSetup));
         setMustChangePassword(Boolean(data.mustChangePassword));
-        // Update localStorage so next page load is instant
-        localStorage.setItem('user', JSON.stringify({
-          id: fullUser.id,
-          phone: fullUser.phone,
-          email: fullUser.email,
-          firstName: fullUser.firstName,
-          lastName: fullUser.lastName,
-          role: fullUser.role,
-        }));
+        // Keep the complete profile cached so a transient API failure cannot
+        // make an assigned teacher appear unassigned on the next page load.
+        localStorage.setItem('user', JSON.stringify(fullUser));
       }
     } catch { /* silently keep cached value */ }
     finally { setLoading(false); }

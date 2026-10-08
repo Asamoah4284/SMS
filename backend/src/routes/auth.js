@@ -44,7 +44,8 @@ router.post(
       }),
   ],
   handleValidationErrors,
-  authenticate, // Admin only
+  authenticate,
+  authorize('ADMIN'),
   async (req, res) => {
     try {
       const { firstName, lastName, phone, classId } = req.body;

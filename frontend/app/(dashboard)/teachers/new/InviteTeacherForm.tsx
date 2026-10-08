@@ -10,6 +10,7 @@ type InviteResult = {
   staffId: string;
   maskedPhone: string;
   name: string;
+  warning: string | null;
 };
 
 export default function InviteTeacherForm() {
@@ -91,6 +92,7 @@ export default function InviteTeacherForm() {
         staffId: data.staffId,
         maskedPhone: data.phone,
         name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+        warning: data.warning ?? null,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send invitation');
@@ -132,6 +134,9 @@ export default function InviteTeacherForm() {
             <span className="font-semibold text-gray-700">{result.maskedPhone}</span>
           </div>
         </div>
+        {result.warning && (
+          <Alert type="warning" message={result.warning} className="mt-4" />
+        )}
 
         <div className="mt-5 flex gap-3">
           <Button variant="secondary" onClick={resetForm} className="flex-1">
@@ -251,4 +256,3 @@ export default function InviteTeacherForm() {
     </form>
   );
 }
-

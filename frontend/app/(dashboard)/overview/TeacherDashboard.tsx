@@ -51,11 +51,31 @@ export default function TeacherDashboard() {
     fetch(`${API}/reports/my-class`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`Failed to load class dashboard (${r.status})`);
+        return r.json();
+      })
       .then(setStats)
-      .catch(() => {})
+      .catch(() => {
+        // Keep the assignment from /auth/me visible during a temporary stats failure.
+        setStats({
+          classTeacherOf: myClassId && user?.teacherProfile?.classTeacherOf
+            ? {
+                id: myClassId,
+                name: user.teacherProfile.classTeacherOf.name,
+                level: user.teacherProfile.classTeacherOf.level,
+                totalStudents: 0,
+                male: 0,
+                female: 0,
+                attendanceToday: { rate: null, present: 0, absent: 0, marked: 0, total: 0 },
+                currentTerm: null,
+                results: { studentsWithResults: 0, isPublished: false },
+              }
+            : null,
+        });
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [myClassId, user]);
 
   // Group subject teacher's assignments by class
   const subjectsByClass = useMemo(() => {
