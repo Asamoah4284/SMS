@@ -73,8 +73,6 @@ async function getClassMeta(prisma, classId) {
 }
 
 async function updateStudentIdAndPortal(tx, studentDbId, oldStudentId, newStudentId) {
-  if (oldStudentId === newStudentId) return;
-
   const profile = await tx.studentProfile.findUnique({
     where: { studentDbId },
     include: { user: true },
@@ -94,9 +92,25 @@ async function updateStudentIdAndPortal(tx, studentDbId, oldStudentId, newStuden
     });
   }
 
+  if (oldStudentId === newStudentId) return;
+
   await tx.student.update({
     where: { id: studentDbId },
     data: { studentId: newStudentId },
+  });
+}
+
+async function moveStudentPortalToTemporaryPhone(prisma, studentDbId, tempPhone) {
+  const profile = await prisma.studentProfile.findUnique({
+    where: { studentDbId },
+    select: { userId: true },
+  });
+
+  if (!profile) return;
+
+  await prisma.user.update({
+    where: { id: profile.userId },
+    data: { phone: tempPhone },
   });
 }
 
@@ -119,7 +133,7 @@ async function renumberClassStudentIds(prisma, classId, prefix) {
 
   const tempPrefix = `__REN_${Date.now()}_`;
 
-  // Phase 1: temporary IDs so final IDs never collide during swap
+  // Phase 1: temporary IDs and portal phones so final values never collide during swap.
   for (const s of sorted) {
     const tempId = `${tempPrefix}${s.id}`;
     if (s.studentId === tempId) continue;
@@ -127,6 +141,10 @@ async function renumberClassStudentIds(prisma, classId, prefix) {
       where: { id: s.id },
       data: { studentId: tempId },
     });
+  }
+
+  for (const s of sorted) {
+    await moveStudentPortalToTemporaryPhone(prisma, s.id, `${tempPrefix}${s.id}`);
   }
 
   let updated = 0;
