@@ -24,6 +24,7 @@ import {
   LogOut,
   Settings,
   X,
+  ArrowUpCircle,
 } from "lucide-react";
 
 type NavChild = { name: string; href: string };
@@ -105,6 +106,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     { name: "Online Exams", href: "/online-exams", icon: FileText, teacherVisible: true },
     { name: "Library", href: "/library", icon: Library, teacherVisible: true },
     { name: "Lesson Notes", href: "/lesson-notes", icon: FileText, teacherVisible: true },
+    { name: "Promotions", href: "/promotions", icon: ArrowUpCircle, classTeacherOnly: true },
     { name: "Leaves", href: "/leaves", icon: ClipboardList, teacherVisible: true },
     { name: "Certificate", href: "/certificate", icon: Award, adminOnly: true },
     { name: "Settings", href: "/settings", icon: Settings, adminOnly: true },
