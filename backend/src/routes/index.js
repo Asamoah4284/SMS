@@ -25,6 +25,7 @@ const onlineExamsRoutes = require('./onlineExams');
 const studentPortalRoutes = require('./studentPortal');
 const paymentsRoutes = require('./payments');
 const lessonNotesRoutes = require('./lessonNotes');
+const promotionsRoutes = require('./promotions');
 
 const router = Router();
 
@@ -53,5 +54,6 @@ router.use('/online-exams', onlineExamsRoutes);
 router.use('/student-portal', studentPortalRoutes);
 router.use('/payments', paymentsRoutes);
 router.use('/lesson-notes', lessonNotesRoutes);
+router.use('/promotions', promotionsRoutes);
 
 module.exports = router;

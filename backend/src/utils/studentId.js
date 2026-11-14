@@ -119,61 +119,49 @@ async function moveStudentPortalToTemporaryPhone(prisma, studentDbId, tempPhone)
  * Uses short per-student writes (safe on remote Postgres — no long transactions).
  */
 async function renumberClassStudentIds(prisma, classId, prefix) {
-  const { classCode } = await getClassMeta(prisma, classId);
+  const result = await renumberClassesStudentIds(prisma, [classId], prefix);
+  return result[classId] || { updated: 0, classCode: null };
+}
+
+async function renumberClassesStudentIds(prisma, classIds, prefix) {
+  const uniqueClassIds = [...new Set(classIds.filter(Boolean))];
+  const metas = await Promise.all(uniqueClassIds.map((classId) => getClassMeta(prisma, classId)));
   const students = await prisma.student.findMany({
-    where: { classId, isActive: true },
-    select: { id: true, studentId: true, firstName: true, lastName: true },
+    where: { classId: { in: uniqueClassIds }, isActive: true },
+    select: { id: true, studentId: true, firstName: true, lastName: true, classId: true },
   });
-
-  if (students.length === 0) return { updated: 0, classCode };
-
-  const sorted = [...students]
-    .sort((a, b) => sortNameKey(a).localeCompare(sortNameKey(b)))
-    .map((s) => ({ ...s, originalStudentId: s.studentId }));
-
   const tempPrefix = `__REN_${Date.now()}_`;
-
-  // Phase 1: temporary IDs and portal phones so final values never collide during swap.
-  for (const s of sorted) {
-    const tempId = `${tempPrefix}${s.id}`;
-    if (s.studentId === tempId) continue;
-    await prisma.student.update({
-      where: { id: s.id },
-      data: { studentId: tempId },
-    });
-  }
-
-  for (const s of sorted) {
-    await moveStudentPortalToTemporaryPhone(prisma, s.id, `${tempPrefix}${s.id}`);
-  }
-
-  let updated = 0;
   const txOpts = { timeout: 60_000, maxWait: 15_000 };
 
-  // Phase 2: assign register numbers + sync portal login
-  for (let i = 0; i < sorted.length; i++) {
-    const newStudentId = formatStudentId(prefix, classCode, i + 1);
-    const tempId = `${tempPrefix}${sorted[i].id}`;
-
-    if (sorted[i].originalStudentId === newStudentId) {
-      const current = await prisma.student.findUnique({
-        where: { id: sorted[i].id },
-        select: { studentId: true },
-      });
-      if (current?.studentId === newStudentId) continue;
-    }
-
-    await prisma.$transaction(
-      async (tx) => {
-        await updateStudentIdAndPortal(tx, sorted[i].id, tempId, newStudentId);
-      },
-      txOpts
-    );
-
-    if (sorted[i].originalStudentId !== newStudentId) updated++;
+  // Move every affected ID and portal phone first so promotions can swap IDs across classes safely.
+  for (const student of students) {
+    await prisma.student.update({
+      where: { id: student.id },
+      data: { studentId: `${tempPrefix}${student.id}` },
+    });
+  }
+  for (const student of students) {
+    await moveStudentPortalToTemporaryPhone(prisma, student.id, `${tempPrefix}${student.id}`);
   }
 
-  return { updated, classCode };
+  const result = {};
+  for (const meta of metas) {
+    const classStudents = students
+      .filter((student) => student.classId === meta.id)
+      .sort((a, b) => sortNameKey(a).localeCompare(sortNameKey(b)));
+    let updated = 0;
+    for (let i = 0; i < classStudents.length; i++) {
+      const student = classStudents[i];
+      const newStudentId = formatStudentId(prefix, meta.classCode, i + 1);
+      await prisma.$transaction(
+        (tx) => updateStudentIdAndPortal(tx, student.id, `${tempPrefix}${student.id}`, newStudentId),
+        txOpts
+      );
+      if (student.studentId !== newStudentId) updated++;
+    }
+    result[meta.id] = { updated, classCode: meta.classCode };
+  }
+  return result;
 }
 
 /**
@@ -245,6 +233,7 @@ async function renumberAllClassStudentIds(prisma, prefix) {
 module.exports = {
   generateStudentId,
   renumberClassStudentIds,
+  renumberClassesStudentIds,
   renumberAllClassStudentIds,
   classLevelToCode,
   formatStudentId,

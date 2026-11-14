@@ -65,6 +65,8 @@ model User {
   digitalMaterials   DigitalMaterial[]
   payoutRequests     PayoutRequest[]
   uploadedLessonNotes LessonNote[] @relation("LessonNoteUploader")
+  promotionBatchesCreated PromotionBatch[] @relation("PromotionCreatedBy")
+  promotionBatchesFinalized PromotionBatch[] @relation("PromotionFinalizedBy")
 
   @@map("users")
 }
@@ -224,8 +226,58 @@ model Student {
   bookPayments     BookPayment[]
   bookPaystackIntents BookPaystackIntent[]
   examAttempts     ExamAttempt[]
+  promotionDecisions PromotionDecision[]
 
   @@map("students")
+}
+
+enum PromotionBatchStatus {
+  DRAFT
+  FINALIZED
+}
+
+enum PromotionAction {
+  PROMOTE
+  REPEAT
+  WITHDRAW
+}
+
+model PromotionBatch {
+  id           String              @id @default(cuid())
+  sourceClassId String
+  targetClassId String?
+  status       PromotionBatchStatus @default(DRAFT)
+  createdById  String
+  finalizedById String?
+  createdAt    DateTime            @default(now())
+  finalizedAt  DateTime?
+
+  sourceClass  Class               @relation("PromotionSourceClass", fields: [sourceClassId], references: [id])
+  targetClass  Class?              @relation("PromotionTargetClass", fields: [targetClassId], references: [id])
+  createdBy    User                @relation("PromotionCreatedBy", fields: [createdById], references: [id])
+  finalizedBy  User?               @relation("PromotionFinalizedBy", fields: [finalizedById], references: [id])
+  decisions    PromotionDecision[]
+
+  @@index([sourceClassId, status])
+  @@map("promotion_batches")
+}
+
+model PromotionDecision {
+  id          String          @id @default(cuid())
+  batchId     String
+  studentId   String
+  action      PromotionAction
+  targetClassId String?
+  note        String?
+  createdAt   DateTime        @default(now())
+
+  batch       PromotionBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  student     Student         @relation(fields: [studentId], references: [id])
+  targetClass Class?          @relation("PromotionDecisionTarget", fields: [targetClassId], references: [id])
+
+  @@unique([batchId, studentId])
+  @@index([studentId, createdAt])
+  @@map("promotion_decisions")
 }
 
 enum Gender {
@@ -255,6 +307,9 @@ model Class {
   lessonNotes      LessonNote[]
   bookAssignments BookAssignment[]
   onlineExams     OnlineExam[]
+  promotionSources PromotionBatch[] @relation("PromotionSourceClass")
+  promotionTargets PromotionBatch[] @relation("PromotionTargetClass")
+  promotionDecisionTargets PromotionDecision[] @relation("PromotionDecisionTarget")
 
   @@unique([level, section])
   @@map("classes")
